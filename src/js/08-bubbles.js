@@ -4,7 +4,7 @@ function headOf(ent){ if (ent.g) return _v.set(ent.g.position.x, ent.g.position.
 function say(ent, text, dur=2.6, cls=''){
   let b = bubbles.find(b => b.ent === ent && !b.persist);
   if (!b){ const el = document.createElement('div'); bubbleLayer.appendChild(el); b = { el, ent }; bubbles.push(b); }
-  b.el.className = 'bubble ' + cls; b.el.textContent = text; b.t = dur;
+  b.el.className = 'bubble ' + cls; b.el.textContent = text; b.t = dur; if (ent.arms && text) ent.gestT = Math.min(dur || 2, 2.2);
   if (ent.g && Math.random() < .55) speak(text);
 }
 function orderBubble(ent){ const el = document.createElement('div'); el.className = 'bubble order'; bubbleLayer.appendChild(el); const b = { el, ent, persist: true, t: 1e9 }; bubbles.push(b); return b; }

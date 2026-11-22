@@ -16,7 +16,7 @@ function thiefStart(at, line, ban){
 }
 function thiefCaught(){
   if (!thief.active || thief.caught) return;
-  thief.caught = true; youssefD.downT = 2.5; thwack(); coin(); buzz(30);
+  thief.caught = true; youssefD.downT = 2.5; thwack(); coin(); buzz(30); stat('thief');
   say(thief, 'خلاص خلاص… خد الساندوتش 😅', 2.5, 'angry');
   const reward = 40; hero.money += reward; if (modeId === 'story'){ SAVE.rep += 3; SAVE.cnt.thief = (SAVE.cnt.thief||0) + 1; saveStory(); }
   banner(`مسكت يوسف! +${reward} جنيه من صاحب العربية`, 'ok', 3);

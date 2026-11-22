@@ -37,7 +37,7 @@ function endJob2(silent){
   if (typeof saveStory === 'function') saveStory();
 }
 $('jobEnd').onclick = () => endJob2(false);
-function payJob(base, tip, label){ const pay = Math.round(base + tip); hero.money += pay; JOB.earned += pay; JOB.count++; coin(); buzz(25); banner(`${label} +${pay} جنيه${tip >= 1 ? ' (بقشيش ' + Math.round(tip) + ')' : ''}`, 'ok', 2.2); if (typeof SAVE !== 'undefined'){ SAVE.cnt[JOB.kind] = (SAVE.cnt[JOB.kind]||0) + 1; } }
+function payJob(base, tip, label){ const pay = Math.round(base + tip); hero.money += pay; JOB.earned += pay; JOB.count++; stat(JOB.kind); coin(); buzz(25); banner(`${label} +${pay} جنيه${tip >= 1 ? ' (بقشيش ' + Math.round(tip) + ')' : ''}`, 'ok', 2.2); if (typeof SAVE !== 'undefined'){ SAVE.cnt[JOB.kind] = (SAVE.cnt[JOB.kind]||0) + 1; } }
 function onVehicleCrash(v, sp){ if (JOB.kind === 'pizza' && JOB.order){ JOB.order.box = Math.max(0, JOB.order.box - (sp > 14 ? 35 : 20)); banner('🍕 العلبة اتخبطت!', 'bad', 1.2); } }
 function updateJobs(dt){
   if (!JOB.kind) return;

@@ -31,7 +31,7 @@ function dlgShow(who, text){
   $('dlgFace').innerHTML = face ? `<img src="${face}" alt="">` : `<span>${c.emoji || '💬'}</span>`;
   $('dlgName').textContent = c.name(); $('dlg').hidden = false; $('dlgText').textContent = '';
   CUT.typing = { full: text, i: 0 };
-  if (!muted) speak(text);
+  if (!muted && !playVoice(text)) speak(text);
 }
 function dlgTap(){
   if (!CUT.on) return;
@@ -52,12 +52,15 @@ async function playCut(steps){
       if (CUT.skip && !s.do) continue;
       if (s.cam){ await new Promise(res => { CUT.cam = { p0: camera.position.clone(), p1: cv3(s.cam), l0: lookAt.clone(), l1: cv3(s.look || s.cam), k: s.t === 0 ? 1 : 0, t: s.t ?? 1.4, res }; }); }
       if (s.walk){ const [d, x, z, sp] = s.walk; const pr = new Promise(res => CUT.walkers.push({ d, x, z, sp: sp || 2.2, res })); if (!s.noWait) await pr; }
-      if (s.say){ dlgShow(s.say, s.text); await Promise.race([new Promise(res => { CUT.waitTap = res; }), cutWait(s.auto || Math.max(6, s.text.length * .09 + 3))]); CUT.waitTap = null; CUT.typing = null; }
+      if (s.say){ dlgShow(s.say, s.text); let tapped = false; const tap = new Promise(res => { CUT.waitTap = () => { tapped = true; res(); }; });
+        await Promise.race([tap, cutWait(s.auto || Math.max(6, s.text.length * .09 + 3))]);
+        if (!tapped && !CUT.skip && voiceLeft() > .2) await Promise.race([tap, cutWait(voiceLeft() + .35)]);
+        CUT.waitTap = null; CUT.typing = null; stopVoice(); }
       if (s.wait) await cutWait(s.wait);
       if (s.fade) await fadeTo(s.fade === true ? null : s.fade);
     }
   } finally {
-    $('dlg').hidden = true; $('cine').hidden = true; document.body.classList.remove('cutscene');
+    $('dlg').hidden = true; $('cine').hidden = true; document.body.classList.remove('cutscene'); stopVoice();
     CUT.on = false; CUT.cam = null; CUT.walkers.length = 0; CUT.skip = false; hero.locked = false;
     CAM.orbit = CAM.orbitSm = camYaw;
   }

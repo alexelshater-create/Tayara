@@ -383,7 +383,7 @@ function serveFoul(){
   if (miss.length || extra.length){ say(c.n, miss.length ? `ناقص: ${miss.map(sandLabel).join('، ').replace(/[^؀-ۿ\s+،]/g,'')}` : 'ده مش طلبي!', 2.2, 'angry'); c.patience -= 6; buzz(40); return stMsg(miss.length ? 'الطلب ناقص' : 'فيه حاجة زيادة مش مطلوبة', 'bad'); }
   const bad = FL.bag.find(b => b.q !== 'good');
   const price = c.order.reduce((s,o) => s + sandPrice(o), 0); const tip = bad ? 0 : Math.round(4*clamp(c.patience/c.maxPat,0,1) + 1);
-  m.served++; m.earned += price + tip; hero.money += price + tip; coin(); buzz(25); if (m.onServe) m.onServe('foul');
+  m.served++; m.earned += price + tip; hero.money += price + tip; coin(); buzz(25); if (m.onServe) m.onServe('foul'); stat('foul');
   FL.bag = []; foulVisual();
   if (bad) { say(c.n, bad.q === 'burnt' ? 'الفلافل محروقة يا معلم!' : 'ده لسه ني!', 2, 'angry'); stMsg(`+${price} جنيه (من غير بقشيش)`, 'bad'); }
   else stMsg(`+${price + tip} جنيه 👌`, 'ok');

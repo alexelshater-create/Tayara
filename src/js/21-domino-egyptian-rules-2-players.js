@@ -220,7 +220,7 @@ $('dCheat').onclick = () => {
 function afterPlay(seat, announced){
   DOM.qafla = false;
   if (!hand(seat).length) return endRound({ type: 'out', seat });
-  if (isBlocked()){ if (announced) return endRound({ type: 'block', seat }); DOM.score[1 - teamOf(seat)] += 50; return endRound({ type: 'penalty', seat }); }
+  if (isBlocked()){ if (announced){ if (isMe(seat)) stat('qafla'); return endRound({ type: 'block', seat }); } DOM.score[1 - teamOf(seat)] += 50; return endRound({ type: 'penalty', seat }); }
   if (announced && isMe(seat)) dMsg('قلت «قفلة» ومكانتش قفلة 😅');
   nextTurn();
 }
@@ -278,6 +278,7 @@ function checkMatch(prefix=''){
   const [a, b] = DOM.score;
   if (a < DOM.target && b < DOM.target) return false;
   DOM.over = true; DOM.matchOver = true; clearTimeout(DOM.aiTimer); const w = a >= b;
+  if (w){ stat('domWin'); if (DOM.mode === '2v2') stat('domWin2'); }
   let betTxt = ''; if (modeObj.onDomino){ const bt = modeObj.onDomino(w); if (bt) betTxt = w ? ` · +${bt} جنيه` : ` · -${bt} جنيه`; }
   dMsg(`${prefix ? prefix + ' — ' : ''}${w ? `🏆 كسبتوا الماتش ${a}–${b}!` : `${teamName(1)} كسب الماتش ${b}–${a} 😅`}${betTxt}`.replace('كسبتوا', DOM.mode === '1v1' ? 'كسبت' : 'كسبتوا'));
   if (w) coin(); speak(w ? 'ماشي… كسبتوا المرة دي' : 'اتعلم يا ابني');

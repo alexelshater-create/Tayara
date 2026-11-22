@@ -238,7 +238,7 @@ body.touch #joyHint.show{display:flex}
 #dlg small{display:block;text-align:left;color:var(--muted);font-size:11px;margin-top:2px}
 body.cutscene #hud .top,body.cutscene .mbtns,body.cutscene #joy,body.cutscene #joyHint,body.cutscene #prompt,body.cutscene #banner,body.cutscene #tray,body.cutscene #jobEnd,body.cutscene #bubbles{display:none!important}
 body.in-rhythm .mbtns,body.in-rhythm #joy,body.in-rhythm #joyHint,body.in-rhythm #prompt,body.in-rhythm #jobEnd,body.in-rhythm #hud .top{display:none!important}
-.jobend{position:absolute;top:calc(160px + env(safe-area-inset-top,0px));left:12px;background:rgba(160,16,32,.85);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:999px;padding:6px 14px;font-weight:800;font-size:13px}
+.jobend{position:absolute;top:calc(60px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);z-index:3;background:rgba(160,16,32,.85);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:999px;padding:6px 14px;font-weight:800;font-size:13px}
 #rhy{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(8px + env(safe-area-inset-bottom,0px));width:min(520px,calc(100vw - 16px));height:min(60vh,480px);z-index:20;background:linear-gradient(rgba(20,8,30,0) 0%,rgba(20,8,30,.12) 45%,rgba(20,8,30,.7) 100%);border-radius:20px;overflow:hidden;direction:ltr}
 #rhy .rtop{display:flex;justify-content:space-between;align-items:center;padding:8px 14px;direction:rtl;text-shadow:0 2px 6px #000}
 #rhy .rtop b{color:#ffd1f2;font-size:16px}#rhyScore{font-weight:900;color:#fff}
@@ -256,3 +256,42 @@ body.in-rhythm .mbtns,body.in-rhythm #joy,body.in-rhythm #joyHint,body.in-rhythm
 .rlane.hit{background:rgba(255,255,255,.35);transform:scale(.96)}
 @media (max-width:720px){#chap b{font-size:28px}#dlgText{font-size:16px}#dlgFace{width:50px;height:50px;font-size:28px}#dlg{bottom:calc(9vh + 6px + env(safe-area-inset-bottom,0px))}}
 @media (max-height:500px){.card.obj{display:block;max-width:230px;font-size:11.5px;line-height:1.45;padding:5px 10px}.card.obj b{font-size:12.5px;margin:0}.card.obj #objText{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}.card.obj.open #objText{display:block}#dlg{bottom:calc(9vh + 4px)}#dlgText{font-size:15px;min-height:0}#dlgFace{width:44px;height:44px}#chap b{font-size:26px}#rhy{height:calc(100vh - 16px)}.rlane{height:58px}#rhy .rline,#rhyNotes{bottom:74px}}
+
+/* ---- phase 3: achievements, photo mode ---- */
+.achtoast{position:fixed;top:calc(64px + env(safe-area-inset-top,0px));left:50%;transform:translate(-50%,-20px);opacity:0;z-index:36;display:flex;gap:10px;align-items:center;background:linear-gradient(135deg,rgba(60,40,6,.95),rgba(20,14,6,.95));border:1px solid var(--gold);border-radius:16px;padding:8px 18px 8px 14px;box-shadow:0 10px 30px rgba(0,0,0,.5);transition:opacity .35s,transform .35s;pointer-events:none}
+.achtoast.show{opacity:1;transform:translate(-50%,0)}
+.achtoast .ai{font-size:30px}.achtoast small{display:block;font-size:11px;color:var(--muted);font-weight:800}.achtoast b{display:block;font-size:17px;color:var(--gold)}
+.achp{width:min(640px,calc(100vw - 24px));max-height:calc(100vh - 32px);display:flex;flex-direction:column}
+.achlist{overflow:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px;margin-top:10px}
+.ach{display:flex;gap:10px;align-items:center;padding:8px 10px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid var(--line);opacity:.6}
+.ach.got{opacity:1;border-color:rgba(255,201,74,.5);background:rgba(255,201,74,.08)}
+.ach .ai{font-size:26px;width:34px;text-align:center}.ach b{display:block;font-size:14px}.ach small{display:block;font-size:12px;color:var(--muted)}
+.mode.ach .ic{background:rgba(255,201,74,.15)}
+body.photo #hud,body.photo #bubbles{display:none!important}
+#photoUi{position:fixed;inset:0;z-index:25;pointer-events:none}
+#photoUi .phtop{position:absolute;top:calc(10px + env(safe-area-inset-top,0px));left:10px;right:10px;display:flex;justify-content:space-between;align-items:center;gap:10px}
+#photoUi .phtop span{background:rgba(0,0,0,.5);padding:4px 12px;border-radius:999px;font-size:12px;font-weight:700}
+#photoUi button{pointer-events:auto;background:rgba(14,10,6,.8);border:1px solid var(--line);color:#fff;border-radius:999px;padding:8px 14px;font-weight:800;font-size:14px}
+#photoUi .phbar{position:absolute;bottom:calc(14px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);display:flex;gap:8px;align-items:center}
+#phSnap{width:68px;height:68px;border-radius:50%!important;font-size:30px!important;padding:0!important;background:#fff!important;border:4px solid var(--gold)!important}
+.php{width:min(760px,calc(100vw - 24px))}.php img{width:100%;border-radius:12px;display:block;margin-bottom:10px}
+@media (max-height:500px){#photoUi button{padding:6px 10px;font-size:12px}#phSnap{width:54px;height:54px}.php img{max-height:60vh;object-fit:contain}}
+
+/* ---- phase 3: activities ---- */
+#actUi{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(76px + env(safe-area-inset-bottom,0px));width:min(420px,80vw);text-align:center;pointer-events:none}
+#amLabel{font-weight:900;font-size:15px;text-shadow:0 2px 6px #000;margin-bottom:6px}
+.ambar{position:relative;height:16px;border-radius:999px;background:rgba(0,0,0,.55);border:1px solid var(--line);overflow:hidden;direction:ltr}
+#amZone{position:absolute;top:0;bottom:0;background:rgba(60,220,100,.55)}
+#amMark{position:absolute;top:-2px;bottom:-2px;width:6px;margin-left:-3px;background:#ffd34d;box-shadow:0 0 8px #ffd34d;border-radius:3px}
+body.cutscene #actUi,body.cutscene #actQuit{display:none!important}
+
+.twp{width:min(800px,calc(100vw - 12px))}
+#twCanvas{display:block;margin:8px auto;border-radius:10px;touch-action:none;box-shadow:0 6px 20px rgba(0,0,0,.5)}
+
+.paintrow{flex-wrap:wrap}.swatches{display:flex;flex-wrap:wrap;gap:6px}
+.swatch{width:34px;height:34px;min-height:0!important;padding:0!important;border-radius:50%!important;border:2px solid rgba(255,255,255,.35)!important}
+.swatch.on{border:3px solid #fff!important;box-shadow:0 0 0 2px var(--gold)}
+
+#ramBtn.on{background:linear-gradient(180deg,#3a2a6a,#1d1440);color:#ffe28a;border-color:#ffc94a}
+
+#photoShot{z-index:28}

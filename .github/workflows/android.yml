@@ -1,0 +1,75 @@
+name: Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+concurrency:
+  group: apk
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Build the game and the web folder
+        run: |
+          python3 build.py
+          npm install --no-audit --no-fund
+          npm run www
+
+      - name: Create the Android project
+        run: |
+          npx cap add android
+          M=android/app/src/main/AndroidManifest.xml
+          # landscape, microphone (for recording voices) and full screen
+          sed -i 's|android:name=".MainActivity"|android:name=".MainActivity" android:screenOrientation="sensorLandscape"|' $M
+          sed -i 's|</manifest>|    <uses-permission android:name="android.permission.RECORD_AUDIO" />\n    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />\n</manifest>|' $M
+          S=android/app/src/main/res/values/styles.xml
+          sed -i 's|<style name="AppTheme.NoActionBar" parent="Theme.AppCompat.DayNight.NoActionBar">|&\n        <item name="android:windowFullscreen">true</item>|' $S
+
+      - name: App icon from طيارة's photo
+        continue-on-error: true
+        run: |
+          mkdir -p resources
+          convert assets/chars/hero/face.webp -resize 820x820 -background "#ffc94a" -gravity center -extent 1024x1024 resources/icon-only.png
+          convert assets/chars/hero/face.webp -resize 600x600 -background none -gravity center -extent 1024x1024 resources/icon-foreground.png
+          convert -size 1024x1024 xc:"#ffc94a" resources/icon-background.png
+          convert -size 2732x2732 xc:"#0d0b09" resources/splash.png
+          npx --yes @capacitor/assets@3.0.5 generate --android --assetPath resources
+
+      - name: Build the APK
+        run: |
+          npx cap sync android
+          cd android && ./gradlew assembleDebug --no-daemon
+          cp app/build/outputs/apk/debug/app-debug.apk ../tayara-elgamed.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tayara-elgamed-apk
+          path: tayara-elgamed.apk
+
+      - name: Publish as the latest download
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-latest
+          name: طيارة الجامد · أحدث APK
+          body: نزّل الملف tayara-elgamed.apk على الموبايل وسطّبه (لازم تسمح بالتثبيت من مصادر غير معروفة).
+          prerelease: false
+          make_latest: true
+          files: tayara-elgamed.apk

@@ -5,7 +5,7 @@ function spawnEnemy(){ enemy.active = true; enemy.d.root.visible = true; enemy.h
 function hitEnemy(dmg, from){
   enemy.hp -= dmg; thwack(); const dx = enemy.pos.x - from.x, dz = enemy.pos.z - from.z, d = Math.hypot(dx,dz)||1;
   moveWithSlide(enemy.pos, dx/d*1.2, dz/d*1.2);
-  if (enemy.hp <= 0){ enemy.d.downT = 6; enemy.state = 'down'; enemy.cd = 12; enemy.hp = enemy.maxHp || 100; say(enemy, 'ماشي يا طيارة… هترجعلي', 3, 'angry'); if (modeObj.onEnemyDown) modeObj.onEnemyDown(); }
+  if (enemy.hp <= 0){ stat('arabiDown'); enemy.d.downT = 6; enemy.state = 'down'; enemy.cd = 12; enemy.hp = enemy.maxHp || 100; say(enemy, 'ماشي يا طيارة… هترجعلي', 3, 'angry'); if (modeObj.onEnemyDown) modeObj.onEnemyDown(); }
   else say(enemy, rpick(['آه!','ماشي!','بتضربني؟!']), 1.2, 'angry');
 }
 function updateEnemy(dt){

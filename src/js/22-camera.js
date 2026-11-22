@@ -3,7 +3,7 @@ const lookAt = new THREE.Vector3(); let camYaw = 0;
 const ray = new THREE.Ray(), headPos = new THREE.Vector3(), _t = new THREE.Vector3();
 function updateCamera(dt){
   const v = hero.veh;
-  if (CUT.on){ /* the cutscene moves the camera */ } else if (ST.kind){ stationCamera(dt); } else if (v){
+  if (CUT.on){ /* the cutscene moves the camera */ } else if (ACT.cam){ camera.position.lerp(ACT.cam.p, damp(5, dt)); lookAt.lerp(ACT.cam.l, damp(6, dt)); } else if (ST.kind){ stationCamera(dt); } else if (v){
     // look-around offset from dragging; it eases back behind the vehicle after a moment
     if (performance.now() - CAM.lastDrag > 1400) CAM.veh *= Math.exp(-dt*2.5);
     const vy = v.yaw + CAM.veh, fx = Math.sin(vy), fz = Math.cos(vy); const back = v.type === 'moto' ? 5.8 : 7.6, up = (v.type === 'moto' ? 2.6 : 3.2) * (.6 + CAM.tilt*.9);

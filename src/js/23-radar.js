@@ -27,6 +27,7 @@ function radarMarks(t){
   if (wanted.active && !wanted.caught) m.push({ x: wanted.pos.x, z: wanted.pos.z, r: 4.5, c: Math.floor(t*4)%2 ? '#ff2020' : '#ffffff' });
   if (modeId === 'cash') cash.forEach(c => { if (!c.taken) m.push({ x: c.x, z: c.z, r: 3, c: '#ffd34d' }); });
   if (typeof storyMapMarks === 'function') m.push(...storyMapMarks(t));
+  m.push(...actMapMarks(t));
   return m;
 }
 function drawRadar(t){

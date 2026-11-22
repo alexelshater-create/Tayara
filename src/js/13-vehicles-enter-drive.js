@@ -43,7 +43,7 @@ function driveVehicle(v, dt, inX, inZ, brake){
     if (!poseBlocked(v.pos.x, v.pos.z, turnOnly)) v.yaw = turnOnly;
   }
   else { v.pos.x = nx; v.pos.z = nz; v.yaw = nyaw; }
-  v.pos.y += (groundY(v.pos.x, v.pos.z) - v.pos.y) * damp(12, dt);
+  if (!vehicleAir(v, dt)) v.pos.y += (groundY(v.pos.x, v.pos.z) - v.pos.y) * damp(12, dt);
   v.mesh.rotation.y = v.yaw;
   if (v.type === 'moto') v.mesh.rotation.z = -v.steer * .35 * clamp(Math.abs(v.speed)/10, 0, 1);
   // traffic bump

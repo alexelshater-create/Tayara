@@ -585,7 +585,7 @@ async function finishMission(){
   if (modeId !== 'story') return;
   if (M.reward) hero.money += M.reward;
   SAVE.rep += 5; SAVE.m++; coin(); buzz(40);
-  banner(`✅ ${M.title}${M.reward ? ' · +' + M.reward + ' جنيه' : ''}`, 'ok', 3);
+  banner(`✅ ${M.title}${M.reward ? ' · +' + M.reward + ' جنيه' : ''}`, 'ok', 3); heroCheer();
   ST2.d = { base: {} }; parkArabiMoto(); applyStoryWorld();
   if (SAVE.m >= MS.length){ SAVE.ended = true; saveStory(); ST2.phase = 'done'; applyStoryWorld(); setTimeout(showStoryEnd, 1200); return; }
   saveStory(); ST2.phase = 'wait'; ST2.waitT = 2.2;
@@ -716,7 +716,7 @@ function updateStory(dt){
 
 function resetWorld(){
   clearBubbles();
-  if (JOB.kind) endJob2(true); if (CUT.on) CUT.skip = true;
+  if (JOB.kind) endJob2(true); if (CUT.on) CUT.skip = true; if (ACT.kind) actEnd(null);
   if (RHY.on){ RHY.on = false; RHY.res = null; $('rhy').hidden = true; $('rhyNotes').innerHTML = ''; document.body.classList.remove('in-rhythm'); }
   if (HOUSE.inside){ HOUSE.inside = false; if (HOUSE.prevCam) camTarget = HOUSE.prevCam; }
   storyReset(); wedding.visible = false; ST2.idle.clear(); ST2.phase = 'off'; enemy.ally = false; pizzaBox.visible = false; $('chap').hidden = true;
@@ -782,7 +782,7 @@ function startMode(id){
       houseVisual(); TOD.h = SAVE.time ?? 9; applyTimeOfDay(TOD.h); parkArabiMoto(); applyStoryWorld();
       const patrons = npcs.slice(free+2, free+14), pool = npcs.slice(free+14, free+20);
       return { vehicles: true, cafe: true, story: true, title: 'القصة', job: null, patrons, pool, tray: [], seatsTaken: new Set(), queue: [], served: 0, angry: 0, earned: 0, spawnT: 1, domBet: 20,
-        canDrive: v => (v === heroMoto && SAVE.owned.moto) || (v === heroCar && SAVE.owned.car) || (!!v.jobOnly && v.jobOnly === JOB.kind) || (v === arabiMoto && !!ST2.d.arabiMoto),
+        canDrive: v => (v === heroMoto && SAVE.owned.moto) || (v === heroCar && SAVE.owned.car) || (!!v.jobOnly && v.jobOnly === JOB.kind) || (v === arabiMoto && !!ST2.d.arabiMoto) || (!!v.jobOnly && v.jobOnly === ACT.kind),
         hud: storyHud, hudTitle: storyHudTitle, action: storyAction,
         onServe: (kind, drink) => { SAVE.cnt[kind] = (SAVE.cnt[kind]||0) + 1; if (drink === 'شاي') SAVE.cnt.tea = (SAVE.cnt.tea||0) + 1; if (drink === 'قهوة') SAVE.cnt.coffee = (SAVE.cnt.coffee||0) + 1; },
         onDomino: w => { const bet = Math.min(modeObj.domBet, Math.max(0, Math.floor(hero.money))); if (w){ hero.money += bet; SAVE.cnt.dom = (SAVE.cnt.dom||0) + 1; } else hero.money -= bet; saveStory(); return bet; },
@@ -809,7 +809,7 @@ function startMode(id){
         hud: () => `بعت: <b style="display:inline;color:#fff">${modeObj.served}</b> · زعلانين: <b style="display:inline;color:#ff9a9a">${modeObj.angry} / ٣</b><br>الوقت: ${fmtTime(modeObj.time)} · الغلة: ${egp(modeObj.earned)}`,
         onTime: () => endMode('خلّصت الفول 🧆', `${heroName} باع ${modeObj.served} طلب وكسب ${egp(modeObj.earned)}.`, bestScore('foul', modeObj.earned)) }; },
   };
-  if (id !== 'story'){ TOD.h = 15; applyTimeOfDay(15); setNoEntryShown(1); setPostersShown(true); }
+  if (id !== 'story'){ const h0 = PROG.ramadan && (id === 'free' || id === 'domino') ? 21 : 15; TOD.h = h0; applyTimeOfDay(h0); setNoEntryShown(1); setPostersShown(true); }
   modeObj = M_[id](); if (modeObj.init) modeObj.init();
   if (id === 'free' || id === 'domino' || id === 'police') { /* walkers already out */ }
   setObjective(modeObj.title, '');
@@ -839,7 +839,7 @@ function serveAhwa(c){
   const f = clamp(c.patience/c.maxPat, 0, 1);
   const tip = wrongSugar ? 0 : Math.max(0, Math.round(4 + 10*f) + (o.reg ? 5 : 0) - (item.good ? 0 : 3) - (item.stirred ? 0 : 3));
   const now = runTime; modeObj.combo = (now - (modeObj.lastServe ?? -99) < 25) ? (modeObj.combo||0) + 1 : 1; modeObj.lastServe = now; const cb = modeObj.combo >= 3 && !wrongSugar ? Math.min(modeObj.combo - 2, 4) * 3 : 0;
-  const pay = 5 + tip + cb; modeObj.served++; modeObj.earned += pay; hero.money += pay; if (modeObj.onServe) modeObj.onServe('ahwa', item.drink);
+  const pay = 5 + tip + cb; modeObj.served++; modeObj.earned += pay; hero.money += pay; if (modeObj.onServe) modeObj.onServe('ahwa', item.drink); stat('drinks');
   if (wrongSugar) say(c, item.spoons > need ? 'إيه السكر ده كله!' : 'ده مر يا معلم!', 2.2, 'angry');
   else if (!item.stirred) say(c, 'السكر لسه تحت يا ريس', 2);
   else if (!item.good) say(c, 'الكوباية مش مليانة!', 2);

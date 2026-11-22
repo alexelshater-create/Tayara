@@ -39,3 +39,37 @@ html = f'''<!doctype html>
 with open(os.path.join(ROOT, 'index.html'), 'w', encoding='utf-8') as f:
     f.write(html)
 print(f'built index.html + game.js from {len(parts)} files ({len(game)//1024} KB)')
+
+# ---- voices: the list of dialogue lines (for record.html) and the recordings that ship with the game ----
+import re, json
+def vhash(t):
+    h = 0x811c9dc5
+    for ch in t:
+        h ^= ord(ch); h = (h * 0x01000193) & 0xffffffff
+    return format(h, '08x')
+story = read(os.path.join(SRC, 'js', '20-story.js'))
+missions = [(m.start(), m.group(1), int(m.group(2)), m.group(3)) for m in re.finditer(r"id: '(\w+)', ch: (\d+), title: '([^']*)'", story)]
+PHONE = {'المعلم عبده': 'moallem', 'إسلام': 'islam', 'الظابط': 'police'}
+lines, seen = [], set()
+for m in re.finditer(r"L\('(\w+)',\s*'((?:[^'\\]|\\.)*)'\)", story):
+    who, text = m.group(1), m.group(2)
+    mis = [x for x in missions if x[0] < m.start()]
+    mid, ch, title = (mis[-1][1], mis[-1][2], mis[-1][3]) if mis else ('', 0, '')
+    if who == 'phone':
+        pm = re.match(r'📱 ([^:]+):', text)
+        if pm and pm.group(1) in PHONE: who = PHONE[pm.group(1)]
+    i = vhash(text)
+    if i in seen: continue
+    seen.add(i); lines.append({'id': i, 'who': who, 'text': text, 'mission': title, 'ch': ch})
+vdir = os.path.join(ROOT, 'assets', 'voices'); os.makedirs(vdir, exist_ok=True)
+with open(os.path.join(vdir, 'lines.json'), 'w', encoding='utf-8') as f:
+    json.dump(lines, f, ensure_ascii=False)
+have = {}
+for fn in sorted(os.listdir(vdir)):
+    base, ext = os.path.splitext(fn)
+    if ext.lower() in ('.webm', '.ogg', '.mp3', '.m4a', '.wav', '.mp4') and re.fullmatch(r'[0-9a-f]{8}', base):
+        have[base] = fn
+with open(os.path.join(vdir, 'index.json'), 'w', encoding='utf-8') as f:
+    json.dump(have, f)
+shutil.copyfile(os.path.join(SRC, 'record.html'), os.path.join(ROOT, 'record.html'))
+print(f'voices: {len(lines)} lines, {len(have)} recorded')
