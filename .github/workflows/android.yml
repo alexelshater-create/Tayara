@@ -43,15 +43,9 @@ jobs:
           S=android/app/src/main/res/values/styles.xml
           sed -i 's|<style name="AppTheme.NoActionBar" parent="Theme.AppCompat.DayNight.NoActionBar">|&\n        <item name="android:windowFullscreen">true</item>|' $S
 
-      - name: App icon from طيارة's photo
+      - name: App icon from طيارة's photo (made by resources/*.png)
         continue-on-error: true
-        run: |
-          mkdir -p resources
-          convert assets/chars/hero/face.webp -resize 820x820 -background "#ffc94a" -gravity center -extent 1024x1024 resources/icon-only.png
-          convert assets/chars/hero/face.webp -resize 600x600 -background none -gravity center -extent 1024x1024 resources/icon-foreground.png
-          convert -size 1024x1024 xc:"#ffc94a" resources/icon-background.png
-          convert -size 2732x2732 xc:"#0d0b09" resources/splash.png
-          npx --yes @capacitor/assets@3.0.5 generate --android --assetPath resources
+        run: npx --yes @capacitor/assets@3.0.5 generate --android --assetPath resources
 
       - name: Build the APK
         run: |
