@@ -1,20 +1,21 @@
 // ================= modes =================
 let state = 'menu', modeId = 'free', modeObj = {}, heroName = 'طيارة', shake = 0, runTime = 0;
 function renderModes(){
-  const has = SAVE.started || SAVE.m > 0;
-  const M = curM();
-  const list = [
-    { id:'story', icon:'👑', name: has ? 'كمّل القصة' : 'القصة', desc: has ? (M ? `${CHAPS[M.ch][0]} · المهمة ${SAVE.m+1} من ${MS.length}: ${M.title} · ${egp(SAVE.money)}` : 'خلصت القصة! لف في الحتة براحتك.') : 'طيارة صبي قهوجي مفلس… شغل وإيجار، عدو بيلف وراه، حرامي ساندوتشات، ومطلوب اسمه شمس. قصة طويلة في ٧ فصول.' },
-    { id:'ahwa', icon:'☕', name:'وردية قهوجي', desc:'دور سريع في قصر الملوك: حضّر الشاي والقهوة بإيدك ووزّع.' },
-    { id:'domino', icon:'🎲', name:'دومنو مع عم سيد', desc:'ماتش لـ ١٠١ بالقواعد المصرية.' },
-  ];
-  $('modes').innerHTML = list.map(m => `<button class="mode" data-mode="${m.id}"><span class="ic">${m.icon}</span><span><b>${m.name}</b><span>${m.desc}</span></span></button>`).join('') + '<button class="mode ach" id="introBtn"><span class="ic">🎬</span><span><b>المقدمة</b><span>اتعرّف على الشلة… والبوستر</span></span></button>' + '<button class="mode ach" id="recBtn"><span class="ic">🎙️</span><span><b>سجّل أصوات الشخصيات</b><span>صحابك يسجّلوا الحوار بصوتهم… واللعبة تشغّله</span></span></button>' + '<button class="mode ach" id="achBtn"><span class="ic">🏆</span><span><b>الإنجازات</b><span>' + ACH.filter(a => PROG.ach[a.id]).length + '/' + ACH.length + ' إنجاز · ' + PROG.glasses.length + '/20 كوباية دهب</span></span></button>' + (has ? '<button class="mode reset" id="resetStory"><span class="ic">↺</span><span><b>ابدأ القصة من الأول</b><span id="resetHint">التقدم اللي فات هيتمسح</span></span></button>' : '');
-  $('modes').querySelectorAll('[data-mode]').forEach(b => b.onclick = () => startMode(b.dataset.mode));
-  $('achBtn').onclick = openAch;
-  $('recBtn').onclick = () => { location.href = 'record.html'; };
-  $('introBtn').onclick = playIntroSeq;
-  const rs = $('resetStory'); if (rs){ let armed = false; rs.onclick = () => { if (!armed){ armed = true; $('resetHint').textContent = 'دوس تاني عشان تأكد'; return; } SAVE = newStory(); store.set(STORY_KEY, JSON.stringify(SAVE)); applyAccessories(); renderModes(); }; }
+  const has = SAVE.started || SAVE.m > 0, M = curM();
+  $('mmPlay').textContent = !has ? '▶ ابدأ القصة' : SAVE.ended ? '▶ لف في الحتة (بعد القصة)' : '▶ كمّل القصة';
+  $('mmStatus').innerHTML = !has ? 'صبي قهوجي مفلس… ومطلوب اسمه شمس. <b>قصة في ٧ فصول</b>'
+    : M ? `<b>${CHAPS[M.ch][0]}: ${CHAPS[M.ch][1]}</b> · ${M.title}<br>💰 ${egp(SAVE.money)} · المهمة ${SAVE.m + 1} من ${MS.length}` : `<b>خلّصت القصة 👑</b> · 💰 ${egp(SAVE.money)}`;
+  $('mmAchN').textContent = `${ACH.filter(a => PROG.ach[a.id]).length}/${ACH.length}`;
+  const rs = $('resetStory'); rs.hidden = !has; rs.dataset.armed = ''; rs.textContent = '↺ ابدأ من الأول';
 }
+$('mmPlay').onclick = () => startMode('story');
+document.querySelectorAll('.mm-card[data-mode]').forEach(b => b.onclick = () => startMode(b.dataset.mode));
+$('mmAch').onclick = () => openAch();
+$('mmIntro').onclick = () => playIntroSeq();
+$('mmRec').onclick = () => { location.href = 'record.html'; };
+$('mmSet').onclick = () => { renderModes(); $('settings').hidden = false; };
+$('setClose').onclick = () => { $('settings').hidden = true; heroName = $('nameIn').value.trim() || 'طيارة'; store.set('ty_name', heroName); };
+$('resetStory').onclick = () => { const b = $('resetStory'); if (!b.dataset.armed){ b.dataset.armed = '1'; b.textContent = 'متأكد؟ دوس تاني'; return; } SAVE = newStory(); store.set(STORY_KEY, JSON.stringify(SAVE)); applyAccessories(); renderModes(); b.textContent = '✓ اتمسحت'; };
 
 const cashSpots = [];
 { let tries = 0; while (cashSpots.length < 15 && tries < 6000){ tries++; const onRoad = rng() < .55; let x, z; if (onRoad){ const r = pick(ROADS); const t = R(-HALF+4, HALF-4), o = R(-4.5,4.5); if (rng()<.5){ x=t; z=r+o; } else { x=r+o; z=t; } } else { x = R(-HALF+2, HALF-2); z = R(-HALF+2, HALF-2); } if (staticBlocked(x, z, 1.4)) continue; if (Math.hypot(x-SPOT.spawn.x, z-SPOT.spawn.z) < 14) continue; if (cashSpots.some(c => Math.hypot(c.x-x, c.z-z) < 20)) continue; cashSpots.push({ x, z, value: 100*Math.round(R(1,6)) }); } }

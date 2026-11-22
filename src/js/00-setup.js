@@ -8,7 +8,6 @@ const CH = await (await fetch('assets/chars.json')).json();
 const $ = id => document.getElementById(id);
 const store = { get(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }, set(k,v){ try { localStorage.setItem(k,v); } catch(e){} } };
 document.querySelectorAll('[data-face]').forEach(e => e.style.backgroundImage = `url(${CH.hero.img.face})`);
-$('imgHero').src = CH.hero.img.full; $('imgEnemy').src = CH.enemy.img.full; $('imgWanted').src = CH.wanted.img.full; $('imgIslam').src = CH.islam.img.full; $('imgYoussef').src = CH.youssef.img.full;
 const isTouch = matchMedia('(pointer:coarse)').matches || 'ontouchstart' in window;
 if (isTouch) document.body.classList.add('touch');
 const LOW = isTouch || (navigator.hardwareConcurrency||8) <= 4; const WALKERS = LOW ? 10 : 16;

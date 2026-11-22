@@ -77,20 +77,35 @@
     </div>
   </div>
 </div>
-<div id="menu" class="overlay">
-  <div class="panel menu">
-    <div class="heroes"><img class="side side2" id="imgYoussef" alt="يوسف إبراهيم"><img class="side" id="imgEnemy" alt="العربي"><img id="imgHero" alt="طيارة"><img class="side" id="imgIslam" alt="إسلام"><img class="side side2" id="imgWanted" alt="شمس"></div>
-    <div>
-      <h1>طيارة الجامد</h1>
-      <p class="tag">شوارع، عربيات، مطاردات، وقهوة قصر الملوك. اختار المود وانزل الحتة.</p>
-      <div class="namerow"><label for="nameIn">اسم البطل</label><input id="nameIn" maxlength="16" value="طيارة"></div>
-      <div class="namerow"><span>الصعوبة</span><button class="diffbtn" id="diffBtn"></button></div>
-      <div class="namerow"><span>الجو</span><button class="diffbtn" id="ramBtn"></button></div>
-      <div class="modes" id="modes"></div>
-      <ul class="keys desk"><li><b>WASD</b> حركة/سواقة</li><li><b>Shift</b> جري</li><li><b>E</b> اركب/اتكلم</li><li><b>F أو كليك</b> اضرب</li><li><b>H</b> كلاكس</li><li><b>Space</b> فرامل</li><li><b>Esc</b> القايمة</li></ul>
-      <ul class="keys tch"><li><b>اسحب بصباعك</b> حركة</li><li><b>✋</b> اركب/اتكلم</li><li><b>👊</b> اضرب</li><li><b>🏃</b> جري</li></ul>
-      <div class="dinfo" id="loadMsg" style="margin-top:10px">بيحمّل الحتة…</div>
+<div id="menu" class="mainmenu">
+  <div class="mm-bg"></div>
+  <div class="mm-side">
+    <div class="mm-logo"><b data-t="طيارة الجامد"><i>طيارة الجامد</i></b><span>الحتة كلها بتتكلم عليه</span></div>
+    <div class="mm-status" id="mmStatus"></div>
+    <button class="mm-play" id="mmPlay">▶ ابدأ القصة</button>
+    <div class="mm-row">
+      <button class="mm-card" data-mode="free"><span>🌆</span>لف في الحتة</button>
+      <button class="mm-card" data-mode="ahwa"><span>☕</span>وردية قهوجي</button>
+      <button class="mm-card" data-mode="domino"><span>🎲</span>دومنو</button>
     </div>
+    <div class="mm-icons">
+      <button id="mmAch"><span>🏆</span><small id="mmAchN">الإنجازات</small></button>
+      <button id="mmIntro"><span>🎬</span><small>المقدمة</small></button>
+      <button id="mmRec"><span>🎙️</span><small>الأصوات</small></button>
+      <button id="mmSet"><span>⚙️</span><small>الإعدادات</small></button>
+    </div>
+    <div class="mm-load" id="loadMsg">بيحمّل الحتة…</div>
+  </div>
+</div>
+<div id="settings" class="overlay soft" hidden>
+  <div class="panel setp">
+    <div class="maptop"><b>⚙️ الإعدادات</b><button class="ghost" id="setClose">قفل ✕</button></div>
+    <div class="setrow"><label for="nameIn">اسم البطل</label><input id="nameIn" maxlength="16" value="طيارة"></div>
+    <div class="setrow"><span>الصعوبة</span><button class="diffbtn" id="diffBtn"></button></div>
+    <div class="setrow"><span>الجو</span><button class="diffbtn" id="ramBtn"></button></div>
+    <div class="setrow"><span>القصة</span><button class="diffbtn danger" id="resetStory">↺ ابدأ من الأول</button></div>
+    <ul class="keys desk"><li><b>WASD</b> حركة/سواقة</li><li><b>Shift</b> جري</li><li><b>E</b> اركب/اتكلم</li><li><b>F أو كليك</b> اضرب</li><li><b>H</b> كلاكس</li><li><b>Space</b> فرامل</li><li><b>M</b> الخريطة</li><li><b>Esc</b> القايمة</li></ul>
+    <ul class="keys tch"><li><b>اسحب بصباعك</b> حركة</li><li><b>اسحب يمين</b> لف الكاميرا</li><li><b>✋</b> اركب/اتكلم</li><li><b>👊</b> اضرب</li><li><b>🏃</b> جري</li></ul>
   </div>
 </div>
 
@@ -99,11 +114,12 @@
   <div class="ibg"></div><div class="ishade"></div>
   <div class="ikicker" id="iKicker"><small>من شوارع الحتة…</small><b>حكاية ٥ صحاب</b></div>
   <div class="icard" id="iCard"><div class="ipanel"></div><img id="iImg" alt=""><div class="itext"><b id="iName"></b><span id="iLine"></span></div></div>
-  <div class="ifinal" id="iFinal"><img class="fp" data-k="shams" src="assets/poster/shams.webp" alt="شمس"><img class="fp" data-k="arabi" src="assets/poster/arabi.webp" alt="العربي"><img class="fp" data-k="islam" src="assets/poster/islam.webp" alt="إسلام"><img class="fp" data-k="tayara" src="assets/poster/tayara.webp" alt="طيارة"><img class="fp" data-k="youssef" src="assets/poster/youssef.webp" alt="يوسف إبراهيم"><div class="ititle" id="iTitle"><b data-t="طيارة الجامد"><i>طيارة الجامد</i></b><span>الحتة كلها بتتكلم عليه</span></div></div>
+  <div class="ifinal" id="iFinal"><img class="fp" data-k="shams" src="assets/poster/shams-solo.webp" alt="شمس"><img class="fp" data-k="arabi" src="assets/poster/arabi.webp" alt="العربي"><img class="fp" data-k="islam" src="assets/poster/islam.webp" alt="إسلام"><img class="fp" data-k="tayara" src="assets/poster/tayara.webp" alt="طيارة"><img class="fp" data-k="youssef" src="assets/poster/youssef.webp" alt="يوسف إبراهيم"><div class="ititle" id="iTitle"><b data-t="طيارة الجامد"><i>طيارة الجامد</i></b><span>الحتة كلها بتتكلم عليه</span></div></div>
   <div class="itap" id="iTap">دوس في أي حتة عشان تبدأ ▸ <button id="iSave">⬇️ نزّل البوستر</button></div>
   <button id="introSkip" class="iskip">تخطّي ⏭</button>
 </div>
 <div id="introStart" class="overlay soft" hidden><div class="panel istart"><h2>طيارة الجامد</h2><p>علّي الصوت 🔊 وتعالى نتعرّف على الشلة</p><button class="primary" id="introStartBtn">▶ يلا بينا</button><button class="ghost" id="introStartSkip">تخطّى المقدمة</button></div></div>
+<div id="rotate"><div class="rot-phone"><i></i></div><b>لف الموبايل بالعرض</b><span>طيارة الجامد بتتلعب والموبايل نايم 📱↻</span></div>
 <div id="fade"></div>
 <div id="achToast" class="achtoast"></div>
 <div id="achOv" class="overlay" hidden><div class="panel achp"><div class="maptop"><b id="achHead"></b><button class="ghost" id="achClose">قفل ✕</button></div><div id="achList" class="achlist"></div></div></div>

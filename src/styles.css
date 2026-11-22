@@ -300,6 +300,8 @@ body.cutscene #actUi,body.cutscene #actQuit{display:none!important}
 .intro{position:fixed;inset:0;z-index:60;background:#000;overflow:hidden;user-select:none}
 .intro .ibg{position:absolute;inset:-3%;background:url(assets/poster/bg.webp) center/cover;opacity:0;transform:scale(1.16);transition:opacity 1.4s ease,transform 24s linear}
 .intro.bgin .ibg{opacity:1;transform:scale(1)}
+.intro.final .ibg{filter:blur(2px) brightness(.8)}
+.intro.final .ishade{background:linear-gradient(rgba(8,5,3,.7),rgba(8,5,3,0) 30%,rgba(8,5,3,0) 60%,rgba(8,5,3,.8)),radial-gradient(ellipse at 50% 55%,transparent 35%,rgba(0,0,0,.45))}
 .intro .ishade{position:absolute;inset:0;background:radial-gradient(ellipse at center,transparent 45%,rgba(0,0,0,.55)),linear-gradient(transparent 62%,rgba(0,0,0,.55));pointer-events:none}
 .ikicker{position:absolute;left:50%;top:42%;transform:translate(-50%,-40%);text-align:center;opacity:0;transition:opacity .7s,transform .7s;text-shadow:0 4px 20px #000}
 .ikicker.show{opacity:1;transform:translate(-50%,-50%)}
@@ -335,5 +337,57 @@ body.cutscene #actUi,body.cutscene #actQuit{display:none!important}
 .itap button,.iskip{font-family:inherit;font-weight:800;font-size:13px;border-radius:999px;padding:6px 14px;border:1px solid rgba(255,255,255,.35);background:rgba(0,0,0,.45);color:#fff;cursor:pointer}
 .iskip{position:absolute;top:calc(12px + env(safe-area-inset-top,0px));left:14px;z-index:11}
 .istart{text-align:center;width:min(420px,calc(100vw - 32px))}.istart h2{font-size:40px;margin:0;color:var(--gold)}.istart p{color:var(--muted);margin:4px 0 14px}.istart button{width:100%;margin-top:8px}
-@media (max-aspect-ratio:1/1){.icard .ipanel{clip-path:polygon(0 0,100% 0,100% 38%,0 52%)}.icard img{left:50%;height:70%}.icard .itext{left:6%;right:6%;width:auto;top:8%;text-align:center}}
+@media (max-aspect-ratio:1/1){.icard .ipanel{clip-path:polygon(0 0,100% 0,100% 34%,0 46%)}.icard img{left:50%;height:64%}.icard .itext{left:5%;right:5%;width:auto;top:7%;text-align:center;z-index:2}.icard .itext b{font-size:clamp(30px,12vw,62px)}.icard .itext span{font-size:clamp(13px,4vw,20px)}.ikicker b{font-size:clamp(28px,9vw,48px)}}
 @media (prefers-reduced-motion:reduce){.intro .ibg{transition:opacity .6s}.itap.show{animation:none}}
+
+/* ---- main menu ---- */
+.mainmenu{position:fixed;inset:0;z-index:5;overflow:hidden;background:#0d0b09}
+.mainmenu[hidden]{display:none}
+.mm-bg{position:absolute;inset:0;background:url(assets/poster/menu-wide.jpg) left center/cover no-repeat;transform-origin:left center;animation:mmzoom 30s ease-in-out infinite alternate}
+@keyframes mmzoom{from{transform:scale(1)}to{transform:scale(1.06)}}
+.mm-side{position:absolute;top:0;bottom:0;right:0;width:min(420px,40vw);display:flex;flex-direction:column;justify-content:center;gap:14px;padding:24px 34px 24px 26px;background:linear-gradient(to left,rgba(8,5,3,.95) 55%,rgba(8,5,3,.7) 80%,rgba(8,5,3,0));padding-right:calc(34px + env(safe-area-inset-right,0px))}
+.mm-logo b{display:block;position:relative;font-size:clamp(38px,7.2vh,72px);font-weight:900;line-height:1.1;filter:drop-shadow(0 6px 16px rgba(0,0,0,.6))}
+.mm-logo b::before{content:attr(data-t);position:absolute;inset:0;color:#2a1404;-webkit-text-stroke:.13em #2a1404}
+.mm-logo b i{position:relative;font-style:normal;background:linear-gradient(#fff3b0,#ffc94a 45%,#d9781a);-webkit-background-clip:text;background-clip:text;color:transparent}
+.mm-logo span{display:block;color:#e9dcc6;font-weight:800;font-size:clamp(13px,2.2vh,17px);margin-top:2px}
+.mm-status{color:var(--muted);font-size:14px;line-height:1.7;border-right:3px solid var(--gold);padding-right:10px}
+.mm-status b{color:var(--ink)}
+.mm-play{font-family:inherit;font-size:clamp(18px,3.2vh,24px);font-weight:900;padding:14px 18px;border-radius:16px;border:0;background:linear-gradient(180deg,#ffd666,#f0a52a);color:#2a1700;box-shadow:0 10px 30px rgba(240,165,42,.35),inset 0 -3px 0 rgba(0,0,0,.18);cursor:pointer;transition:transform .12s}
+.mm-play:hover{transform:translateY(-2px)}.mm-play:active{transform:translateY(1px)}
+.mm-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.mm-card{font-family:inherit;font-size:13px;font-weight:800;color:var(--ink);background:rgba(255,240,210,.07);border:1px solid var(--line);border-radius:14px;padding:10px 6px;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;transition:background .15s,transform .12s}
+.mm-card span{font-size:24px;line-height:1}
+.mm-card:hover{background:rgba(255,201,74,.15);transform:translateY(-2px)}
+.mm-icons{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;border-top:1px solid var(--line);padding-top:12px}
+.mm-icons button{font-family:inherit;background:none;border:0;color:var(--ink);display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 0;border-radius:12px;cursor:pointer}
+.mm-icons button:hover{background:rgba(255,255,255,.06)}
+.mm-icons span{font-size:22px;line-height:1}.mm-icons small{font-size:11.5px;color:var(--muted);font-weight:700}
+.mm-load{font-size:12px;color:var(--muted);text-align:center;min-height:16px}
+.setp{width:min(520px,calc(100vw - 24px));display:flex;flex-direction:column;gap:12px}
+.setrow{display:flex;align-items:center;justify-content:space-between;gap:12px;font-weight:800}
+.setrow input{font-family:inherit;font-size:16px;padding:7px 12px;border-radius:10px;border:1px solid var(--line);background:#0f0c09;color:var(--ink);width:180px}
+.diffbtn.danger{color:#ff9a9a;border-color:rgba(255,120,120,.35)}
+@media (max-aspect-ratio:1/1){
+  .mm-bg{background-image:url(assets/poster/menu-tall.jpg);background-position:center top}
+  .mm-side{top:auto;left:0;width:auto;padding:40px 18px calc(16px + env(safe-area-inset-bottom,0px));gap:9px;background:linear-gradient(to top,rgba(8,5,3,.97) 82%,rgba(8,5,3,0))}
+  .mm-logo{text-align:center}.mm-logo b{font-size:clamp(30px,10vw,44px);white-space:nowrap}.mm-status{text-align:center;border:0;padding:0;font-size:13px}.mm-play{padding:11px}
+}
+@media (max-height:500px) and (min-aspect-ratio:1/1){
+  .mm-side{gap:8px;padding-top:12px;padding-bottom:12px;width:min(380px,46vw)}
+  .mm-logo b{font-size:34px}.mm-logo span{font-size:12px}
+  .mm-status{font-size:12px;line-height:1.5}
+  .mm-play{padding:9px 12px;font-size:17px}
+  .mm-card{padding:6px 4px;font-size:12px}.mm-card span{font-size:19px}
+  .mm-icons{padding-top:6px}.mm-icons span{font-size:18px}.mm-icons small{font-size:10px}
+}
+
+/* ---- phones: landscape only ---- */
+#rotate{display:none}
+@media (orientation:portrait) and (pointer:coarse){
+  #rotate{display:flex;position:fixed;inset:0;z-index:100;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:24px;background:radial-gradient(circle at 50% 40%,#2a1d10,#0d0b09 70%)}
+  #rotate b{font-size:26px;font-weight:900;color:var(--gold)}
+  #rotate span{font-size:15px;color:var(--muted);font-weight:700}
+  .rot-phone{width:64px;height:110px;border:5px solid var(--ink);border-radius:14px;position:relative;animation:rotph 2.2s ease-in-out infinite}
+  .rot-phone i{position:absolute;left:50%;bottom:6px;width:16px;height:4px;margin-left:-8px;border-radius:2px;background:var(--ink)}
+  @keyframes rotph{0%,20%{transform:rotate(0)}55%,80%{transform:rotate(-90deg)}100%{transform:rotate(0)}}
+}

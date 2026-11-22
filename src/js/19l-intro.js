@@ -8,11 +8,17 @@ const POSTER_CAST = [
   { k: 'tayara', name: 'طيارة', line: 'صبي قهوجي مفلس… وهيبقى الجامد', color: '#ffc94a', from: 1 },
 ];
 // where each one stands in the poster: x = centre, b = feet line, h = height (fractions of the frame)
+// a clean line-up on one ground line: طيارة in front in the middle, شمس darker at the edge, the café sign left visible
 const POSTER_LAYOUT = {
-  wide: { shams: { x: .62, b: .97, h: .9, dim: .72, z: 1 }, arabi: { x: .3, b: 1.01, h: .74, z: 2 }, islam: { x: .82, b: 1.01, h: .76, z: 2 }, tayara: { x: .53, b: 1.03, h: .88, z: 3 }, youssef: { x: .1, b: 1.0, h: .5, z: 4 }, title: { x: .25, y: .13, s: .105 } },
-  tall: { shams: { x: .68, b: .8, h: .5, dim: .72, z: 1 }, arabi: { x: .82, b: .95, h: .4, z: 2 }, islam: { x: .2, b: .96, h: .4, z: 2 }, tayara: { x: .55, b: 1.0, h: .6, z: 3 }, youssef: { x: .16, b: 1.0, h: .25, z: 4 }, title: { x: .5, y: .09, s: .075 } },
+  wide: { youssef: { x: .085, b: .97, h: .47, z: 4 }, arabi: { x: .275, b: .95, h: .64, z: 2 }, tayara: { x: .5, b: .98, h: .74, z: 3 }, islam: { x: .725, b: .95, h: .64, z: 2 }, shams: { x: .905, b: .94, h: .7, dim: .78, z: 1 }, title: { x: .5, y: .105, s: .1 }, fx: .5 },
+  // the menu keeps the right side free for the buttons (wide) or the bottom (tall)
+  menuWide: { youssef: { x: .06, b: .99, h: .42, z: 4 }, arabi: { x: .17, b: .96, h: .58, z: 2 }, tayara: { x: .32, b: .99, h: .72, z: 3 }, islam: { x: .47, b: .96, h: .58, z: 2 }, shams: { x: .4, b: .86, h: .6, dim: .6, z: 0 }, fx: .4 },
+  menuTall: { arabi: { x: .2, b: .44, h: .19, z: 1 }, shams: { x: .8, b: .44, h: .2, dim: .7, z: 1 }, islam: { x: .82, b: .52, h: .22, z: 2 }, tayara: { x: .52, b: .53, h: .3, z: 3 }, youssef: { x: .16, b: .54, h: .15, z: 4 }, fx: .29 },
+  tall: { arabi: { x: .2, b: .8, h: .3, z: 1 }, shams: { x: .8, b: .8, h: .32, dim: .78, z: 1 }, islam: { x: .82, b: .985, h: .34, z: 2 }, tayara: { x: .52, b: .99, h: .48, z: 3 }, youssef: { x: .17, b: .995, h: .22, z: 4 }, title: { x: .5, y: .075, s: .072 }, fx: .29 },
 };
+const POSTER_FILE = { shams: 'shams-solo' };
 const posterImg = k => `assets/poster/${k}.webp`;
+const posterPart = k => posterImg(POSTER_FILE[k] || k);
 const INTRO = { timers: [], playing: false };
 const iAt = (ms, fn) => INTRO.timers.push(setTimeout(fn, ms));
 function whoosh(){ if (AC && !muted) noise(.35, 1200, .35); }
@@ -20,6 +26,7 @@ function introLayout(){
   const el = $('iFinal'), wide = innerWidth / innerHeight >= 1.05, L = POSTER_LAYOUT[wide ? 'wide' : 'tall'];
   for (const c of POSTER_CAST){ const p = L[c.k], img = el.querySelector(`[data-k="${c.k}"]`); Object.assign(img.style, { left: `${p.x*100}%`, top: `${(p.b - p.h)*100}%`, height: `${p.h*100}%`, zIndex: p.z, filter: p.dim ? `brightness(${p.dim}) saturate(.9)` : '' }); }
   const t = $('iTitle'); Object.assign(t.style, { left: `${L.title.x*100}%`, top: `${L.title.y*100}%`, fontSize: `${(wide ? innerHeight : innerWidth) * L.title.s * (wide ? 1 : 1.9)}px` });
+  document.querySelector('#intro .ibg').style.backgroundPosition = `${L.fx*100}% center`;
 }
 function playIntroSeq(){
   if (INTRO.playing) return; INTRO.playing = true; INTRO.timers.forEach(clearTimeout); INTRO.timers = [];
@@ -32,7 +39,7 @@ function playIntroSeq(){
     iAt(t + 2350, () => { card.classList.add('out'); });
     t += 2700;
   }
-  iAt(t, () => { card.className = 'icard'; introLayout(); $('iFinal').className = 'ifinal in'; whoosh(); });
+  iAt(t, () => { card.className = 'icard'; introLayout(); box.classList.add('final'); $('iFinal').className = 'ifinal in'; whoosh(); });
   iAt(t + 1500, () => { $('iTitle').classList.add('slam'); if (AC && !muted){ noise(.5, 400, .6); tone(110, 55, .5, 'sawtooth', .12); } shake = .3; });
   iAt(t + 2600, () => { $('iTap').classList.add('show'); INTRO.ready = true; });
 }
@@ -51,14 +58,18 @@ $('introStartSkip').onclick = () => { $('introStart').hidden = true; store.set('
 // ---- the poster as an image (same layout, drawn on a canvas) ----
 const posterCache = {};
 const loadImg = src => posterCache[src] ||= new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
-async function makePosterImage(W, H){
+async function makePosterImage(W, H, kind){
   const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const g = cv.getContext('2d');
   try { await document.fonts.load('900 100px Cairo'); await document.fonts.load('700 40px Cairo'); } catch(e){}
-  const bg = await loadImg(posterImg('bg')); const s = Math.max(W / bg.width, H / bg.height); g.drawImage(bg, (W - bg.width*s)/2, (H - bg.height*s)/2, bg.width*s, bg.height*s);
-  const vg = g.createLinearGradient(0, H*.55, 0, H); vg.addColorStop(0, 'rgba(10,6,4,0)'); vg.addColorStop(1, 'rgba(10,6,4,.75)'); g.fillStyle = vg; g.fillRect(0, 0, W, H);
-  const L = POSTER_LAYOUT[W / H >= 1.05 ? 'wide' : 'tall'];
+  const L = POSTER_LAYOUT[kind || (W / H >= 1.05 ? 'wide' : 'tall')];
+  const bg = await loadImg(posterImg('bg')); const s = Math.max(W / bg.width, H / bg.height), bw = bg.width*s, bx = clamp(W/2 - L.fx*bw, W - bw, 0);
+  g.save(); g.filter = `blur(${Math.round(W/900)}px) brightness(.8) saturate(1.05)`; g.drawImage(bg, bx, (H - bg.height*s)/2, bw, bg.height*s); g.restore();
+  const top = g.createLinearGradient(0, 0, 0, H*.3); top.addColorStop(0, 'rgba(8,5,3,.7)'); top.addColorStop(1, 'rgba(8,5,3,0)'); g.fillStyle = top; g.fillRect(0, 0, W, H*.3);
+  const vg = g.createLinearGradient(0, H*.6, 0, H); vg.addColorStop(0, 'rgba(8,5,3,0)'); vg.addColorStop(1, 'rgba(8,5,3,.8)'); g.fillStyle = vg; g.fillRect(0, 0, W, H);
+  const rg = g.createRadialGradient(W/2, H*.55, Math.min(W, H)*.3, W/2, H*.55, Math.max(W, H)*.75); rg.addColorStop(0, 'rgba(0,0,0,0)'); rg.addColorStop(1, 'rgba(0,0,0,.45)'); g.fillStyle = rg; g.fillRect(0, 0, W, H);
   const order = [...POSTER_CAST].sort((a, b) => L[a.k].z - L[b.k].z);
-  for (const c of order){ const p = L[c.k], im = await loadImg(posterImg(c.k)); const h = p.h*H, w = im.width / im.height * h; g.save(); if (p.dim) g.filter = `brightness(${p.dim}) saturate(.9)`; g.drawImage(im, p.x*W - w/2, (p.b - p.h)*H, w, h); g.restore(); }
+  for (const c of order){ const p = L[c.k], im = await loadImg(posterPart(c.k)); const h = p.h*H, w = im.width / im.height * h; g.save(); if (p.dim) g.filter = `brightness(${p.dim}) saturate(.9)`; g.drawImage(im, p.x*W - w/2, (p.b - p.h)*H, w, h); g.restore(); }
+  if (!L.title) return cv;
   // title
   const fs = (W / H >= 1.05 ? H : W*1.9) * L.title.s, tx = L.title.x*W, ty = L.title.y*H;
   g.textAlign = 'center'; g.textBaseline = 'middle'; g.direction = 'rtl'; g.font = `900 ${fs}px Cairo, sans-serif`;
