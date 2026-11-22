@@ -1,0 +1,102 @@
+<canvas id="game"></canvas>
+<div id="flash"></div>
+<div id="bubbles"></div>
+<div id="hud" hidden>
+  <div class="top">
+    <div class="col">
+      <div class="card">
+        <div class="face" data-face></div>
+        <div>
+          <div class="name" id="hudName">طيارة</div>
+          <div class="hp"><i id="hpBar"></i></div>
+          <div class="st" id="stWrap"><i id="stBar"></i></div>
+          <div class="money" id="money">50 جنيه</div>
+        </div>
+      </div>
+      <div class="card obj"><b id="objTitle"></b><div id="objText"></div></div>
+    </div>
+    <div class="col">
+      <canvas id="radar" width="150" height="150"></canvas>
+      <div class="btns">
+        <button id="musicBtn" aria-label="المزيكا">🎵</button>
+        <button id="voiceBtn" aria-label="أصوات الناس">🗣️</button>
+        <button id="muteBtn" aria-label="الصوت">🔊</button>
+        <button id="zoomBtn" aria-label="الكاميرا">🔍</button>
+        <button id="fsBtn" aria-label="ملء الشاشة">⛶</button>
+        <button id="menuBtn" aria-label="القايمة">☰</button>
+      </div>
+    </div>
+  </div>
+  <div id="banner" class="banner"></div>
+  <div id="prompt" class="prompt"></div>
+  <div id="tray" class="tray" hidden></div>
+  <div id="joy"><div id="knob"></div></div>
+  <div id="joyHint">اسحب بصباعك<br>هنا عشان تمشي</div>
+  <div class="mbtns"><button id="actBtn" aria-label="تفاعل">✋</button><button id="punchBtn" aria-label="اضرب">👊</button><button id="runBtn" aria-label="جري">🏃</button></div>
+</div>
+
+<div id="station" hidden>
+  <div class="st-top"><div class="ticket" id="stTicket"></div></div>
+  <div class="st-meter" id="stMeter" hidden><span id="stMeterLabel"></span><div class="bar"><b class="band" id="stBand"></b><i id="stMeterBar"></i></div></div>
+  <div class="st-hint" id="stHint"></div>
+  <div class="st-btns" id="stBtns"></div>
+</div>
+<div id="plabels"></div>
+
+<div id="domino" class="overlay" hidden>
+  <div class="dpanel">
+    <div class="dtop"><b>🎲 دومنو قصر الملوك</b><span class="dscore" id="dScore"></span><button class="ghost dexit" id="dExit">قوم ✕</button></div>
+    <div class="dpick" id="dPick">
+      <p>تلعب إزاي؟</p>
+      <button class="dmode" data-dm="1v1"><b>1 ضد 1</b><span>انت ضد عم سيد · ٧ حجارة لكل واحد والباقي كومة · الماتش لـ ١٠١</span></button>
+      <button class="dmode" data-dm="2v2"><b>2 ضد 2</b><span>انت وإسلام ضد شمس والعربي · ٧ لكل واحد ومفيش كومة · الماتش لـ ١٥١</span></button>
+    </div>
+    <div class="dgame" id="dGame" hidden>
+      <div class="seats">
+        <div class="seat top" id="seat2"></div>
+        <div class="seat right" id="seat1"></div>
+        <div class="seat left" id="seat3"></div>
+        <canvas id="dCanvas" aria-label="ترابيزة الدومنو"></canvas>
+      </div>
+      <div class="dmsg" id="dMsg"></div>
+      <div class="hand" id="dHand"></div>
+      <div class="dact">
+        <button id="dQafla">🔒 قفلة</button>
+        <button id="dDraw">اسحب من الكومة</button>
+        <button id="dPass">⏭️ فوّت</button>
+        <button id="dCheat" class="warn">🚨 غشاش!</button>
+        <button id="dLeft"></button>
+        <button id="dRight"></button>
+        <button id="dCancel">لأ خلاص</button>
+        <button id="dAgain" class="go">دور جديد</button>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="menu" class="overlay">
+  <div class="panel menu">
+    <div class="heroes"><img class="side side2" id="imgYoussef" alt="يوسف إبراهيم"><img class="side" id="imgEnemy" alt="العربي"><img id="imgHero" alt="طيارة"><img class="side" id="imgIslam" alt="إسلام"><img class="side side2" id="imgWanted" alt="شمس"></div>
+    <div>
+      <h1>طيارة الجامد</h1>
+      <p class="tag">شوارع، عربيات، مطاردات، وقهوة قصر الملوك. اختار المود وانزل الحتة.</p>
+      <div class="namerow"><label for="nameIn">اسم البطل</label><input id="nameIn" maxlength="16" value="طيارة"></div>
+      <div class="namerow"><span>الصعوبة</span><button class="diffbtn" id="diffBtn"></button></div>
+      <div class="modes" id="modes"></div>
+      <ul class="keys desk"><li><b>WASD</b> حركة/سواقة</li><li><b>Shift</b> جري</li><li><b>E</b> اركب/اتكلم</li><li><b>F أو كليك</b> اضرب</li><li><b>H</b> كلاكس</li><li><b>Space</b> فرامل</li><li><b>Esc</b> القايمة</li></ul>
+      <ul class="keys tch"><li><b>اسحب بصباعك</b> حركة</li><li><b>✋</b> اركب/اتكلم</li><li><b>👊</b> اضرب</li><li><b>🏃</b> جري</li></ul>
+      <div class="dinfo" id="loadMsg" style="margin-top:10px">بيحمّل الحتة…</div>
+    </div>
+  </div>
+</div>
+
+<div id="shop" class="overlay soft" hidden><div class="panel shopp"><h2 id="shopTitle" style="margin:0;color:var(--gold)"></h2><div class="dinfo" id="shopMoney"></div><div id="shopItems" class="shopitems"></div><div class="row"><button class="ghost" id="shopClose">خلاص</button></div></div></div>
+<div id="storyEnd" class="overlay" hidden><div class="panel endp"><div class="face" data-face></div><h2>طيارة الجامد 👑</h2><p>عملتها! اشتغلت وحوّشت، اشتريت الموتوسيكل والعربية، مسكت المطلوب، ووقّعت اللي بيكرهك. الحتة كلها بقت عارفاك.</p><div class="row"><button class="primary" id="storyEndBtn">كمّل لف في الحتة</button></div></div></div>
+<div id="end" class="overlay" hidden>
+  <div class="panel endp">
+    <div class="face" data-face></div>
+    <h2 id="endTitle"></h2>
+    <p id="endText"></p>
+    <p id="endBest" style="color:var(--gold);font-weight:800"></p>
+    <div class="row"><button class="primary" id="againBtn">العب تاني</button><button class="ghost" id="toMenuBtn">القايمة</button></div>
+  </div>
+</div>

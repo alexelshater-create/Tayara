@@ -1,0 +1,322 @@
+{
+"hero": {
+"parts": {
+"body": [
+331,
+11,
+345,
+874
+],
+"armL": [
+73,
+269,
+327,
+611
+],
+"armR": [
+627,
+278,
+307,
+602
+],
+"legL": [
+288,
+835,
+212,
+689
+],
+"legR": [
+500,
+835,
+212,
+687
+]
+},
+"img": {
+"body": "assets/chars/hero/body.webp",
+"armL": "assets/chars/hero/armL.webp",
+"armR": "assets/chars/hero/armR.webp",
+"legL": "assets/chars/hero/legL.webp",
+"legR": "assets/chars/hero/legR.webp",
+"face": "assets/chars/hero/face.webp",
+"full": "assets/chars/hero/full.webp"
+},
+"FX": 505,
+"FY": 1523,
+"PH": 1510,
+"piv": {
+"armL": [
+388,
+292
+],
+"armR": [
+636,
+296
+],
+"legL": [
+415,
+850
+],
+"legR": [
+590,
+850
+]
+}
+},
+"wanted": {
+"parts": {
+"body": [
+388,
+17,
+323,
+798
+],
+"armL": [
+206,
+250,
+244,
+577
+],
+"armR": [
+651,
+250,
+242,
+577
+],
+"legL": [
+369,
+770,
+181,
+613
+],
+"legR": [
+550,
+770,
+176,
+613
+]
+},
+"img": {
+"body": "assets/chars/wanted/body.webp",
+"armL": "assets/chars/wanted/armL.webp",
+"armR": "assets/chars/wanted/armR.webp",
+"legL": "assets/chars/wanted/legL.webp",
+"legR": "assets/chars/wanted/legR.webp",
+"face": "assets/chars/wanted/face.webp",
+"full": "assets/chars/wanted/full.webp"
+},
+"FX": 550,
+"FY": 1380,
+"PH": 1361,
+"piv": {
+"armL": [
+440,
+270
+],
+"armR": [
+660,
+270
+],
+"legL": [
+470,
+790
+],
+"legR": [
+630,
+790
+]
+}
+},
+"enemy": {
+"parts": {
+"body": [
+342,
+20,
+329,
+830
+],
+"armL": [
+91,
+260,
+339,
+597
+],
+"armR": [
+581,
+260,
+338,
+597
+],
+"legL": [
+286,
+800,
+218,
+719
+],
+"legR": [
+504,
+800,
+206,
+717
+]
+},
+"img": {
+"body": "assets/chars/enemy/body.webp",
+"armL": "assets/chars/enemy/armL.webp",
+"armR": "assets/chars/enemy/armR.webp",
+"legL": "assets/chars/enemy/legL.webp",
+"legR": "assets/chars/enemy/legR.webp",
+"face": "assets/chars/enemy/face.webp",
+"full": "assets/chars/enemy/full.webp"
+},
+"FX": 505,
+"FY": 1516,
+"PH": 1494,
+"piv": {
+"armL": [
+415,
+285
+],
+"armR": [
+600,
+285
+],
+"legL": [
+440,
+830
+],
+"legR": [
+570,
+830
+]
+}
+},
+"youssef": {
+"parts": {
+"body": [
+405,
+26,
+298,
+789
+],
+"armL": [
+217,
+250,
+243,
+532
+],
+"armR": [
+651,
+250,
+239,
+550
+],
+"legL": [
+374,
+770,
+177,
+606
+],
+"legR": [
+551,
+770,
+171,
+606
+]
+},
+"img": {
+"body": "assets/chars/youssef/body.webp",
+"armL": "assets/chars/youssef/armL.webp",
+"armR": "assets/chars/youssef/armR.webp",
+"legL": "assets/chars/youssef/legL.webp",
+"legR": "assets/chars/youssef/legR.webp",
+"face": "assets/chars/youssef/face.webp",
+"full": "assets/chars/youssef/full.webp"
+},
+"FX": 551,
+"FY": 1373,
+"PH": 1345,
+"piv": {
+"armL": [
+445,
+270
+],
+"armR": [
+660,
+270
+],
+"legL": [
+470,
+790
+],
+"legR": [
+630,
+790
+]
+}
+},
+"islam": {
+"parts": {
+"body": [
+380,
+8,
+351,
+807
+],
+"armL": [
+215,
+250,
+240,
+522
+],
+"armR": [
+656,
+250,
+236,
+522
+],
+"legL": [
+381,
+770,
+171,
+620
+],
+"legR": [
+552,
+770,
+173,
+620
+]
+},
+"img": {
+"body": "assets/chars/islam/body.webp",
+"armL": "assets/chars/islam/armL.webp",
+"armR": "assets/chars/islam/armR.webp",
+"legL": "assets/chars/islam/legL.webp",
+"legR": "assets/chars/islam/legR.webp",
+"face": "assets/chars/islam/face.webp",
+"full": "assets/chars/islam/full.webp"
+},
+"FX": 552,
+"FY": 1387,
+"PH": 1379,
+"piv": {
+"armL": [
+445,
+275
+],
+"armR": [
+665,
+275
+],
+"legL": [
+470,
+790
+],
+"legR": [
+635,
+790
+]
+}
+}
+}
