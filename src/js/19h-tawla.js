@@ -68,7 +68,7 @@ function evalPos(st, s){
 const twCv = $('twCanvas'), twG = twCv.getContext('2d');
 let twGeom = null;
 function twLayout(){
-  const W = Math.min(760, innerWidth - 28), H = Math.round(Math.min(W * .6, innerHeight - 200)), dpr = Math.min(2, devicePixelRatio || 1);
+  const W = Math.min(760, innerWidth - 52), H = Math.round(Math.min(W * .6, innerHeight - (innerHeight < 520 ? 118 : 200))), dpr = Math.min(2, devicePixelRatio || 1);
   twCv.width = W*dpr; twCv.height = H*dpr; twCv.style.width = W + 'px'; twCv.style.height = H + 'px'; twG.setTransform(dpr, 0, 0, dpr, 0, 0);
   const off = W*.08, bar = W*.06, pw = (W - off - bar - 16) / 12; twGeom = { W, H, off, bar, pw, x0: 8, r: Math.min(pw*.46, H*.045) };
 }

@@ -1873,7 +1873,7 @@ function exitStation(silent){
   if (!ST.kind) return;
   const k = ST.kind; ST.kind = null; ST.hold = null; streamMesh.visible = false; setLoop('pour', 0, 900, 'bandpass'); setLoop('sizzle', 0, 4000, 'highpass');
   STA[k].ring.visible = false; $('station').hidden = true; $('plabels').innerHTML = ''; ST.labels = []; document.body.classList.remove('in-station');
-  hero.locked = false; hero.d.root.visible = true; camera.fov = 46; camera.updateProjectionMatrix(); const aw = scene.getObjectByName('cafeAwning'); if (aw) aw.visible = true; const um = scene.getObjectByName('cartUmbrella'); if (um) um.visible = true;
+  hero.locked = false; hero.d.root.visible = true; camera.clearViewOffset(); Object.assign(stView, { x: 0, y: 0, w: 0, h: 0, t: 0 }); camera.fov = 46; camera.updateProjectionMatrix(); const aw = scene.getObjectByName('cafeAwning'); if (aw) aw.visible = true; const um = scene.getObjectByName('cartUmbrella'); if (um) um.visible = true;
   if (k === 'ahwa' && STA.ahwa.narrow) layoutStation(STA.ahwa, false); if (k === 'foul' && STA.foul.narrow) layoutStation(STA.foul, false);
   if (k === 'ahwa'){ ahwaPotVisual(); refreshTray(); if (!silent && (modeObj.tray||[]).length) banner('وزّع الطلبات على الزباين ☕', 'info', 2); }
 }
@@ -1892,11 +1892,22 @@ canvas.addEventListener('pointerdown', e => {
 });
 const stUp = (e, cancel) => { const h = ST.hold; if (!h || e.pointerId !== h.id) return; ST.hold = null; streamMesh.visible = false; if (h.held){ AH.lastPour = true; if (ST.kind === 'ahwa') ahwaRelease(); } else if (!cancel){ if (ST.kind === 'ahwa') ahwaTap(h.name); else foulTap(h.name); } AH.lastPour = false; };
 addEventListener('pointerup', e => stUp(e, false)); addEventListener('pointercancel', e => stUp(e, true));
+// The table is framed inside the part of the screen the panels leave free:
+// the orders ticket takes the right side, the hint, pour meter and buttons take the bottom.
+const stView = { x: 0, y: 0, w: 0, h: 0, t: 0 };
+function stationFreeArea(narrow){
+  if (narrow) return { offX: 0, offY: 0, w: innerWidth, h: innerHeight };
+  const tk = $('stTicket').getBoundingClientRect(), right = tk.width ? tk.width + 16 : 0;
+  const btn = $('stBtns').getBoundingClientRect(), bottom = (btn.height ? innerHeight - btn.top : 70) + (innerHeight < 520 ? 44 : 64);
+  return { offX: right / 2, offY: bottom / 2, w: innerWidth - right, h: innerHeight - bottom };
+}
 function stationCamera(dt){
-  const S = STA[ST.kind]; const asp = innerWidth/innerHeight; const narrow = asp < .95;
+  const S = STA[ST.kind]; const narrow = innerWidth/innerHeight < .95;
   if (S.narrow !== narrow){ layoutStation(S, narrow); if (ST.kind === 'ahwa') ahwaPotVisual(); }
-  const vf = 50*Math.PI/180, hf = 2*Math.atan(Math.tan(vf/2)*asp);
-  const W = narrow ? 1.34 : 1.9, Dd = narrow ? 1.45 : 1.5, pitch = narrow ? 1.12 : .98;
+  stView.t -= dt; if (stView.t <= 0){ stView.t = .25; const a = stationFreeArea(narrow); if (Math.abs(a.offX - stView.x) > 1 || Math.abs(a.offY - stView.y) > 1 || Math.abs(a.w - stView.w) > 1){ Object.assign(stView, { x: a.offX, y: a.offY, w: a.w, h: a.h }); if (a.offX || a.offY) camera.setViewOffset(innerWidth, innerHeight, a.offX, a.offY, innerWidth, innerHeight); else camera.clearViewOffset(); } }
+  const freeW = stView.w || innerWidth, freeH = stView.h || innerHeight, asp = freeW / freeH;
+  const vf = 2*Math.atan(Math.tan(25*Math.PI/180) * freeH / innerHeight), hf = 2*Math.atan(Math.tan(vf/2)*asp);
+  const W = narrow ? 1.34 : 2.08, Dd = narrow ? 1.45 : 1.56, pitch = narrow ? 1.12 : .98;
   const D = Math.max((W/2)/Math.tan(hf/2), (Dd/2)/Math.tan(vf/2)) * (narrow ? 1.0 : 1.02);
   const cp = new THREE.Vector3(0, Math.sin(pitch)*D, Math.cos(pitch)*D - (narrow ? .07 : 0)); S.grp.localToWorld(cp);
   const lp = new THREE.Vector3(0, 0, narrow ? -.02 : .16); S.grp.localToWorld(lp);
@@ -2132,6 +2143,7 @@ addEventListener('keydown', e => { if (CUT.on && (e.code === 'Space' || e.code =
 async function playCut(steps){
   if (CUT.on) return;
   CUT.on = true; CUT.skip = false; hero.locked = true; document.body.classList.add('cutscene'); $('cine').hidden = false; hero.vel.set(0,0,0);
+  if (innerHeight < 520) camera.setViewOffset(innerWidth, innerHeight, 0, innerHeight * .17, innerWidth, innerHeight);
   if (hero.veh) hero.veh.speed = 0;
   try {
     for (const s of steps){
@@ -2147,7 +2159,7 @@ async function playCut(steps){
       if (s.fade) await fadeTo(s.fade === true ? null : s.fade);
     }
   } finally {
-    $('dlg').hidden = true; $('cine').hidden = true; document.body.classList.remove('cutscene'); stopVoice();
+    $('dlg').hidden = true; $('cine').hidden = true; document.body.classList.remove('cutscene'); stopVoice(); if (!ST.kind) camera.clearViewOffset();
     CUT.on = false; CUT.cam = null; CUT.walkers.length = 0; CUT.skip = false; hero.locked = false;
     CAM.orbit = CAM.orbitSm = camYaw;
   }
@@ -2657,6 +2669,7 @@ function actionNearActivity(p){
   return null;
 }
 function updateActivities(dt, t){
+  document.body.classList.toggle('in-act', !!ACT.kind && hero.locked);
   updatePigeons(dt, t); updateGarage(t);
   const showSigns = modeId === 'free' || modeId === 'story';
   footballSign.visible = coopSign.visible = showSigns; if (parkSign) parkSign.visible = showSigns;
@@ -2735,7 +2748,7 @@ function evalPos(st, s){
 const twCv = $('twCanvas'), twG = twCv.getContext('2d');
 let twGeom = null;
 function twLayout(){
-  const W = Math.min(760, innerWidth - 28), H = Math.round(Math.min(W * .6, innerHeight - 200)), dpr = Math.min(2, devicePixelRatio || 1);
+  const W = Math.min(760, innerWidth - 52), H = Math.round(Math.min(W * .6, innerHeight - (innerHeight < 520 ? 118 : 200))), dpr = Math.min(2, devicePixelRatio || 1);
   twCv.width = W*dpr; twCv.height = H*dpr; twCv.style.width = W + 'px'; twCv.style.height = H + 'px'; twG.setTransform(dpr, 0, 0, dpr, 0, 0);
   const off = W*.08, bar = W*.06, pw = (W - off - bar - 16) / 12; twGeom = { W, H, off, bar, pw, x0: 8, r: Math.min(pw*.46, H*.045) };
 }
@@ -4372,13 +4385,14 @@ function openMap(){
   $('mapOv').hidden = false; drawFullMap();
 }
 function drawFullMap(){
-  const cv = $('mapCanvas'), W = mapBase.width, H = mapBase.height, sc = Math.min((innerWidth - 40) / W, (innerHeight - 110) / H, 2.2);
+  const cv = $('mapCanvas'), W = mapBase.width, H = mapBase.height, sc = Math.min((innerWidth - 40) / W, (innerHeight - (innerHeight < 520 ? 124 : 110)) / H, 2.2);
+  const SHORT = { works: 'الورش', food: 'المطاعم', corniche: 'الكورنيش', bridge: 'الكوبري', bank: 'البر التاني', market: 'السوق', stadium: 'الملعب', hara: 'الحتة' };
   cv.width = Math.round(W*sc); cv.height = Math.round(H*sc); const g = cv.getContext('2d');
   g.drawImage(mapBase, 0, 0, cv.width, cv.height);
   const P = (x, z) => [MX(x)*sc, MZ(z)*sc];
   const labels = { hara: [0, 0], market: [144, -48], food: [144, 48], stadium: [240, -48], works: [240, 48], corniche: [96, 120], bridge: [96, 210], bank: [96, 278] };
   g.textAlign = 'center'; g.textBaseline = 'middle'; g.direction = 'rtl';
-  for (const [k, [x, z]] of Object.entries(labels)){ const [px, pz] = P(x, z); g.font = `900 ${Math.round(15*Math.max(sc,.8))}px Cairo, sans-serif`; g.lineWidth = 4; g.strokeStyle = 'rgba(0,0,0,.75)'; g.strokeText(DISTRICT_NAMES[k], px, pz); g.fillStyle = '#ffe9b0'; g.fillText(DISTRICT_NAMES[k], px, pz); }
+  for (const [k, [x, z]] of Object.entries(labels)){ const [px, pz] = P(x, z); g.font = `900 ${Math.round(15*Math.max(sc,.8))}px Cairo, sans-serif`; g.lineWidth = 4; g.strokeStyle = 'rgba(0,0,0,.75)'; g.strokeText(sc < 1.2 ? SHORT[k] : DISTRICT_NAMES[k], px, pz); g.fillStyle = '#ffe9b0'; g.fillText(sc < 1.2 ? SHORT[k] : DISTRICT_NAMES[k], px, pz); }
   for (const s of STOPS){ const [px, pz] = P(s.pos.x, s.pos.z); g.fillStyle = '#1e66d0'; g.beginPath(); g.arc(px, pz, 6, 0, 7); g.fill(); g.fillStyle = '#fff'; g.font = '700 9px sans-serif'; g.fillText('🚌', px, pz); }
   const marks = radarMarks(performance.now()/1000);
   for (const k of marks){ const [px, pz] = P(k.x, k.z); if (k.star){ g.font = 'bold 22px sans-serif'; g.lineWidth = 4; g.strokeStyle = '#000'; g.strokeText('★', px, pz); g.fillStyle = '#ffc94a'; g.fillText('★', px, pz); } else { g.fillStyle = k.c; g.beginPath(); g.arc(px, pz, (k.r||3)+1, 0, 7); g.fill(); } }

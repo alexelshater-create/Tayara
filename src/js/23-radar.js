@@ -47,13 +47,14 @@ function openMap(){
   $('mapOv').hidden = false; drawFullMap();
 }
 function drawFullMap(){
-  const cv = $('mapCanvas'), W = mapBase.width, H = mapBase.height, sc = Math.min((innerWidth - 40) / W, (innerHeight - 110) / H, 2.2);
+  const cv = $('mapCanvas'), W = mapBase.width, H = mapBase.height, sc = Math.min((innerWidth - 40) / W, (innerHeight - (innerHeight < 520 ? 124 : 110)) / H, 2.2);
+  const SHORT = { works: 'الورش', food: 'المطاعم', corniche: 'الكورنيش', bridge: 'الكوبري', bank: 'البر التاني', market: 'السوق', stadium: 'الملعب', hara: 'الحتة' };
   cv.width = Math.round(W*sc); cv.height = Math.round(H*sc); const g = cv.getContext('2d');
   g.drawImage(mapBase, 0, 0, cv.width, cv.height);
   const P = (x, z) => [MX(x)*sc, MZ(z)*sc];
   const labels = { hara: [0, 0], market: [144, -48], food: [144, 48], stadium: [240, -48], works: [240, 48], corniche: [96, 120], bridge: [96, 210], bank: [96, 278] };
   g.textAlign = 'center'; g.textBaseline = 'middle'; g.direction = 'rtl';
-  for (const [k, [x, z]] of Object.entries(labels)){ const [px, pz] = P(x, z); g.font = `900 ${Math.round(15*Math.max(sc,.8))}px Cairo, sans-serif`; g.lineWidth = 4; g.strokeStyle = 'rgba(0,0,0,.75)'; g.strokeText(DISTRICT_NAMES[k], px, pz); g.fillStyle = '#ffe9b0'; g.fillText(DISTRICT_NAMES[k], px, pz); }
+  for (const [k, [x, z]] of Object.entries(labels)){ const [px, pz] = P(x, z); g.font = `900 ${Math.round(15*Math.max(sc,.8))}px Cairo, sans-serif`; g.lineWidth = 4; g.strokeStyle = 'rgba(0,0,0,.75)'; g.strokeText(sc < 1.2 ? SHORT[k] : DISTRICT_NAMES[k], px, pz); g.fillStyle = '#ffe9b0'; g.fillText(sc < 1.2 ? SHORT[k] : DISTRICT_NAMES[k], px, pz); }
   for (const s of STOPS){ const [px, pz] = P(s.pos.x, s.pos.z); g.fillStyle = '#1e66d0'; g.beginPath(); g.arc(px, pz, 6, 0, 7); g.fill(); g.fillStyle = '#fff'; g.font = '700 9px sans-serif'; g.fillText('🚌', px, pz); }
   const marks = radarMarks(performance.now()/1000);
   for (const k of marks){ const [px, pz] = P(k.x, k.z); if (k.star){ g.font = 'bold 22px sans-serif'; g.lineWidth = 4; g.strokeStyle = '#000'; g.strokeText('★', px, pz); g.fillStyle = '#ffc94a'; g.fillText('★', px, pz); } else { g.fillStyle = k.c; g.beginPath(); g.arc(px, pz, (k.r||3)+1, 0, 7); g.fill(); } }

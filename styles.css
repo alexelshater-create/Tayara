@@ -391,3 +391,68 @@ body.cutscene #actUi,body.cutscene #actQuit{display:none!important}
   .rot-phone i{position:absolute;left:50%;bottom:6px;width:16px;height:4px;margin-left:-8px;border-radius:2px;background:var(--ink)}
   @keyframes rotph{0%,20%{transform:rotate(0)}55%,80%{transform:rotate(-90deg)}100%{transform:rotate(0)}}
 }
+
+/* ---- cooking stations: the hint and the pour meter share one strip above the buttons ---- */
+.st-meter{bottom:calc(82px + env(safe-area-inset-bottom,0px))}
+.st-meter:not([hidden]) ~ .st-hint{display:none}
+.st-hint{max-width:min(620px,calc(100vw - 24px));white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media (max-height:520px){
+  .st-btns{bottom:calc(6px + env(safe-area-inset-bottom,0px))}
+  .st-btns button{min-height:46px;font-size:14px;border-radius:12px}
+  .st-hint{bottom:calc(58px + env(safe-area-inset-bottom,0px));font-size:14px!important;padding:6px 14px!important;border-radius:10px}
+  .st-meter{bottom:calc(60px + env(safe-area-inset-bottom,0px));width:min(300px,50vw)}
+  .ticket{font-size:12.5px!important;line-height:1.4;padding:5px 10px;min-width:0;max-width:min(230px,32vw);max-height:calc(100vh - 16px);overflow:auto}
+  .ticket b{font-size:13px}
+  .plabel{font-size:11px!important;padding:1px 6px!important}
+}
+
+/* ---- phone landscape audit fixes ---- */
+/* overlays scroll from the top when a panel is taller than the screen (no clipped titles or buttons) */
+.overlay{align-items:flex-start;justify-content:flex-start}
+.overlay > *{margin:auto}
+body.in-act #joy,body.in-act #joyHint,body.in-act #punchBtn,body.in-act #runBtn{display:none!important}
+@media (max-height:520px){
+  /* HUD: mission card and the action buttons no longer touch */
+  .card.obj{max-width:210px}
+  .card.obj #objText{-webkit-line-clamp:2}
+  .mbtns{gap:7px;bottom:calc(10px + env(safe-area-inset-bottom,0px))}
+  .mbtns button{width:50px!important;height:50px!important;font-size:18px!important}
+  /* panels fit the screen; long lists scroll inside */
+  .panel{max-height:calc(100vh - 16px);overflow:auto;padding:12px 16px}
+  .shopp{display:flex;flex-direction:column;gap:6px}
+  .shopp h2{font-size:18px}
+  .shopitems{display:grid;grid-template-columns:1fr 1fr;gap:6px;overflow:auto;min-height:0}
+  .shopitems .paintrow{grid-column:1/-1}
+  .sitem{padding:6px 10px;font-size:13px}
+  .sitem button{min-height:34px;padding:4px 10px;font-size:13px}
+  .swatch{width:28px!important;height:28px!important}
+  .setp{gap:8px}
+  /* domino: actions in a column beside the hand */
+  #dGame{display:grid;grid-template-columns:1fr auto;grid-template-areas:"seats act" "msg act" "hand act";column-gap:10px;align-items:start}
+  #dGame .seats{grid-area:seats}#dGame .dmsg{grid-area:msg}#dGame .hand{grid-area:hand}
+  #dGame .dact{grid-area:act;flex-direction:column;justify-content:flex-start;width:112px}
+  #dGame .dact button{width:100%}
+  #dCanvas{height:132px!important}
+  .hand .hwrap small{display:none}
+  /* dialogue box: compact */
+  #dlg{bottom:calc(6vh + 4px);padding:8px 12px;gap:10px;border-radius:14px}
+  #dlgFace{width:42px!important;height:42px!important;font-size:24px}
+  #dlgName{font-size:13px}
+  #dlgText{font-size:14.5px!important;line-height:1.5;min-height:0}
+  #dlg small{display:none}
+  #cine .cbar{height:6vh}
+  /* map legend stays on screen */
+  .mappanel{padding:8px;gap:6px}.maplegend{font-size:11px;gap:8px}
+}
+/* speech bubbles stay under the HUD buttons */
+#bubbles{z-index:1}#hud{z-index:2}
+.btns button{background:rgba(18,14,10,.9)}
+/* backgammon on phones: the roll / new-game button floats over the middle of the board */
+@media (max-height:520px){
+  #tawla .dpanel{position:relative;padding:8px 10px;gap:4px}
+  #tawla .dact{position:absolute;left:50%;top:50%;transform:translate(-50%,-30%);z-index:2;pointer-events:none}
+  #tawla .dact button{pointer-events:auto;box-shadow:0 6px 18px rgba(0,0,0,.55)}
+  #twCanvas{margin:2px auto}
+  #tawla .dmsg{font-size:13px;min-height:0}
+}
+#tawla .dpanel,#domino .dpanel{overflow-x:hidden}

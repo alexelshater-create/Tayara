@@ -45,6 +45,7 @@ addEventListener('keydown', e => { if (CUT.on && (e.code === 'Space' || e.code =
 async function playCut(steps){
   if (CUT.on) return;
   CUT.on = true; CUT.skip = false; hero.locked = true; document.body.classList.add('cutscene'); $('cine').hidden = false; hero.vel.set(0,0,0);
+  if (innerHeight < 520) camera.setViewOffset(innerWidth, innerHeight, 0, innerHeight * .17, innerWidth, innerHeight);
   if (hero.veh) hero.veh.speed = 0;
   try {
     for (const s of steps){
@@ -60,7 +61,7 @@ async function playCut(steps){
       if (s.fade) await fadeTo(s.fade === true ? null : s.fade);
     }
   } finally {
-    $('dlg').hidden = true; $('cine').hidden = true; document.body.classList.remove('cutscene'); stopVoice();
+    $('dlg').hidden = true; $('cine').hidden = true; document.body.classList.remove('cutscene'); stopVoice(); if (!ST.kind) camera.clearViewOffset();
     CUT.on = false; CUT.cam = null; CUT.walkers.length = 0; CUT.skip = false; hero.locked = false;
     CAM.orbit = CAM.orbitSm = camYaw;
   }

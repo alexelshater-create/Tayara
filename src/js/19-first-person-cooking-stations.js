@@ -430,7 +430,7 @@ function exitStation(silent){
   if (!ST.kind) return;
   const k = ST.kind; ST.kind = null; ST.hold = null; streamMesh.visible = false; setLoop('pour', 0, 900, 'bandpass'); setLoop('sizzle', 0, 4000, 'highpass');
   STA[k].ring.visible = false; $('station').hidden = true; $('plabels').innerHTML = ''; ST.labels = []; document.body.classList.remove('in-station');
-  hero.locked = false; hero.d.root.visible = true; camera.fov = 46; camera.updateProjectionMatrix(); const aw = scene.getObjectByName('cafeAwning'); if (aw) aw.visible = true; const um = scene.getObjectByName('cartUmbrella'); if (um) um.visible = true;
+  hero.locked = false; hero.d.root.visible = true; camera.clearViewOffset(); Object.assign(stView, { x: 0, y: 0, w: 0, h: 0, t: 0 }); camera.fov = 46; camera.updateProjectionMatrix(); const aw = scene.getObjectByName('cafeAwning'); if (aw) aw.visible = true; const um = scene.getObjectByName('cartUmbrella'); if (um) um.visible = true;
   if (k === 'ahwa' && STA.ahwa.narrow) layoutStation(STA.ahwa, false); if (k === 'foul' && STA.foul.narrow) layoutStation(STA.foul, false);
   if (k === 'ahwa'){ ahwaPotVisual(); refreshTray(); if (!silent && (modeObj.tray||[]).length) banner('وزّع الطلبات على الزباين ☕', 'info', 2); }
 }
@@ -449,11 +449,22 @@ canvas.addEventListener('pointerdown', e => {
 });
 const stUp = (e, cancel) => { const h = ST.hold; if (!h || e.pointerId !== h.id) return; ST.hold = null; streamMesh.visible = false; if (h.held){ AH.lastPour = true; if (ST.kind === 'ahwa') ahwaRelease(); } else if (!cancel){ if (ST.kind === 'ahwa') ahwaTap(h.name); else foulTap(h.name); } AH.lastPour = false; };
 addEventListener('pointerup', e => stUp(e, false)); addEventListener('pointercancel', e => stUp(e, true));
+// The table is framed inside the part of the screen the panels leave free:
+// the orders ticket takes the right side, the hint, pour meter and buttons take the bottom.
+const stView = { x: 0, y: 0, w: 0, h: 0, t: 0 };
+function stationFreeArea(narrow){
+  if (narrow) return { offX: 0, offY: 0, w: innerWidth, h: innerHeight };
+  const tk = $('stTicket').getBoundingClientRect(), right = tk.width ? tk.width + 16 : 0;
+  const btn = $('stBtns').getBoundingClientRect(), bottom = (btn.height ? innerHeight - btn.top : 70) + (innerHeight < 520 ? 44 : 64);
+  return { offX: right / 2, offY: bottom / 2, w: innerWidth - right, h: innerHeight - bottom };
+}
 function stationCamera(dt){
-  const S = STA[ST.kind]; const asp = innerWidth/innerHeight; const narrow = asp < .95;
+  const S = STA[ST.kind]; const narrow = innerWidth/innerHeight < .95;
   if (S.narrow !== narrow){ layoutStation(S, narrow); if (ST.kind === 'ahwa') ahwaPotVisual(); }
-  const vf = 50*Math.PI/180, hf = 2*Math.atan(Math.tan(vf/2)*asp);
-  const W = narrow ? 1.34 : 1.9, Dd = narrow ? 1.45 : 1.5, pitch = narrow ? 1.12 : .98;
+  stView.t -= dt; if (stView.t <= 0){ stView.t = .25; const a = stationFreeArea(narrow); if (Math.abs(a.offX - stView.x) > 1 || Math.abs(a.offY - stView.y) > 1 || Math.abs(a.w - stView.w) > 1){ Object.assign(stView, { x: a.offX, y: a.offY, w: a.w, h: a.h }); if (a.offX || a.offY) camera.setViewOffset(innerWidth, innerHeight, a.offX, a.offY, innerWidth, innerHeight); else camera.clearViewOffset(); } }
+  const freeW = stView.w || innerWidth, freeH = stView.h || innerHeight, asp = freeW / freeH;
+  const vf = 2*Math.atan(Math.tan(25*Math.PI/180) * freeH / innerHeight), hf = 2*Math.atan(Math.tan(vf/2)*asp);
+  const W = narrow ? 1.34 : 2.08, Dd = narrow ? 1.45 : 1.56, pitch = narrow ? 1.12 : .98;
   const D = Math.max((W/2)/Math.tan(hf/2), (Dd/2)/Math.tan(vf/2)) * (narrow ? 1.0 : 1.02);
   const cp = new THREE.Vector3(0, Math.sin(pitch)*D, Math.cos(pitch)*D - (narrow ? .07 : 0)); S.grp.localToWorld(cp);
   const lp = new THREE.Vector3(0, 0, narrow ? -.02 : .16); S.grp.localToWorld(lp);

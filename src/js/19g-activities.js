@@ -219,6 +219,7 @@ function actionNearActivity(p){
   return null;
 }
 function updateActivities(dt, t){
+  document.body.classList.toggle('in-act', !!ACT.kind && hero.locked);
   updatePigeons(dt, t); updateGarage(t);
   const showSigns = modeId === 'free' || modeId === 'story';
   footballSign.visible = coopSign.visible = showSigns; if (parkSign) parkSign.visible = showSigns;
