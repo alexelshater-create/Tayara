@@ -8,10 +8,11 @@ function renderModes(){
     { id:'ahwa', icon:'☕', name:'وردية قهوجي', desc:'دور سريع في قصر الملوك: حضّر الشاي والقهوة بإيدك ووزّع.' },
     { id:'domino', icon:'🎲', name:'دومنو مع عم سيد', desc:'ماتش لـ ١٠١ بالقواعد المصرية.' },
   ];
-  $('modes').innerHTML = list.map(m => `<button class="mode" data-mode="${m.id}"><span class="ic">${m.icon}</span><span><b>${m.name}</b><span>${m.desc}</span></span></button>`).join('') + '<button class="mode ach" id="recBtn"><span class="ic">🎙️</span><span><b>سجّل أصوات الشخصيات</b><span>صحابك يسجّلوا الحوار بصوتهم… واللعبة تشغّله</span></span></button>' + '<button class="mode ach" id="achBtn"><span class="ic">🏆</span><span><b>الإنجازات</b><span>' + ACH.filter(a => PROG.ach[a.id]).length + '/' + ACH.length + ' إنجاز · ' + PROG.glasses.length + '/20 كوباية دهب</span></span></button>' + (has ? '<button class="mode reset" id="resetStory"><span class="ic">↺</span><span><b>ابدأ القصة من الأول</b><span id="resetHint">التقدم اللي فات هيتمسح</span></span></button>' : '');
+  $('modes').innerHTML = list.map(m => `<button class="mode" data-mode="${m.id}"><span class="ic">${m.icon}</span><span><b>${m.name}</b><span>${m.desc}</span></span></button>`).join('') + '<button class="mode ach" id="introBtn"><span class="ic">🎬</span><span><b>المقدمة</b><span>اتعرّف على الشلة… والبوستر</span></span></button>' + '<button class="mode ach" id="recBtn"><span class="ic">🎙️</span><span><b>سجّل أصوات الشخصيات</b><span>صحابك يسجّلوا الحوار بصوتهم… واللعبة تشغّله</span></span></button>' + '<button class="mode ach" id="achBtn"><span class="ic">🏆</span><span><b>الإنجازات</b><span>' + ACH.filter(a => PROG.ach[a.id]).length + '/' + ACH.length + ' إنجاز · ' + PROG.glasses.length + '/20 كوباية دهب</span></span></button>' + (has ? '<button class="mode reset" id="resetStory"><span class="ic">↺</span><span><b>ابدأ القصة من الأول</b><span id="resetHint">التقدم اللي فات هيتمسح</span></span></button>' : '');
   $('modes').querySelectorAll('[data-mode]').forEach(b => b.onclick = () => startMode(b.dataset.mode));
   $('achBtn').onclick = openAch;
   $('recBtn').onclick = () => { location.href = 'record.html'; };
+  $('introBtn').onclick = playIntroSeq;
   const rs = $('resetStory'); if (rs){ let armed = false; rs.onclick = () => { if (!armed){ armed = true; $('resetHint').textContent = 'دوس تاني عشان تأكد'; return; } SAVE = newStory(); store.set(STORY_KEY, JSON.stringify(SAVE)); applyAccessories(); renderModes(); }; }
 }
 

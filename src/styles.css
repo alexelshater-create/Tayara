@@ -295,3 +295,45 @@ body.cutscene #actUi,body.cutscene #actQuit{display:none!important}
 #ramBtn.on{background:linear-gradient(180deg,#3a2a6a,#1d1440);color:#ffe28a;border-color:#ffc94a}
 
 #photoShot{z-index:28}
+
+/* ---- intro and poster ---- */
+.intro{position:fixed;inset:0;z-index:60;background:#000;overflow:hidden;user-select:none}
+.intro .ibg{position:absolute;inset:-3%;background:url(assets/poster/bg.webp) center/cover;opacity:0;transform:scale(1.16);transition:opacity 1.4s ease,transform 24s linear}
+.intro.bgin .ibg{opacity:1;transform:scale(1)}
+.intro .ishade{position:absolute;inset:0;background:radial-gradient(ellipse at center,transparent 45%,rgba(0,0,0,.55)),linear-gradient(transparent 62%,rgba(0,0,0,.55));pointer-events:none}
+.ikicker{position:absolute;left:50%;top:42%;transform:translate(-50%,-40%);text-align:center;opacity:0;transition:opacity .7s,transform .7s;text-shadow:0 4px 20px #000}
+.ikicker.show{opacity:1;transform:translate(-50%,-50%)}
+.ikicker small{display:block;font-size:clamp(16px,3vh,28px);color:#ffe9b0;font-weight:800}.ikicker b{display:block;font-size:clamp(30px,8vh,72px);font-weight:900;color:#fff}
+.icard{position:absolute;inset:0;opacity:0;pointer-events:none}
+.icard .ipanel{position:absolute;inset:0;background:var(--c);opacity:.8;clip-path:polygon(0 0,58% 0,40% 100%,0 100%);transform:translateX(-110%)}
+.icard img{position:absolute;bottom:-2%;left:28%;height:98%;transform:translateX(-50%) translateX(-60vw) scale(1.05);filter:drop-shadow(0 10px 30px rgba(0,0,0,.6))}
+.icard .itext{position:absolute;right:6%;top:30%;width:44%;text-align:right;opacity:0;transform:translateX(40px)}
+.icard .itext b{display:block;font-size:clamp(38px,13vh,130px);line-height:1;font-weight:900;color:#fff;text-shadow:0 6px 0 var(--c),0 10px 30px rgba(0,0,0,.7)}
+.icard .itext span{display:inline-block;margin-top:14px;font-size:clamp(15px,3.6vh,32px);font-weight:800;color:#1a1208;background:var(--c);padding:4px 14px;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.4)}
+.icard.in{opacity:1}
+.icard.in .ipanel{transition:transform .45s cubic-bezier(.2,.9,.3,1);transform:none}
+.icard.in img{transition:transform .6s cubic-bezier(.2,.9,.3,1) .1s;transform:translateX(-50%) scale(1)}
+.icard.in .itext{transition:opacity .4s .35s,transform .5s .35s;opacity:1;transform:none}
+.icard.in::after{content:'';position:absolute;inset:0;background:#fff;animation:iflash .5s ease-out both}
+@keyframes iflash{from{opacity:.65}to{opacity:0}}
+.icard.out{transition:opacity .3s;opacity:0}
+.ifinal{position:absolute;inset:0;opacity:0;transition:opacity .4s}
+.ifinal.in{opacity:1}
+.ifinal .fp{position:absolute;transform:translateX(-50%) translateY(30%);opacity:0;filter:drop-shadow(0 12px 30px rgba(0,0,0,.55))}
+.ifinal.in .fp{animation:fpin .7s cubic-bezier(.2,.9,.3,1) both}
+.ifinal.in .fp[data-k=shams]{animation-delay:.05s}.ifinal.in .fp[data-k=arabi]{animation-delay:.25s}.ifinal.in .fp[data-k=islam]{animation-delay:.4s}.ifinal.in .fp[data-k=youssef]{animation-delay:.55s}.ifinal.in .fp[data-k=tayara]{animation-delay:.75s}
+@keyframes fpin{from{opacity:0;transform:translateX(-50%) translateY(30%)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+.ititle{position:absolute;transform:translate(-50%,-50%) scale(2.6);opacity:0;text-align:center;z-index:9;white-space:nowrap;pointer-events:none}
+.ititle.slam{transition:transform .38s cubic-bezier(.2,1.6,.4,1),opacity .2s;transform:translate(-50%,-50%) scale(1);opacity:1}
+.ititle b{display:block;position:relative;font-weight:900;line-height:1.15;filter:drop-shadow(0 6px 16px rgba(0,0,0,.6))}
+.ititle b::before{content:attr(data-t);position:absolute;inset:0;color:#2a1404;-webkit-text-stroke:.13em #2a1404}
+.ititle b i{position:relative;font-style:normal;background:linear-gradient(#fff3b0,#ffc94a 45%,#d9781a);-webkit-background-clip:text;background-clip:text;color:transparent}
+.ititle span{display:block;font-size:.28em;font-weight:800;color:#fff;text-shadow:0 2px 8px #000,0 0 2px #000}
+.itap{position:absolute;bottom:calc(16px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);display:flex;gap:12px;align-items:center;font-weight:900;font-size:clamp(14px,2.6vh,20px);color:#fff;text-shadow:0 2px 8px #000;opacity:0;transition:opacity .5s;white-space:nowrap;z-index:10}
+.itap.show{opacity:1;animation:ipulse 1.6s ease-in-out infinite}
+@keyframes ipulse{50%{opacity:.6}}
+.itap button,.iskip{font-family:inherit;font-weight:800;font-size:13px;border-radius:999px;padding:6px 14px;border:1px solid rgba(255,255,255,.35);background:rgba(0,0,0,.45);color:#fff;cursor:pointer}
+.iskip{position:absolute;top:calc(12px + env(safe-area-inset-top,0px));left:14px;z-index:11}
+.istart{text-align:center;width:min(420px,calc(100vw - 32px))}.istart h2{font-size:40px;margin:0;color:var(--gold)}.istart p{color:var(--muted);margin:4px 0 14px}.istart button{width:100%;margin-top:8px}
+@media (max-aspect-ratio:1/1){.icard .ipanel{clip-path:polygon(0 0,100% 0,100% 38%,0 52%)}.icard img{left:50%;height:70%}.icard .itext{left:6%;right:6%;width:auto;top:8%;text-align:center}}
+@media (prefers-reduced-motion:reduce){.intro .ibg{transition:opacity .6s}.itap.show{animation:none}}

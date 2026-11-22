@@ -1365,10 +1365,11 @@ function renderModes(){
     { id:'ahwa', icon:'☕', name:'وردية قهوجي', desc:'دور سريع في قصر الملوك: حضّر الشاي والقهوة بإيدك ووزّع.' },
     { id:'domino', icon:'🎲', name:'دومنو مع عم سيد', desc:'ماتش لـ ١٠١ بالقواعد المصرية.' },
   ];
-  $('modes').innerHTML = list.map(m => `<button class="mode" data-mode="${m.id}"><span class="ic">${m.icon}</span><span><b>${m.name}</b><span>${m.desc}</span></span></button>`).join('') + '<button class="mode ach" id="recBtn"><span class="ic">🎙️</span><span><b>سجّل أصوات الشخصيات</b><span>صحابك يسجّلوا الحوار بصوتهم… واللعبة تشغّله</span></span></button>' + '<button class="mode ach" id="achBtn"><span class="ic">🏆</span><span><b>الإنجازات</b><span>' + ACH.filter(a => PROG.ach[a.id]).length + '/' + ACH.length + ' إنجاز · ' + PROG.glasses.length + '/20 كوباية دهب</span></span></button>' + (has ? '<button class="mode reset" id="resetStory"><span class="ic">↺</span><span><b>ابدأ القصة من الأول</b><span id="resetHint">التقدم اللي فات هيتمسح</span></span></button>' : '');
+  $('modes').innerHTML = list.map(m => `<button class="mode" data-mode="${m.id}"><span class="ic">${m.icon}</span><span><b>${m.name}</b><span>${m.desc}</span></span></button>`).join('') + '<button class="mode ach" id="introBtn"><span class="ic">🎬</span><span><b>المقدمة</b><span>اتعرّف على الشلة… والبوستر</span></span></button>' + '<button class="mode ach" id="recBtn"><span class="ic">🎙️</span><span><b>سجّل أصوات الشخصيات</b><span>صحابك يسجّلوا الحوار بصوتهم… واللعبة تشغّله</span></span></button>' + '<button class="mode ach" id="achBtn"><span class="ic">🏆</span><span><b>الإنجازات</b><span>' + ACH.filter(a => PROG.ach[a.id]).length + '/' + ACH.length + ' إنجاز · ' + PROG.glasses.length + '/20 كوباية دهب</span></span></button>' + (has ? '<button class="mode reset" id="resetStory"><span class="ic">↺</span><span><b>ابدأ القصة من الأول</b><span id="resetHint">التقدم اللي فات هيتمسح</span></span></button>' : '');
   $('modes').querySelectorAll('[data-mode]').forEach(b => b.onclick = () => startMode(b.dataset.mode));
   $('achBtn').onclick = openAch;
   $('recBtn').onclick = () => { location.href = 'record.html'; };
+  $('introBtn').onclick = playIntroSeq;
   const rs = $('resetStory'); if (rs){ let armed = false; rs.onclick = () => { if (!armed){ armed = true; $('resetHint').textContent = 'دوس تاني عشان تأكد'; return; } SAVE = newStory(); store.set(STORY_KEY, JSON.stringify(SAVE)); applyAccessories(); renderModes(); }; }
 }
 
@@ -3027,6 +3028,77 @@ function playVoice(text){
 }
 function voiceLeft(){ const a = VOICE.cur; if (!a || a.paused) return 0; const d = a.duration; return isFinite(d) ? Math.max(0, d - a.currentTime) : 1.5; }
 
+// ---- 19l-intro.js ----
+// ================= intro: character cards, then the poster =================
+// Plays once on the first visit (after a tap, so music can start) and again from the menu. The same layout draws the poster images.
+const POSTER_CAST = [
+  { k: 'youssef', name: 'يوسف إبراهيم', line: 'حرامي الساندوتشات… ممنوع دخوله في أي حتة', color: '#f4a300', from: 1 },
+  { k: 'arabi', name: 'العربي', line: 'كان عايز الشغلانة… وعايز طيارة يختفي', color: '#e0457b', from: -1 },
+  { k: 'islam', name: 'إسلام', line: 'الصاحب الجدع… وعريس الحتة', color: '#12a39a', from: 1 },
+  { k: 'shams', name: 'شمس', line: 'المطلوب رقم ١… كان أشطر ميكانيكي في المنطقة', color: '#c62828', from: -1 },
+  { k: 'tayara', name: 'طيارة', line: 'صبي قهوجي مفلس… وهيبقى الجامد', color: '#ffc94a', from: 1 },
+];
+// where each one stands in the poster: x = centre, b = feet line, h = height (fractions of the frame)
+const POSTER_LAYOUT = {
+  wide: { shams: { x: .62, b: .97, h: .9, dim: .72, z: 1 }, arabi: { x: .3, b: 1.01, h: .74, z: 2 }, islam: { x: .82, b: 1.01, h: .76, z: 2 }, tayara: { x: .53, b: 1.03, h: .88, z: 3 }, youssef: { x: .1, b: 1.0, h: .5, z: 4 }, title: { x: .25, y: .13, s: .105 } },
+  tall: { shams: { x: .68, b: .8, h: .5, dim: .72, z: 1 }, arabi: { x: .82, b: .95, h: .4, z: 2 }, islam: { x: .2, b: .96, h: .4, z: 2 }, tayara: { x: .55, b: 1.0, h: .6, z: 3 }, youssef: { x: .16, b: 1.0, h: .25, z: 4 }, title: { x: .5, y: .09, s: .075 } },
+};
+const posterImg = k => `assets/poster/${k}.webp`;
+const INTRO = { timers: [], playing: false };
+const iAt = (ms, fn) => INTRO.timers.push(setTimeout(fn, ms));
+function whoosh(){ if (AC && !muted) noise(.35, 1200, .35); }
+function introLayout(){
+  const el = $('iFinal'), wide = innerWidth / innerHeight >= 1.05, L = POSTER_LAYOUT[wide ? 'wide' : 'tall'];
+  for (const c of POSTER_CAST){ const p = L[c.k], img = el.querySelector(`[data-k="${c.k}"]`); Object.assign(img.style, { left: `${p.x*100}%`, top: `${(p.b - p.h)*100}%`, height: `${p.h*100}%`, zIndex: p.z, filter: p.dim ? `brightness(${p.dim}) saturate(.9)` : '' }); }
+  const t = $('iTitle'); Object.assign(t.style, { left: `${L.title.x*100}%`, top: `${L.title.y*100}%`, fontSize: `${(wide ? innerHeight : innerWidth) * L.title.s * (wide ? 1 : 1.9)}px` });
+}
+function playIntroSeq(){
+  if (INTRO.playing) return; INTRO.playing = true; INTRO.timers.forEach(clearTimeout); INTRO.timers = [];
+  initAudio(); const box = $('intro'); box.hidden = false; box.className = 'intro on'; $('iCard').className = 'icard'; $('iFinal').className = 'ifinal'; $('iTap').classList.remove('show');
+  const card = $('iCard'); let t = 900;
+  iAt(200, () => { box.classList.add('bgin'); $('iKicker').classList.add('show'); });
+  iAt(t + 1400, () => $('iKicker').classList.remove('show')); t += 2000;
+  for (const c of POSTER_CAST){
+    iAt(t, () => { card.className = 'icard'; void card.offsetWidth; card.style.setProperty('--c', c.color); card.style.setProperty('--from', c.from); $('iImg').src = posterImg(c.k); $('iName').textContent = c.name; $('iLine').textContent = c.line; card.className = 'icard in'; whoosh(); });
+    iAt(t + 2350, () => { card.classList.add('out'); });
+    t += 2700;
+  }
+  iAt(t, () => { card.className = 'icard'; introLayout(); $('iFinal').className = 'ifinal in'; whoosh(); });
+  iAt(t + 1500, () => { $('iTitle').classList.add('slam'); if (AC && !muted){ noise(.5, 400, .6); tone(110, 55, .5, 'sawtooth', .12); } shake = .3; });
+  iAt(t + 2600, () => { $('iTap').classList.add('show'); INTRO.ready = true; });
+}
+function endIntro(){ INTRO.timers.forEach(clearTimeout); INTRO.timers = []; INTRO.playing = false; INTRO.ready = false; $('intro').hidden = true; $('intro').className = 'intro'; store.set('ty_intro', '1'); }
+$('introSkip').onclick = e => { e.stopPropagation(); endIntro(); };
+$('intro').addEventListener('pointerdown', e => { if (INTRO.ready && !e.target.closest('button')) endIntro(); });
+$('iSave').onclick = async e => { e.stopPropagation(); const wide = innerWidth >= innerHeight; const cv = await makePosterImage(wide ? 1920 : 1080, wide ? 1080 : 1920); const a = document.createElement('a'); a.href = cv.toDataURL('image/jpeg', .92); a.download = `tayara-poster-${wide ? 'wide' : 'tall'}.jpg`; document.body.appendChild(a); a.click(); a.remove(); };
+addEventListener('resize', () => { if (!$('intro').hidden) introLayout(); });
+// first visit: a tap to start (browsers only allow sound after a tap), then the intro
+function introOnLoad(){
+  if (store.get('ty_intro') === '1') return;
+  $('introStart').hidden = false;
+}
+$('introStartBtn').onclick = () => { $('introStart').hidden = true; if (!musicOn){ musicOn = true; store.set('ty_music', '1'); setBtnStates(); } playIntroSeq(); };
+$('introStartSkip').onclick = () => { $('introStart').hidden = true; store.set('ty_intro', '1'); };
+// ---- the poster as an image (same layout, drawn on a canvas) ----
+const posterCache = {};
+const loadImg = src => posterCache[src] ||= new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
+async function makePosterImage(W, H){
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const g = cv.getContext('2d');
+  try { await document.fonts.load('900 100px Cairo'); await document.fonts.load('700 40px Cairo'); } catch(e){}
+  const bg = await loadImg(posterImg('bg')); const s = Math.max(W / bg.width, H / bg.height); g.drawImage(bg, (W - bg.width*s)/2, (H - bg.height*s)/2, bg.width*s, bg.height*s);
+  const vg = g.createLinearGradient(0, H*.55, 0, H); vg.addColorStop(0, 'rgba(10,6,4,0)'); vg.addColorStop(1, 'rgba(10,6,4,.75)'); g.fillStyle = vg; g.fillRect(0, 0, W, H);
+  const L = POSTER_LAYOUT[W / H >= 1.05 ? 'wide' : 'tall'];
+  const order = [...POSTER_CAST].sort((a, b) => L[a.k].z - L[b.k].z);
+  for (const c of order){ const p = L[c.k], im = await loadImg(posterImg(c.k)); const h = p.h*H, w = im.width / im.height * h; g.save(); if (p.dim) g.filter = `brightness(${p.dim}) saturate(.9)`; g.drawImage(im, p.x*W - w/2, (p.b - p.h)*H, w, h); g.restore(); }
+  // title
+  const fs = (W / H >= 1.05 ? H : W*1.9) * L.title.s, tx = L.title.x*W, ty = L.title.y*H;
+  g.textAlign = 'center'; g.textBaseline = 'middle'; g.direction = 'rtl'; g.font = `900 ${fs}px Cairo, sans-serif`;
+  g.lineJoin = 'round'; g.lineWidth = fs*.14; g.strokeStyle = '#2a1404'; g.shadowColor = 'rgba(0,0,0,.6)'; g.shadowBlur = fs*.25; g.strokeText('طيارة الجامد', tx, ty); g.shadowBlur = 0;
+  const gr = g.createLinearGradient(0, ty - fs*.5, 0, ty + fs*.5); gr.addColorStop(0, '#fff3b0'); gr.addColorStop(.45, '#ffc94a'); gr.addColorStop(1, '#d9781a'); g.fillStyle = gr; g.fillText('طيارة الجامد', tx, ty);
+  g.font = `800 ${fs*.28}px Cairo, sans-serif`; g.lineWidth = fs*.06; g.strokeStyle = 'rgba(20,10,4,.9)'; g.strokeText('الحتة كلها بتتكلم عليه', tx, ty + fs*.78); g.fillStyle = '#fff'; g.fillText('الحتة كلها بتتكلم عليه', tx, ty + fs*.78);
+  return cv;
+}
+
 // ---- 20-story.js ----
 // ================= story: طيارة الجامد =================
 const STORY_KEY = 'ty_story_v2';
@@ -4410,5 +4482,5 @@ let fpsAcc = 0, fpsN = 0, pxr = renderer.getPixelRatio();
 renderer.setAnimationLoop(() => { const raw = clock.getDelta(), dt = Math.min(raw, .05); elapsed += dt; if (PHOTO.on) photoTick(dt, elapsed); else update(dt, elapsed); renderer.render(scene, camera);
   if (state === 'play'){ fpsAcc += raw; fpsN++; if (fpsN >= 150){ const avg = fpsAcc/fpsN; if (avg > 1/30 && pxr > .8){ pxr = Math.max(.8, pxr - .2); renderer.setPixelRatio(pxr); renderer.setSize(innerWidth, innerHeight); } else if (avg > 1/24 && sun.castShadow){ sun.castShadow = false; } fpsAcc = 0; fpsN = 0; } } });
 renderModes();
-$('loadMsg').textContent = 'اختار مود وابدأ.';
-window.__game = { hero, enemy, wanted, vehicles, npcs, keys, get state(){ return state; }, get mode(){ return modeObj; }, startMode, action, punch, dbg: { VOICE, playVoice, vHash, voiceLeft, heroCheer, cats, mesa, PROG_R: () => PROG.ramadan, nightVisuals, openGarage, applyGarage, GARAGE_POS, TW, openTawla, twRoll, twPlayerMove, twStartGame, closeTawla, sequences, TAWLA_SPOT, ACT, ACTS, actStart, actEnd, kameenSpawn, pigeons, RAMPS, parkCar, LOT, PEN, COOP, PROG, ACH, achCheck, openAch, openPhoto, closePhoto, takePhoto, PHOTO, goldGlasses, staticBlocked, blocked, obstacles, freeSpot, SPOT, STOPS, ST, AH, FL, DOM, ahwaTap, ahwaHold, foulTap, stationBtn, enterStation, exitStation, openDomino, playerPick, SA, SF, get SAVE(){ return SAVE; }, startJob, endJob, race, buyVehicle, MS, ST2, CUT, JOB, RHY, HOUSE, TOD, boss, pickups, checkpoints, idx, curM, finishMission, failMission, applyStoryWorld, playCut, dlgTap, applyTimeOfDay, enterHouse, exitHouse, houseAction, openTransit, ride, startPizzaJob, startTukJob, endJob2, playWedding, rhyHit, pizzaMoto, tukVeh, arabiMoto, heroMoto, storyAction, openShop, renderModes, thief, thiefStart, thiefCaught, islamD, CAM }, step(n=60){ for (let i=0;i<n;i++){ elapsed += 1/60; update(1/60, elapsed); } renderer.render(scene, camera); } };
+$('loadMsg').textContent = 'اختار مود وابدأ.'; introOnLoad();
+window.__game = { hero, enemy, wanted, vehicles, npcs, keys, get state(){ return state; }, get mode(){ return modeObj; }, startMode, action, punch, dbg: { playIntroSeq, endIntro, makePosterImage, introLayout, VOICE, playVoice, vHash, voiceLeft, heroCheer, cats, mesa, PROG_R: () => PROG.ramadan, nightVisuals, openGarage, applyGarage, GARAGE_POS, TW, openTawla, twRoll, twPlayerMove, twStartGame, closeTawla, sequences, TAWLA_SPOT, ACT, ACTS, actStart, actEnd, kameenSpawn, pigeons, RAMPS, parkCar, LOT, PEN, COOP, PROG, ACH, achCheck, openAch, openPhoto, closePhoto, takePhoto, PHOTO, goldGlasses, staticBlocked, blocked, obstacles, freeSpot, SPOT, STOPS, ST, AH, FL, DOM, ahwaTap, ahwaHold, foulTap, stationBtn, enterStation, exitStation, openDomino, playerPick, SA, SF, get SAVE(){ return SAVE; }, startJob, endJob, race, buyVehicle, MS, ST2, CUT, JOB, RHY, HOUSE, TOD, boss, pickups, checkpoints, idx, curM, finishMission, failMission, applyStoryWorld, playCut, dlgTap, applyTimeOfDay, enterHouse, exitHouse, houseAction, openTransit, ride, startPizzaJob, startTukJob, endJob2, playWedding, rhyHit, pizzaMoto, tukVeh, arabiMoto, heroMoto, storyAction, openShop, renderModes, thief, thiefStart, thiefCaught, islamD, CAM }, step(n=60){ for (let i=0;i<n;i++){ elapsed += 1/60; update(1/60, elapsed); } renderer.render(scene, camera); } };
