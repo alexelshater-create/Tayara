@@ -168,6 +168,14 @@ body.touch #joyHint.show{display:flex}
 }
 @media (max-height:500px){.top{top:6px}#radar{width:84px;height:84px}.obj{display:none}.card{padding:5px 9px 5px 7px}.face{width:36px;height:36px}.name{font-size:13px}.money{font-size:12px}.btns{max-width:120px}.btns button{width:28px;height:28px;font-size:13px}.mbtns{gap:6px}.mbtns button{width:56px;height:56px;font-size:19px}.ticket{font-size:12px;max-width:44vw;padding:5px 9px}.st-btns button{min-height:44px;font-size:14px}.st-hint{bottom:calc(58px + env(safe-area-inset-bottom,0px));font-size:14px;padding:6px 12px}.st-meter{bottom:calc(96px + env(safe-area-inset-bottom,0px))}.hand .tile .half{width:26px;height:26px;padding:3px}.hand .tile .pip{width:5px;height:5px}.board{min-height:60px;padding:6px}.dpanel{gap:4px;padding:8px}.dact button{min-height:38px;font-size:13px;padding:5px 10px}.prompt{bottom:calc(14px + env(safe-area-inset-bottom,0px))}}
 @media (max-width:700px){.st-btns button{font-size:14px;min-height:54px}.ticket{max-width:72vw;font-size:13px}.hand .tile .half{width:28px;height:28px;padding:3px}.hand .tile .pip{width:6px;height:6px}.dtop b{font-size:16px}}
+.shopp{max-width:440px;display:flex;flex-direction:column;gap:10px}
+.shopitems{display:flex;flex-direction:column;gap:8px}
+.sitem{display:flex;justify-content:space-between;align-items:center;gap:10px;background:rgba(255,240,210,.06);border:1px solid var(--line);border-radius:12px;padding:8px 12px;font-weight:700}
+.sitem button{min-height:42px;border-radius:10px;border:0;padding:6px 14px;font-weight:900;font-family:inherit;background:linear-gradient(180deg,#ffd666,#f0a52a);color:#2a1700;white-space:nowrap}
+.sitem button.poor{filter:grayscale(.8);opacity:.7}
+.sitem .owned{color:var(--accent);font-weight:900}
+.mode.reset{grid-column:1/-1;padding:6px 12px;opacity:.8}
+.mode.reset .ic{font-size:20px}
 @media (prefers-reduced-motion: reduce){.banner.police{animation:none}.mode{transition:none}}
 </style>
 </head>
@@ -251,6 +259,8 @@ body.touch #joyHint.show{display:flex}
   </div>
 </div>
 
+<div id="shop" class="overlay soft" hidden><div class="panel shopp"><h2 id="shopTitle" style="margin:0;color:var(--gold)"></h2><div class="dinfo" id="shopMoney"></div><div id="shopItems" class="shopitems"></div><div class="row"><button class="ghost" id="shopClose">خلاص</button></div></div></div>
+<div id="storyEnd" class="overlay" hidden><div class="panel endp"><div class="face" data-face></div><h2>طيارة الجامد 👑</h2><p>عملتها! اشتغلت وحوّشت، اشتريت الموتوسيكل والعربية، مسكت المطلوب، ووقّعت اللي بيكرهك. الحتة كلها بقت عارفاك.</p><div class="row"><button class="primary" id="storyEndBtn">كمّل لف في الحتة</button></div></div></div>
 <div id="end" class="overlay" hidden>
   <div class="panel endp">
     <div class="face" data-face></div>
@@ -809,7 +819,7 @@ function makeDoll(c, heightM){
   }
   const blob = new THREE.Mesh(blobGeo, blobMat); blob.rotation.x = -Math.PI/2; blob.position.y = .03; root.add(blob);
   scene.add(root);
-  return { root, doll, P, mats, blob, phase: 0, tilt: 0, punchT: 0, punchSide: 1, downT: 0, fall: 0, height: heightM, hipY: (c.FY - c.parts.body[1] - c.parts.body[3]) * S };
+  return { S, c, root, doll, P, mats, blob, phase: 0, tilt: 0, punchT: 0, punchSide: 1, downT: 0, fall: 0, height: heightM, hipY: (c.FY - c.parts.body[1] - c.parts.body[3]) * S };
 }
 function animDoll(d, vx, vz, dt, t){
   const sp = Math.hypot(vx, vz);
@@ -864,7 +874,7 @@ function makeNPC(){
   const n = { g, body, legs, arms, state: 'hidden', phase: R(0,6), speed: R(1.1,1.6), yaw: 0, t: 0, dir: 1, block: 0, downT: 0, fall: 0, fleeT: 0, name: pick(NAMES), role: null, head: 2.05*sc };
   g.visible = false; npcs.push(n); return n;
 }
-for (let i=0;i<34;i++) makeNPC();
+for (let i=0;i<40;i++) makeNPC();
 const walkBlocks = blocksInfo.map((b,i) => i);
 function perimPos(b, t){ const r = 16.6, c = [[b.cx-r,b.cz-r],[b.cx+r,b.cz-r],[b.cx+r,b.cz+r],[b.cx-r,b.cz+r]]; const s = ((Math.floor(t)%4)+4)%4, f = t - Math.floor(t); const a = c[s], e = c[(s+1)%4]; return [a[0]+(e[0]-a[0])*f, a[1]+(e[1]-a[1])*f]; }
 function setWalker(n){ n.state = 'walk'; n.role = 'walker'; n.block = pick(walkBlocks); n.t = R(0,4); n.dir = rng()<.5 ? 1 : -1; n.g.visible = true; n.g.rotation.set(0,0,0); n.body.position.y = 0; n.fall = 0; n.downT = 0; }
@@ -872,6 +882,7 @@ function seatNPC(n, x, z, ry){ n.state = 'sit'; n.g.visible = true; n.g.position
 function npcHit(n, power=1){
   if (n.state === 'hidden') return;
   n.prevState = n.state === 'down' ? n.prevState : n.state; n.state = 'down'; n.downT = 2.6 + power; n.fleeT = 5;
+  n.fightT = ((n.prevState === 'walk' || n.prevState === 'fight') && Math.random() < .35) ? 7 : 0;
   say(n, rpick(['آه يا عم!','إيه ده يا جدع!','هبلغ عنك!','يا ساتر!','حرام عليك!']), 2, 'angry'); thwack();
 }
 function updateNPC(n, dt){
@@ -889,7 +900,13 @@ function updateNPC(n, dt){
     else { const s = Math.min(d, n.speed*1.2*dt); n.g.position.x += dx/d*s; n.g.position.z += dz/d*s; n.yaw = Math.atan2(dx, dz); moving = n.speed; }
     n.g.position.y = groundY(n.g.position.x, n.g.position.z);
   } else if (n.state === 'down'){
-    n.downT -= dt; if (n.downT <= 0){ if (n.prevState === 'walk' || n.prevState === 'down' || !n.prevState) { n.state = 'walk'; } else n.state = n.prevState; }
+    n.downT -= dt; if (n.downT <= 0){ if (n.fightT > 0){ n.state = 'fight'; say(n, rpick(['تعالى هنا!','انت فاكر نفسك مين؟','هوريك!']), 2, 'angry'); } else if (n.prevState === 'walk' || n.prevState === 'down' || n.prevState === 'fight' || !n.prevState) { n.state = 'walk'; } else n.state = n.prevState; }
+  } else if (n.state === 'fight'){
+    n.fightT -= dt; const tp = hero.pos; const dx = tp.x - n.g.position.x, dz = tp.z - n.g.position.z, d = Math.hypot(dx, dz);
+    if (n.fightT <= 0 || d > 25 || hero.veh){ const bp = perimPos(blocksInfo[n.block], n.t); n.state = 'goto'; n.tx = bp[0]; n.tz = bp[1]; n.onArrive = n2 => { n2.state = 'walk'; }; }
+    else if (d > 1.1){ const s = 4*dt; moveWithSlide(n.g.position, dx/d*s, dz/d*s, .3); n.yaw = Math.atan2(dx, dz); moving = 4; }
+    else { n.yaw = Math.atan2(dx, dz); n.atkT = (n.atkT||0) - dt; if (n.atkT <= 0){ n.atkT = 1.2; n.arms[1].rotation.x = -1.6; setTimeout(() => { n.arms[1].rotation.x = 0; if (n.state === 'fight' && n.g.position.distanceTo(hero.pos) < 1.7) heroDamage(5, 'npc'); }, 150); } }
+    n.g.position.y = groundY(n.g.position.x, n.g.position.z);
   }
   // animation
   n.fall += ((n.state === 'down' ? 1 : 0) - n.fall) * damp(n.state === 'down' ? 10 : 4, dt);
@@ -1003,7 +1020,7 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyE') action();
   if (e.code === 'KeyF') punch();
   if (e.code === 'KeyH') { if (hero.veh) horn(); }
-  if (e.code === 'Escape'){ if (ST.kind && modeId !== 'foul') exitStation(); else if (!$('domino').hidden) closeDomino(); else openMenu(); }
+  if (e.code === 'Escape'){ if (!$('shop').hidden){ $('shop').hidden = true; hero.locked = false; } else if (ST.kind && modeId !== 'foul') exitStation(); else if (!$('domino').hidden) closeDomino(); else openMenu(); }
 });
 addEventListener('keyup', e => { keys[e.code] = false; });
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
@@ -1072,6 +1089,7 @@ function randomSidewalkPoint(minD, from){ for (let i=0;i<200;i++){ const b = pic
 // ================= vehicles: enter / drive =================
 function enterVehicle(v){
   if (!modeObj.vehicles){ banner('مفيش ركوب في المود ده', 'info', 1.8); return; }
+  if (modeObj.canDrive && !modeObj.canDrive(v)){ banner('دي مش بتاعتك', 'info', 1.5); return; }
   hero.veh = v; v.speed = 0; hero.d.blob.visible = false;
   banner(v.type === 'moto' ? 'ركبت الموتوسيكل 🏍️' : v.type === 'police' ? 'ركبت البوكس 🚓' : 'ركبت العربية 🚗', 'ok', 1.6);
   tone(90, 140, .4, 'sawtooth', .12);
@@ -1089,20 +1107,24 @@ function exitVehicle(force){
 }
 function driveVehicle(v, dt, inX, inZ, brake){
   const throttle = -inZ, steer = -inX;
-  if (brake){ v.speed *= Math.exp(-dt*4); }
+  const drift = brake && Math.abs(v.speed) > 7; const vmax = v.max * ((v.dmg||0) >= 100 ? .55 : 1);
+  if (brake){ v.speed *= Math.exp(-dt*(drift ? 1.1 : 4)); }
   else if (Math.abs(throttle) > .05){
-    const target = throttle > 0 ? v.max*throttle : v.max*.35*throttle;
+    const target = throttle > 0 ? vmax*throttle : vmax*.35*throttle;
     const rate = (Math.sign(target) !== Math.sign(v.speed) && Math.abs(v.speed) > .5) ? 22 : v.accel;
     v.speed += clamp(target - v.speed, -rate*dt, rate*dt);
   } else v.speed *= Math.exp(-dt*.7);
   v.steer += (steer - v.steer) * damp(8, dt);
   let sf = clamp(v.speed/6, -1, 1) * (1 - Math.min(Math.abs(v.speed)/v.max, 1)*.35);
   if (Math.abs(throttle) > .05 && Math.abs(sf) < .4) sf = .4 * Math.sign(throttle);
-  const nyaw = v.yaw + v.steer * v.turn * sf * dt;
+  const nyaw = v.yaw + v.steer * v.turn * (drift ? 1.9 : 1) * sf * dt;
+  setLoop('skid', drift ? .1 : 0, 1700, 'bandpass');
+  if (drift && Math.random() < dt*14){ _t.set(v.pos.x - Math.sin(v.yaw)*1.8, .2, v.pos.z - Math.cos(v.yaw)*1.8); puff(_t, .5); }
+  if ((v.dmg||0) > 60 && Math.random() < dt*6){ _t.set(v.pos.x + Math.sin(v.yaw)*1.8, 1.1, v.pos.z + Math.cos(v.yaw)*1.8); puff(_t, .45); }
   const nx = v.pos.x + Math.sin(nyaw)*v.speed*dt, nz = v.pos.z + Math.cos(nyaw)*v.speed*dt;
   const poseBlocked = (x, z, yaw) => vCircles(v, x, z, yaw).some(c => staticBlocked(c.x, c.z, c.r) || vehBlockedAt(c.x, c.z, c.r, v) || Math.abs(c.x) > LIMIT+3 || Math.abs(c.z) > LIMIT+3);
   if (poseBlocked(nx, nz, nyaw)){
-    if (Math.abs(v.speed) > 7){ thwack(); shake = .4; heroDamage(Math.abs(v.speed) > 14 ? 10 : 4, 'crash'); }
+    if (Math.abs(v.speed) > 7){ thwack(); shake = .4; heroDamage(Math.abs(v.speed) > 14 ? 10 : 4, 'crash'); v.dmg = (v.dmg||0) + Math.abs(v.speed)*1.6; if (v.dmg >= 100 && !v.broke){ v.broke = true; banner('العربية اتبهدلت… بقت بطيئة 💨', 'bad', 2.5); } }
     v.speed *= -.25;
     // still let the driver turn the nose away from what they hit
     const turnOnly = v.yaw + v.steer * v.turn * .6 * dt * (throttle < 0 ? -1 : 1);
@@ -1113,7 +1135,7 @@ function driveVehicle(v, dt, inX, inZ, brake){
   v.mesh.rotation.y = v.yaw;
   if (v.type === 'moto') v.mesh.rotation.z = -v.steer * .35 * clamp(Math.abs(v.speed)/10, 0, 1);
   // traffic bump
-  for (const c of traffic){ if (Math.hypot(c.position.x - v.pos.x, c.position.z - v.pos.z) < (v.type==='moto' ? 2.1 : 2.9)){ if (Math.abs(v.speed) > 3 || c.userData.speed > 3){ thwack(); shake = .5; heroDamage(v.type==='moto' ? 18 : 6, 'car'); v.speed = -v.speed*.3 - 2; c.userData.speed = 0; } } }
+  for (const c of traffic){ if (Math.hypot(c.position.x - v.pos.x, c.position.z - v.pos.z) < (v.type==='moto' ? 2.1 : 2.9)){ if (Math.abs(v.speed) > 3 || c.userData.speed > 3){ thwack(); shake = .5; heroDamage(v.type==='moto' ? 18 : 6, 'car'); v.speed = -v.speed*.3 - 2; c.userData.speed = 0; v.dmg = (v.dmg||0) + 12; } } }
 }
 
 // ================= interactions =================
@@ -1121,9 +1143,9 @@ let nearAction = null;
 function computeAction(){
   nearAction = null; if (state !== 'play' || hero.locked) return;
   const p = hero.pos;
-  if (hero.veh){ nearAction = { text: 'انزل', fn: () => exitVehicle(false) }; return; }
+  if (hero.veh){ const va = modeObj.vehAction && modeObj.vehAction(); nearAction = va || { text: 'انزل', fn: () => exitVehicle(false) }; return; }
   const ma = modeObj.action && modeObj.action(); if (ma){ nearAction = ma; return; }
-  if (modeObj.vehicles){ let best = null, bd = 3.2; for (const v of vehicles){ const d = Math.hypot(v.pos.x-p.x, v.pos.z-p.z); if (d < bd){ bd = d; best = v; } } if (best){ nearAction = { text: best.type==='moto' ? 'اركب الموتوسيكل' : best.type==='police' ? 'اركب البوكس' : 'اركب العربية', fn: () => enterVehicle(best) }; return; } }
+  if (modeObj.vehicles){ let best = null, bd = 3.2; for (const v of vehicles){ if (modeObj.canDrive && !modeObj.canDrive(v)) continue; const d = Math.hypot(v.pos.x-p.x, v.pos.z-p.z); if (d < bd){ bd = d; best = v; } } if (best){ nearAction = { text: best.type==='moto' ? 'اركب الموتوسيكل' : best.type==='police' ? 'اركب البوكس' : 'اركب العربية', fn: () => enterVehicle(best) }; return; } }
   if (modeObj.cafe){
     if (p.distanceTo(SPOT.domino) < 2.4) { nearAction = { text: 'العب دومنو مع عم سيد', fn: () => openDomino() }; return; }
     if (p.distanceTo(SPOT.counter) < 2.6) { nearAction = { text: 'اشرب كوباية شاي (٥ جنيه)', fn: () => { if (hero.money < 5) return banner('مفيش فلوس كفاية', 'bad', 1.5); hero.money -= 5; hero.hp = Math.min(100, hero.hp+20); clink(); banner('شاي تقيل ومظبوط 🍵 +٢٠ صحة', 'ok', 2); } }; return; }
@@ -1141,10 +1163,12 @@ function punch(){
   if (wanted.active && !wanted.caught){ const d = wanted.pos.distanceTo(p); if (d < 1.9 && d <= bd + .3){ best = { wanted: true, x: wanted.pos.x, z: wanted.pos.z }; } }
   hero.d.punchSide = best ? (((best.x-p.x)*camRightX + (best.z-p.z)*camRightZ) >= 0 ? 1 : -1) : 1;
   hero.d.punchT = .28; noise(.08, 2500, .15);
+  const pnow = runTime; hero.combo = (pnow - (hero.lastPunch ?? -9) < .8) ? (hero.combo||0) + 1 : 1; hero.lastPunch = pnow; const big = hero.combo % 3 === 0;
   if (!best) return;
   setTimeout(() => {
-    if (best.n){ npcHit(best.n, 0); if (modeObj.onPunchNPC) modeObj.onPunchNPC(best.n); }
-    else if (best.enemy) hitEnemy(20, p);
+    if (big){ shake = .3; noise(.25, 600, .5); buzz(30); }
+    if (best.n){ npcHit(best.n, big ? 2 : 0); if (modeObj.onPunchNPC) modeObj.onPunchNPC(best.n); }
+    else if (best.enemy){ hitEnemy(big ? 35 : 18, p); if (big) say(enemy, '💥', .8, 'angry'); }
     else if (best.wanted) arrestWanted();
   }, 120);
 }
@@ -1156,7 +1180,7 @@ function spawnEnemy(){ enemy.active = true; enemy.d.root.visible = true; enemy.h
 function hitEnemy(dmg, from){
   enemy.hp -= dmg; thwack(); const dx = enemy.pos.x - from.x, dz = enemy.pos.z - from.z, d = Math.hypot(dx,dz)||1;
   moveWithSlide(enemy.pos, dx/d*1.2, dz/d*1.2);
-  if (enemy.hp <= 0){ enemy.d.downT = 6; enemy.state = 'down'; enemy.cd = 12; enemy.hp = 100; say(enemy, 'ماشي يا طيارة… هترجعلي', 3, 'angry'); if (modeObj.onEnemyDown) modeObj.onEnemyDown(); }
+  if (enemy.hp <= 0){ enemy.d.downT = 6; enemy.state = 'down'; enemy.cd = 12; enemy.hp = enemy.maxHp || 100; say(enemy, 'ماشي يا طيارة… هترجعلي', 3, 'angry'); if (modeObj.onEnemyDown) modeObj.onEnemyDown(); }
   else say(enemy, rpick(['آه!','ماشي!','بتضربني؟!']), 1.2, 'angry');
 }
 function updateEnemy(dt){
@@ -1165,16 +1189,16 @@ function updateEnemy(dt){
   const dx = target.x - p.x, dz = target.z - p.z, dist = Math.hypot(dx, dz);
   let vx = 0, vz = 0;
   if (enemy.cd > 0) enemy.cd -= dt;
-  if (enemy.d.downT > 0){ /* lying down */ }
+  if (enemy.d.downT > 0 || enemy.state === 'wait'){ if (enemy.state === 'wait'){ p.copy(ENEMY_WAIT); enemy.tauntT -= dt; if (enemy.tauntT <= 0 && p.distanceTo(hero.pos) < 14){ enemy.tauntT = R(5,8); say(enemy, rpick(['تعالى نتسابق يا طيارة','خايف؟','موتوسيكلك خردة']), 2.2, 'angry'); } } }
   else {
     if (enemy.state === 'down') enemy.state = 'roam';
     const sees = dist < 24 && enemy.cd <= 0 && lineOfSight(p.x, p.z, target.x, target.z);
     if (sees && enemy.state !== 'chase'){ enemy.state = 'chase'; say(enemy, rpick(ENEMY_LINES), 2.4, 'angry'); }
     if (enemy.state === 'chase'){
       if (dist > 40){ enemy.state = 'roam'; }
-      else if (dist > 1.1){ const sp = 6.4; vx = dx/dist*sp; vz = dz/dist*sp; moveWithSlide(p, vx*dt, vz*dt); }
+      else if (dist > 1.1){ const sp = enemy.boss ? 7.2 : 6.4; vx = dx/dist*sp; vz = dz/dist*sp; moveWithSlide(p, vx*dt, vz*dt); }
       enemy.tauntT -= dt; if (enemy.tauntT <= 0){ enemy.tauntT = R(4,7); say(enemy, rpick(ENEMY_LINES), 2, 'angry'); }
-      if (dist < 1.45 && !hero.veh){ enemy.atk -= dt; if (enemy.atk <= 0){ enemy.atk = .95; enemy.d.punchT = .28; enemy.d.punchSide = (dx*Math.cos(camYaw) - dz*Math.sin(camYaw)) >= 0 ? -1 : 1; setTimeout(() => { if (enemy.active && enemy.d.downT <= 0 && enemy.pos.distanceTo(hero.pos) < 1.8) { heroDamage(8, 'enemy'); hero.knock.set(dx/dist*-0, 0, 0); } }, 130); } }
+      if (dist < 1.45 && !hero.veh){ enemy.atk -= dt; if (enemy.atk <= 0){ enemy.atk = .95; enemy.d.punchT = .28; enemy.d.punchSide = (dx*Math.cos(camYaw) - dz*Math.sin(camYaw)) >= 0 ? -1 : 1; setTimeout(() => { if (enemy.active && enemy.d.downT <= 0 && enemy.pos.distanceTo(hero.pos) < 1.8) { heroDamage(enemy.boss ? 12 : 8, 'enemy'); hero.knock.set(dx/dist*-0, 0, 0); } }, 130); } }
     } else {
       const b = blocksInfo[enemy.block]; const old = perimPos(b, enemy.t); enemy.t += enemy.dir * 1.3 * dt / 33.2; const np = perimPos(b, enemy.t);
       const tx = np[0], tz = np[1]; const ddx = tx - p.x, ddz = tz - p.z, dd = Math.hypot(ddx, ddz);
@@ -1256,16 +1280,18 @@ function updateChaser(dt){
 
 // ================= modes =================
 let state = 'menu', modeId = 'free', modeObj = {}, heroName = 'طيارة', shake = 0, runTime = 0;
-const MODES = [
-  { id:'free', icon:'🏙️', name:'حر في الحتة', desc:'اركب عربية أو موتوسيكل، لف في الشوارع، واتعامل مع اللي بيكرهك.' },
-  { id:'police', icon:'🚓', name:'ظابط مباحث', desc:'المطلوب هربان في الحتة. اركب البوكس واقبض عليه قبل الوقت ما يخلص.' },
-  { id:'cash', icon:'💵', name:'فلوس الشارع', desc:'لم ١٥ رزمة فلوس على رجلك من غير ما البوليس يمسكك.' },
-  { id:'ahwa', icon:'☕', name:'قهوجي في قصر الملوك', desc:'خد الطلبات من النَصبة ووصّلها للزباين قبل ما صبرهم يخلص.' },
-  { id:'foul', icon:'🧆', name:'بتاع فول وفلافل', desc:'اعمل الطلب زي ما الزبون عايزه بالظبط وخد فلوسك.' },
-  { id:'domino', icon:'🎲', name:'دومنو مع الصحاب', desc:'اقعد على ترابيزة قصر الملوك والعب دور مع عم سيد.' },
-];
-$('modes').innerHTML = MODES.map(m => `<button class="mode" data-mode="${m.id}"><span class="ic">${m.icon}</span><span><b>${m.name}</b><span>${m.desc}</span></span></button>`).join('');
-$('modes').querySelectorAll('.mode').forEach(b => b.onclick = () => startMode(b.dataset.mode));
+function renderModes(){
+  const has = SAVE.started || SAVE.step > 0;
+  const M = curMission();
+  const list = [
+    { id:'story', icon:'👑', name: has ? 'كمّل القصة' : 'القصة', desc: has ? (M ? `المهمة ${SAVE.step+1} من ${MISSIONS.length}: ${M.title} · ${egp(SAVE.money)}` : 'خلصت القصة! لف في الحتة براحتك.') : 'طيارة مفلس… اشتغل وحوّش، اشتري موتوسيكل وعربية، امسك المطلوب، ووقّع اللي بيكرهك.' },
+    { id:'ahwa', icon:'☕', name:'وردية قهوجي', desc:'دور سريع في قصر الملوك: حضّر الشاي والقهوة بإيدك ووزّع.' },
+    { id:'domino', icon:'🎲', name:'دومنو مع عم سيد', desc:'ماتش لـ ١٠١ بالقواعد المصرية.' },
+  ];
+  $('modes').innerHTML = list.map(m => `<button class="mode" data-mode="${m.id}"><span class="ic">${m.icon}</span><span><b>${m.name}</b><span>${m.desc}</span></span></button>`).join('') + (has ? '<button class="mode reset" id="resetStory"><span class="ic">↺</span><span><b>ابدأ القصة من الأول</b><span id="resetHint">التقدم اللي فات هيتمسح</span></span></button>' : '');
+  $('modes').querySelectorAll('[data-mode]').forEach(b => b.onclick = () => startMode(b.dataset.mode));
+  const rs = $('resetStory'); if (rs){ let armed = false; rs.onclick = () => { if (!armed){ armed = true; $('resetHint').textContent = 'دوس تاني عشان تأكد'; return; } SAVE = newStory(); store.set(STORY_KEY, JSON.stringify(SAVE)); applyAccessories(); renderModes(); }; }
+}
 
 const cashSpots = [];
 { let tries = 0; while (cashSpots.length < 15 && tries < 6000){ tries++; const onRoad = rng() < .55; let x, z; if (onRoad){ const r = pick(ROADS); const t = R(-HALF+4, HALF-4), o = R(-4.5,4.5); if (rng()<.5){ x=t; z=r+o; } else { x=r+o; z=t; } } else { x = R(-HALF+2, HALF-2); z = R(-HALF+2, HALF-2); } if (staticBlocked(x, z, 1.4)) continue; if (Math.hypot(x-SPOT.spawn.x, z-SPOT.spawn.z) < 14) continue; if (cashSpots.some(c => Math.hypot(c.x-x, c.z-z) < 20)) continue; cashSpots.push({ x, z, value: 100*Math.round(R(1,6)) }); } }
@@ -1284,7 +1310,8 @@ const DRINK_ICON = { 'شاي':'🍵', 'قهوة':'☕', 'ينسون':'🌿', 'ح
 const SUGARS = ['سادة','مظبوط','زيادة'];
 const sugarSpoons = (drink, s) => drink === 'قهوة' ? { 'سادة':0, 'مظبوط':1, 'زيادة':2 }[s] : { 'سادة':0, 'مظبوط':2, 'زيادة':3 }[s];
 const sugarLabel = (drink, n) => SUGARS.find(s => sugarSpoons(drink, s) === n) || `${n} معلقة`;
-const orderLabel = o => `${DRINK_ICON[o.drink]} ${o.drink} ${o.sugar}`;
+const orderLabel = o => `${o.reg ? '⭐ ' : ''}${DRINK_ICON[o.drink]} ${o.drink} ${o.sugar}`;
+const REGULARS = { 'الحاج محمود': { drink: 'شاي', sugar: 'زيادة' }, 'عم رجب': { drink: 'قهوة', sugar: 'سادة' }, 'زيزو': { drink: 'ينسون', sugar: 'مظبوط' }, 'أبو علي': { drink: 'شاي', sugar: 'سادة' }, 'مصطفى': { drink: 'قهوة', sugar: 'مظبوط' } };
 const buzz = ms => { if (!isTouch || !navigator.vibrate || (navigator.userActivation && !navigator.userActivation.hasBeenActive)) return; try { navigator.vibrate(ms); } catch(e){} };
 const trayGroup = new THREE.Group(); scene.add(trayGroup);
 const trayMesh = new THREE.Mesh(new THREE.CylinderGeometry(.28,.28,.02,20), new THREE.MeshStandardMaterial({ color: 0xc0c4c8, metalness: .8, roughness: .3 })); trayGroup.add(trayMesh); trayGroup.visible = false;
@@ -1320,7 +1347,7 @@ function updateFoul(dt){
     const sp = spots[Math.min(i, spots.length-1)];
     if (c.n.state === 'goto' || c.n.state === 'idle'){ c.n.tx = sp[0]; c.n.tz = sp[1]; if (Math.hypot(c.n.g.position.x - sp[0], c.n.g.position.z - sp[1]) > .2) c.n.state = 'goto'; else { c.n.state = 'idle'; c.n.yaw = Math.PI; } }
     if (i === 0 && c.n.state === 'idle' && !c.ready){ c.ready = true; say(c.n, c.order.length > 1 ? `عايز ${c.order.length} سندوتشات يا معلم` : 'سندوتش يا معلم!', 2.5); buzz(15); }
-    if (c.ready){ c.patience -= dt; if (c.patience <= 0){ m.angry++; finishFoulCustomer(c, false); if (m.angry >= 3) endMode('الزباين زعلوا 😤', `${heroName} باع ${m.served} طلب بس ٣ زباين مشيوا زعلانين.`, bestScore('foul', m.earned)); } }
+    if (c.ready){ c.patience -= dt; if (c.patience <= 0){ m.angry++; finishFoulCustomer(c, false); if (m.angry >= 3){ if (m.onFail) m.onFail(); else endMode('الزباين زعلوا 😤', `${heroName} باع ${m.served} طلب بس ٣ زباين مشيوا زعلانين.`, bestScore('foul', m.earned)); } } }
   });
 }
 function finishFoulCustomer(c, happy){
@@ -1489,11 +1516,11 @@ function ahwaPotVisual(){
 }
 function ahwaTrayVisual(){
   const sl = SA.props.tray.obj.userData.slots; while (sl.children.length) sl.remove(sl.children[0]);
-  (modeObj.tray || []).forEach((d,i) => { const g = d.drink === 'قهوة' ? cupModel() : makeGlass(d.drink); if (d.drink === 'قهوة'){ const l = disc(.029, coffeeMat, .065); g.add(l); g.scale.setScalar(1.3); } else g.scale.setScalar(1.05); const a = i/3*Math.PI*2; g.position.set(Math.cos(a)*.1, .014, Math.sin(a)*.1); sl.add(g); });
+  (modeObj.tray || []).forEach((d,i) => { const g = d.drink === 'قهوة' ? cupModel() : makeGlass(d.drink); if (d.drink === 'قهوة'){ const l = disc(.029, coffeeMat, .065); g.add(l); g.scale.setScalar(1.3); } else g.scale.setScalar(1.05); const a = i/trayCap()*Math.PI*2; g.position.set(Math.cos(a)*.1, .014, Math.sin(a)*.1); sl.add(g); });
 }
 function stMsg(t, cls=''){ $('stHint').textContent = t; $('stHint').className = 'st-hint show ' + cls; ST.msgT = 2.4; }
 function pendingAhwa(){
-  if (modeId !== 'ahwa') return [];
+  if (!modeObj.patrons || (modeObj.story && modeObj.job !== 'ahwa')) return [];
   const list = modeObj.patrons.filter(n => n.state === 'customer' && n.order).sort((a,b) => a.patience - b.patience).map(n => ({ n, o: n.order }));
   const tray = [...(modeObj.tray||[])];
   return list.filter(({o}) => { const i = tray.findIndex(t => t.drink === o.drink && t.spoons === sugarSpoons(o.drink, o.sugar)); if (i >= 0){ tray.splice(i,1); return false; } return true; });
@@ -1540,7 +1567,7 @@ function ahwaHold(name, dt){
     if (v.spilled) return false;
     if (name === 'barrad' && v.herb){ if (!ST.warned) stMsg('دي للينسون/الحلبة… استخدم الغلاية'); ST.warned = true; return false; }
     if (name === 'kettle' && !v.herb){ if (!ST.warned) stMsg('الغلاية للينسون والحلبة… للشاي استخدم البراد'); ST.warned = true; return false; }
-    v.drink = name === 'barrad' ? 'شاي' : v.herb; v.fill += dt * .38; v.hotT = 25;
+    v.drink = name === 'barrad' ? 'شاي' : v.herb; v.fill += dt * (SAVE.up.fastpour ? .55 : .38); v.hotT = 25;
     if (v.fill > 1.02){ v.spilled = true; v.fill = 1.02; stMsg('دلقت! ارمي الكوباية 🗑️', 'bad'); buzz(60); }
     AH.pouring = name; ahwaVisual(); return true;
   }
@@ -1581,7 +1608,7 @@ function ahwaNext(){
     if (v.sugar > 0 && v.stir < 1) return { prop: 'work', text: 'قلّب السكر: اضغط مطوّل على الكوباية' };
     return { btn: 'toTray', text: 'حطها على الصينية' };
   }
-  if ((modeObj.tray||[]).length >= 3) return { btn: 'done', text: 'الصينية مليانة… روح وزّع' };
+  if ((modeObj.tray||[]).length >= trayCap()) return { btn: 'done', text: 'الصينية مليانة… روح وزّع' };
   if (!o) return (modeObj.tray||[]).length ? { btn: 'done', text: 'كده تمام… دوس خلاص ووزّع الطلبات' } : { text: 'مستني طلبات… الزباين جايين' };
   if (o.drink === 'قهوة'){
     const need = sugarSpoons('قهوة', o.sugar);
@@ -1714,7 +1741,7 @@ function serveFoul(){
   if (miss.length || extra.length){ say(c.n, miss.length ? `ناقص: ${miss.map(sandLabel).join('، ').replace(/[^؀-ۿ\s+،]/g,'')}` : 'ده مش طلبي!', 2.2, 'angry'); c.patience -= 6; buzz(40); return stMsg(miss.length ? 'الطلب ناقص' : 'فيه حاجة زيادة مش مطلوبة', 'bad'); }
   const bad = FL.bag.find(b => b.q !== 'good');
   const price = c.order.reduce((s,o) => s + sandPrice(o), 0); const tip = bad ? 0 : Math.round(4*clamp(c.patience/c.maxPat,0,1) + 1);
-  m.served++; m.earned += price + tip; hero.money += price + tip; coin(); buzz(25);
+  m.served++; m.earned += price + tip; hero.money += price + tip; coin(); buzz(25); if (m.onServe) m.onServe('foul');
   FL.bag = []; foulVisual();
   if (bad) { say(c.n, bad.q === 'burnt' ? 'الفلافل محروقة يا معلم!' : 'ده لسه ني!', 2, 'angry'); stMsg(`+${price} جنيه (من غير بقشيش)`, 'bad'); }
   else stMsg(`+${price + tip} جنيه 👌`, 'ok');
@@ -1732,7 +1759,7 @@ function stationBtn(id){
     if (id === 'toTray'){
       if (!v || v.fill < .5) return stMsg('الكوباية لسه فاضية');
       if (v.spilled) return stMsg('دي مدلوقة… ارميها', 'bad');
-      if ((modeObj.tray||[]).length >= 3) return stMsg('الصينية مليانة… روح وزّع الأول');
+      if ((modeObj.tray||[]).length >= trayCap()) return stMsg('الصينية مليانة… روح وزّع الأول');
       const drink = v.drink; modeObj.tray.push({ drink, spoons: v.sugar, fill: v.fill, stirred: v.kind === 'cup' || v.sugar === 0 || v.stir >= 1, good: v.fill >= .75 && v.fill <= 1 });
       AH.vessel = null; clink(); buzz(15); ahwaVisual(); ahwaTrayVisual(); return stMsg(`${DRINK_ICON[drink]} ${drink} ${sugarLabel(drink, modeObj.tray[modeObj.tray.length-1].spoons)} على الصينية ✔️`, 'ok');
     }
@@ -1742,13 +1769,14 @@ function stationBtn(id){
   if (ST.kind === 'foul'){
     if (id === 'wrap'){ const s = FL.sand; if (!s) return stMsg('خد رغيف الأول'); if (!s.base) return stMsg('الرغيف فاضي'); FL.bag.push(s); FL.sand = null; noise(.25, 2500, .12); buzz(15); foulVisual(); return stMsg(`${sandLabel(s)} في الكيس ✔️`, 'ok'); }
     if (id === 'serve') return serveFoul();
+    if (id === 'done') return endJob(false);
     if (id === 'trash'){ if (FL.sand){ FL.sand = null; foulVisual(); return stMsg('رميت الرغيف'); } if (FL.bag.length){ FL.bag = []; foulVisual(); return stMsg('فضّيت الكيس'); } if (FL.sF.length || FL.sP.length){ FL.sF = []; FL.sP = []; foulVisual(); return stMsg('فضّيت المصافي'); } return stMsg('مفيش حاجة ترميها'); }
   }
 }
 function enterStation(kind){
   ST.kind = kind; ST.hold = null; hero.locked = true; hero.d.root.visible = false; trayGroup.visible = false; $('tray').hidden = true;
   document.body.classList.add('in-station'); $('station').hidden = false;
-  $('stBtns').innerHTML = STATION_BTNS[kind].map(([id,t]) => `<button data-b="${id}" id="stb_${id}">${t}</button>`).join('');
+  $('stBtns').innerHTML = (kind === 'foul' && modeObj.story ? [...STATION_BTNS.foul, ['done','🚶 خلّص']] : STATION_BTNS[kind]).map(([id,t]) => `<button data-b="${id}" id="stb_${id}">${t}</button>`).join('');
   $('stBtns').querySelectorAll('button').forEach(b => b.onclick = () => stationBtn(b.dataset.b));
   const S = STA[kind]; $('plabels').innerHTML = ''; ST.labels = Object.values(S.props).map(pr => { const el = document.createElement('div'); el.className = 'plabel'; el.textContent = pr.label; $('plabels').appendChild(el); return { el, pr }; });
   camera.fov = 50; camera.updateProjectionMatrix(); const aw = scene.getObjectByName('cafeAwning'); if (aw) aw.visible = kind !== 'ahwa'; const um = scene.getObjectByName('cartUmbrella'); if (um) um.visible = kind !== 'foul';
@@ -1842,7 +1870,7 @@ function renderTicket(){
   if (ST.kind === 'ahwa'){
     const list = modeObj.patrons ? modeObj.patrons.filter(n => n.state === 'customer' && n.order).sort((a,b) => a.patience - b.patience) : [];
     html = '<b>الطلبات</b>' + (list.length ? list.slice(0,5).map(n => { const f = clamp(n.patience/n.maxPat,0,1); return `<div class="tk"><span>${orderLabel(n.order)} <small>(${sugarSpoons(n.order.drink, n.order.sugar)} سكر)</small></span><i style="width:${f*100}%;background:${f<.3?'#e33':'#3aa84a'}"></i></div>`; }).join('') : '<div class="tk muted">مفيش طلبات دلوقتي</div>');
-    const tr = modeObj.tray || []; html += `<div class="tk tr">الصينية (${tr.length}/٣): ${tr.map(d => DRINK_ICON[d.drink]).join(' ') || '—'}</div>`;
+    const tr = modeObj.tray || []; html += `<div class="tk tr">الصينية (${tr.length}/${trayCap()}): ${tr.map(d => DRINK_ICON[d.drink]).join(' ') || '—'}</div>`;
   } else {
     const c = foulFront();
     if (c){ const f = clamp(c.patience/c.maxPat,0,1); const miss = foulMissing(c).map(sandKey); html = `<b>${c.n.name} عايز:</b>` + c.order.map(o => { const k = sandKey(o); const i = miss.indexOf(k); const done = i < 0; if (!done) miss.splice(i,1); return `<div class="tk ${done ? 'ok' : ''}">${done ? '✅' : '⬜'} ${sandLabel(o)}</div>`; }).join('') + `<div class="pat2"><i style="width:${f*100}%;background:${f<.3?'#e33':'#3aa84a'}"></i></div>`; }
@@ -1852,9 +1880,162 @@ function renderTicket(){
   $('stTicket').innerHTML = html;
 }
 
+// ================= story: طيارة الجامد =================
+const STORY_KEY = 'ty_story_v1';
+const newStory = () => ({ money: 20, rep: 0, step: 0, owned: { moto: false, car: false }, acc: {}, wear: {}, up: {}, cnt: {}, ended: false });
+function loadStory(){ try { const s = JSON.parse(store.get(STORY_KEY) || 'null'); if (s && typeof s.step === 'number'){ const d = newStory(); return { ...d, ...s, owned: { ...d.owned, ...s.owned }, acc: s.acc || {}, wear: s.wear || {}, up: s.up || {}, cnt: s.cnt || {} }; } } catch(e){} return newStory(); }
+let SAVE = loadStory();
+function saveStory(){ if (modeId === 'story') SAVE.money = Math.max(0, Math.round(hero.money)); store.set(STORY_KEY, JSON.stringify(SAVE)); }
+const trayCap = () => SAVE.up.tray4 ? 4 : 3;
+const SHOP = { pos: new THREE.Vector3(7.7, .15, 30), name: 'محل الأناقة', items: [
+  { id: 'glasses', kind: 'acc', name: '🕶️ نضارة شمس', price: 120 },
+  { id: 'cap', kind: 'acc', name: '🧢 كاب', price: 90 },
+  { id: 'chain', kind: 'acc', name: '📿 سلسلة دهب', price: 250 },
+  { id: 'watch', kind: 'acc', name: '⌚ ساعة', price: 180 },
+  { id: 'tray4', kind: 'up', name: '🍽️ صينية كبيرة (٤ طلبات)', price: 150 },
+  { id: 'fastpour', kind: 'up', name: '⚡ براد أسرع في الصب', price: 100 },
+] };
+const PRICE = { moto: 300, car: 1500 };
+// shop sign + markers
+{
+  const tex = makeTex(512,160,(g,w,h)=>{ g.fillStyle='#2a1b3d'; g.fillRect(0,0,w,h); g.strokeStyle='#f0c24a'; g.lineWidth=8; g.strokeRect(6,6,w-12,h-12); arText(g,'محل الأناقة',w/2,62,64,'#ffe08a'); arText(g,'نضارات · ساعات · سلاسل',w/2,122,30,'#e9dcff',700); });
+  const sg = new THREE.Group(); const pole = new THREE.Mesh(new THREE.CylinderGeometry(.05,.05,2.4,8), new THREE.MeshStandardMaterial({ color: 0x333333, metalness: .6 })); pole.position.y = 1.2; const board = new THREE.Mesh(new THREE.PlaneGeometry(2.2,.7), new THREE.MeshStandardMaterial({ map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: .25, side: THREE.DoubleSide })); board.position.y = 2.5; sg.add(pole, board); sg.position.copy(SHOP.pos); sg.position.x -= .6; scene.add(sg);
+}
+const priceTag = (txt) => { const t = makeTex(256,96,(g,w,h)=>{ g.fillStyle='#fff3c4'; g.fillRect(0,0,w,h); g.strokeStyle='#b4431f'; g.lineWidth=6; g.strokeRect(3,3,w-6,h-6); arText(g,txt,w/2,h/2+3,38,'#7a1f0e'); }); t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping; const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: true })); s.scale.set(1.7,.64,1); scene.add(s); return s; };
+const motoTag = priceTag('للبيع ٣٠٠ جنيه'), carTag = priceTag('للبيع ١٥٠٠ جنيه');
+const missionMark = new THREE.Group(); { const b = new THREE.Mesh(beamGeo, new THREE.MeshBasicMaterial({ color: 0xffc94a, transparent: true, opacity: .2, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false })); b.scale.set(1.3,1.4,1.3); const r = new THREE.Mesh(new THREE.RingGeometry(1.1,1.4,40), new THREE.MeshBasicMaterial({ color: 0xffc94a, transparent: true, opacity: .7, depthWrite: false, side: THREE.DoubleSide })); r.rotation.x = -Math.PI/2; r.position.y = .25; missionMark.add(b, r); missionMark.visible = false; scene.add(missionMark); }
+const race = { active: false, t: 0, goal: new THREE.Vector3(-48, 0, -96) };
+const ENEMY_WAIT = new THREE.Vector3(28, .15, 40.2);
+// accessories drawn on top of the hero photo
+const ACC = {};
+{
+  const d = hero.d, S = d.S, c = d.c;
+  const plane = (tex, cx, cy, w, h, key, order=13) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w*S, h*S), new THREE.MeshBasicMaterial({ map: tex, transparent: true, alphaTest: .05, side: THREE.DoubleSide, toneMapped: false })); m.renderOrder = order; const piv = key ? c.piv[key] : [c.FX, c.FY]; m.position.set((cx - piv[0])*S, (piv[1] - cy)*S, .035); (key ? d.P[key] : d.P.body).add(m); m.visible = false; return m; };
+  const tx = (w,h,draw) => { const t = makeTex(w,h,draw); t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping; return t; };
+  ACC.glasses = plane(tx(256,90,(g,w,h)=>{ const lens = x => { const gr = g.createLinearGradient(x,10,x+20,80); gr.addColorStop(0,'#3a4a5a'); gr.addColorStop(1,'#05070a'); g.fillStyle = gr; g.beginPath(); g.roundRect(x,14,100,62,26); g.fill(); g.strokeStyle='#111'; g.lineWidth=7; g.stroke(); g.fillStyle='rgba(255,255,255,.25)'; g.beginPath(); g.ellipse(x+30,32,18,7,-.4,0,7); g.fill(); }; lens(8); lens(148); g.strokeStyle='#111'; g.lineWidth=8; g.beginPath(); g.moveTo(108,34); g.quadraticCurveTo(128,22,148,34); g.stroke(); }), 512, 136, 168, 58);
+  ACC.cap = plane(tx(256,160,(g,w,h)=>{ g.fillStyle='#c0392b'; g.beginPath(); g.ellipse(128,112,108,98,0,Math.PI,0); g.fill(); g.fillStyle='#a93226'; g.beginPath(); g.ellipse(128,118,124,20,0,0,Math.PI*2); g.fill(); g.strokeStyle='rgba(0,0,0,.25)'; g.lineWidth=3; g.beginPath(); g.moveTo(128,14); g.lineTo(128,110); g.stroke(); g.fillStyle='#fff'; g.font='900 46px Georgia'; g.textAlign='center'; g.fillText('T',128,92); }), 507, 52, 200, 124);
+  ACC.chain = plane(tx(256,128,(g,w,h)=>{ g.strokeStyle='#e3b23c'; g.lineWidth=7; g.setLineDash([9,5]); g.beginPath(); g.moveTo(14,12); g.quadraticCurveTo(128,150,242,12); g.stroke(); g.setLineDash([]); g.fillStyle='#f6c945'; g.beginPath(); g.arc(128,92,15,0,7); g.fill(); g.strokeStyle='#a87a12'; g.lineWidth=3; g.stroke(); }), 512, 282, 128, 64);
+  ACC.watch = plane(tx(64,64,(g)=>{ g.fillStyle='#1a1a1a'; g.fillRect(18,0,28,64); g.fillStyle='#d4a62a'; g.beginPath(); g.arc(32,32,18,0,7); g.fill(); g.fillStyle='#fffbe8'; g.beginPath(); g.arc(32,32,13,0,7); g.fill(); g.strokeStyle='#222'; g.lineWidth=2; g.beginPath(); g.moveTo(32,32); g.lineTo(32,22); g.moveTo(32,32); g.lineTo(39,35); g.stroke(); }), 122, 782, 46, 46, 'armL');
+}
+function applyAccessories(){ for (const k of Object.keys(ACC)) ACC[k].visible = !!(SAVE.acc[k] && SAVE.wear[k] !== false); }
+applyAccessories();
+// shop overlay
+function openShop(){
+  hero.locked = true; $('shop').hidden = false; renderShop();
+}
+function renderShop(){
+  $('shopTitle').textContent = SHOP.name; $('shopMoney').textContent = `معاك ${egp(hero.money)}`;
+  $('shopItems').innerHTML = SHOP.items.map(it => {
+    const own = it.kind === 'acc' ? SAVE.acc[it.id] : SAVE.up[it.id];
+    const wear = own && it.kind === 'acc' && SAVE.wear[it.id] !== false;
+    const btn = !own ? `<button data-buy="${it.id}" ${hero.money < it.price ? 'class="poor"' : ''}>اشتري · ${it.price} ج</button>` : it.kind === 'acc' ? `<button data-wear="${it.id}">${wear ? 'اقلعها' : 'البسها'}</button>` : '<span class="owned">✓ عندك</span>';
+    return `<div class="sitem"><span>${it.name}</span>${btn}</div>`;
+  }).join('');
+  $('shopItems').querySelectorAll('[data-buy]').forEach(b => b.onclick = () => { const it = SHOP.items.find(i => i.id === b.dataset.buy); if (hero.money < it.price){ $('shopMoney').textContent = `محتاج ${egp(it.price - hero.money)} كمان`; buzz(40); return; } hero.money -= it.price; (it.kind === 'acc' ? SAVE.acc : SAVE.up)[it.id] = true; if (it.kind === 'acc') SAVE.wear[it.id] = true; coin(); buzz(20); applyAccessories(); saveStory(); renderShop(); });
+  $('shopItems').querySelectorAll('[data-wear]').forEach(b => b.onclick = () => { const id = b.dataset.wear; SAVE.wear[id] = SAVE.wear[id] === false; applyAccessories(); saveStory(); renderShop(); });
+}
+$('shopClose').onclick = () => { $('shop').hidden = true; hero.locked = false; };
+function buyVehicle(kind){
+  const p = PRICE[kind]; if (hero.money < p){ banner(`محتاج ${egp(p - hero.money)} كمان… اشتغل في القهوة أو الفول`, 'bad', 2.5); buzz(40); return; }
+  hero.money -= p; SAVE.owned[kind] = true; saveStory(); coin(); buzz(30);
+  banner(kind === 'moto' ? '🏍️ الموتوسيكل بقى بتاعك!' : '🚗 العربية بقت بتاعتك!', 'ok', 3);
+}
+// missions
+const MISSIONS = [
+  { title: 'أول يوم شغل', text: s => `روح قهوة قصر الملوك (☕) واشتغل وردية: وصّل ٥ طلبات. (${Math.min(s.cnt.ahwa||0,5)}/٥)`, target: () => SPOT.counter, done: s => (s.cnt.ahwa||0) >= 5, reward: 40, onStart: s => { s.cnt.ahwa = 0; } },
+  { title: 'عم سيد عايزك', text: () => 'اقعد على ترابيزة الدومنو واكسب ماتش مع عم سيد. الرهان ٢٠ جنيه.', target: () => SPOT.domino, done: s => (s.cnt.dom||0) >= 1, reward: 30, onStart: s => { s.cnt.dom = 0; } },
+  { title: 'الموتوسيكل', text: () => `الموتوسيكل الأحمر للبيع بـ ٣٠٠ جنيه قدام القهوة. اشتغل في القهوة أو على عربية الفول لحد ما تحوّش. (${egp(hero.money)} / ٣٠٠)`, target: () => heroMoto.pos, done: s => s.owned.moto, reward: 0 },
+  { title: 'سباق', text: () => race.active ? `سوق على العلامة الصفرا! فاضل ${Math.ceil(race.t)} ثانية` : 'اللي بيكرهك واقف جنب الموتوسيكلات وعايز سباق. اركب الموتوسيكل وروحله (E).', target: () => race.active ? race.goal : enemy.pos, done: s => (s.cnt.race||0) >= 1, reward: 80, onStart: s => { s.cnt.race = 0; enemyWait(); } },
+  { title: 'رد الاعتبار', text: () => 'اللي بيكرهك بيقول عليك خسيس في الحتة… وقّعه في خناقة.', target: () => enemy.pos, done: s => (s.cnt.edown||0) >= 1, reward: 60, onStart: s => { s.cnt.edown = 0; enemyFree(); } },
+  { title: 'المطلوب في الحتة', text: () => 'المطلوب اتشاف في الحتة والمكافأة ١٠٠٠ جنيه! دوّر عليه (النقطة الحمرا) وامسكه.', target: () => wanted.pos, done: s => (s.cnt.arrest||0) >= 1, reward: 1000, onStart: s => { s.cnt.arrest = 0; spawnWanted(); } },
+  { title: 'العربية', text: () => `العربية الصفرا للبيع بـ ١٥٠٠ جنيه قدام القهوة. (${egp(hero.money)} / ١٥٠٠)`, target: () => heroCar.pos, done: s => s.owned.car, reward: 0 },
+  { title: 'الأستايل', text: s => `روح محل الأناقة واشتري نضارة وسلسلة دهب. (${(s.acc.glasses?1:0)+(s.acc.chain?1:0)}/٢)`, target: () => SHOP.pos, done: s => s.acc.glasses && s.acc.chain, reward: 0 },
+  { title: 'المواجهة الأخيرة', text: s => `اللي بيكرهك جاي ومعاه كلام كبير. وقّعه مرتين. (${Math.min(s.cnt.fdown||0,2)}/٢)`, target: () => enemy.pos, done: s => (s.cnt.fdown||0) >= 2, reward: 300, onStart: s => { s.cnt.fdown = 0; enemyBoss(true); } },
+];
+function curMission(){ return MISSIONS[SAVE.step] || null; }
+function enemyWait(){ enemy.active = true; enemy.d.root.visible = true; enemy.state = 'wait'; enemy.pos.copy(ENEMY_WAIT); enemy.d.downT = 0; }
+function enemyFree(){ if (enemy.state === 'wait') enemy.state = 'roam'; enemy.cd = 3; }
+function enemyBoss(on){ enemy.boss = on; enemy.maxHp = on ? 160 : 100; enemy.hp = enemy.maxHp; if (on){ enemy.state = 'roam'; enemy.cd = 2; banner('⚠️ المواجهة الأخيرة!', 'bad', 3); } }
+function completeMission(){
+  const M = curMission(); if (!M) return;
+  if (M.reward){ hero.money += M.reward; }
+  SAVE.rep += 10; SAVE.step++; coin(); buzz(40);
+  banner(`✅ ${M.title}${M.reward ? ' · +' + M.reward + ' جنيه' : ''}`, 'ok', 3.5);
+  const N = curMission();
+  if (N){ N.onStart && N.onStart(SAVE); setTimeout(() => { if (modeId === 'story' && state === 'play') banner(`📱 مهمة جديدة: ${N.title}`, 'info', 3); }, 3600); }
+  else { enemyBoss(false); enemy.cd = 9999; enemy.state = 'roam'; SAVE.ended = true; setTimeout(showStoryEnd, 1500); }
+  saveStory();
+}
+function showStoryEnd(){ if (modeId !== 'story') return; hero.locked = true; $('storyEnd').hidden = false; tone(523,523,.15,'triangle',.2); tone(659,659,.15,'triangle',.2,.15); tone(784,1046,.5,'triangle',.22,.3); }
+$('storyEndBtn').onclick = () => { $('storyEnd').hidden = true; hero.locked = false; };
+// jobs inside the story
+function startJob(kind){
+  const m = modeObj; m.job = kind; m.served = 0; m.angry = 0; m.earned = 0; m.combo = 0; m.lastServe = -99;
+  if (kind === 'ahwa'){ m.time = 150; m.tray = []; m.spawnT = .5; m.seatsTaken = new Set(); m.patrons.forEach(n => { n.state = 'hidden'; n.g.visible = false; n.leaving = false; n.seat = undefined; n.order = null; }); resetAhwaStation(); refreshTray(); banner('☕ الوردية بدأت! (دقيقتين ونص)', 'info', 2.5); }
+  if (kind === 'foul'){ m.time = 150; m.queue = []; m.spawnT = 1; m.pool.forEach(n => { n.state = 'hidden'; n.g.visible = false; }); FL.fry.forEach(f => f.mesh.parent && f.mesh.parent.remove(f.mesh)); Object.assign(FL, { fry: [], sF: [], sP: [], sand: null, bag: [] }); foulVisual(); hero.pos.copy(SPOT.cartHero); hero.pos.y = .15; enterStation('foul'); }
+}
+function endJob(fail){
+  const m = modeObj; const kind = m.job; if (!kind) return;
+  m.job = null; m.time = undefined; exitStation(true);
+  if (kind === 'ahwa'){ m.patrons.forEach(n => { if (n.bubble){ removeBubble(n.bubble); n.bubble = null; } if (n.glass){ scene.remove(n.glass); n.glass = null; } if (n.state !== 'hidden'){ n.order = null; leaveSeat(n); } }); m.tray = []; refreshTray(); }
+  if (kind === 'foul'){ (m.queue||[]).forEach(c => { c.n.state = 'goto'; c.n.tx = SPOT.cart.x + 10; c.n.tz = SPOT.cart.z + 8; c.n.onArrive = n2 => { n2.state = 'hidden'; n2.g.visible = false; }; }); m.queue = []; hero.pos.set(SPOT.cart.x, .15, SPOT.cart.z + 2); }
+  banner(fail ? `المعلم مشّاك من الشغل 😬 · كسبت ${egp(m.earned)}` : `خلصت الشغل 👏 · كسبت ${egp(m.earned)}`, fail ? 'bad' : 'ok', 3.5);
+  saveStory();
+}
+function storyAction(){
+  const p = hero.pos, m = modeObj;
+  if (p.distanceTo(SHOP.pos) < 2.6) return { text: 'ادخل محل الأناقة', fn: openShop };
+  for (const [v, kind] of [[heroMoto,'moto'],[heroCar,'car']]) if (!SAVE.owned[kind] && Math.hypot(v.pos.x-p.x, v.pos.z-p.z) < 3.2) return { text: `اشتري ${kind === 'moto' ? 'الموتوسيكل' : 'العربية'} (${PRICE[kind]} جنيه)`, fn: () => buyVehicle(kind) };
+  if (enemy.state === 'wait' && p.distanceTo(enemy.pos) < 3) return { text: 'اركب الموتوسيكل الأول عشان السباق', fn: () => say(enemy, 'هتسابق برجليك؟ هاهاها', 2, 'angry') };
+  if (m.job === 'ahwa'){
+    if (p.distanceTo(SPOT.counter) < 2.6) return { text: 'ادخل النَصبة وحضّر الطلبات', fn: () => enterStation('ahwa') };
+    const c = m.patrons.find(n => n.state === 'customer' && n.order && Math.hypot(n.g.position.x-p.x, n.g.position.z-p.z) < 2);
+    if (c) return { text: `قدّم ${c.order.drink} ${c.order.sugar} لـ ${c.name}`, fn: () => serveAhwa(c) };
+    return null;
+  }
+  if (m.job === 'foul' && Math.hypot(p.x-SPOT.cart.x, p.z-SPOT.cart.z) < 2.8) return { text: 'ارجع لعربية الفول', fn: () => enterStation('foul') };
+  if (!m.job){
+    if (p.distanceTo(SPOT.counter) < 2.6) return { text: 'اشتغل وردية قهوجي ☕', fn: () => startJob('ahwa') };
+    if (Math.hypot(p.x-SPOT.cart.x, p.z-SPOT.cart.z) < 2.8) return { text: 'اشتغل على عربية الفول 🧆', fn: () => startJob('foul') };
+  }
+  return null;
+}
+function storyVehAction(){
+  const M = curMission();
+  if (M && M.title === 'سباق' && !race.active && hero.veh && hero.veh.pos.distanceTo(enemy.pos) < 9) return { text: '🏁 ابدأ السباق', fn: startRace };
+  return null;
+}
+function startRace(){ race.active = true; race.t = 40; say(enemy, 'هتاكل تراب!', 2.5, 'angry'); banner('🏁 يلا! وصل للعلامة الصفرا قبل ما الوقت يخلص', 'info', 3); tone(440,440,.15,'square',.08); tone(440,440,.15,'square',.08,.5); tone(880,880,.3,'square',.1,1); }
+function updateStory(dt){
+  const m = modeObj;
+  motoTag.visible = !SAVE.owned.moto; carTag.visible = !SAVE.owned.car;
+  motoTag.position.set(heroMoto.pos.x, 2.1, heroMoto.pos.z); carTag.position.set(heroCar.pos.x, 2.6, heroCar.pos.z);
+  if (race.active){
+    race.t -= dt;
+    const f = hero.veh ? hero.veh.pos : hero.pos;
+    if (Math.hypot(f.x - race.goal.x, f.z - race.goal.z) < 8){ race.active = false; SAVE.cnt.race = 1; banner('🏆 سبقته!', 'ok', 3); enemyFree(); enemy.pos.copy(randomSidewalkPoint(10, race.goal)); say(enemy, 'ماشي… المرة الجاية', 2.5, 'angry'); }
+    else if (race.t <= 0){ race.active = false; banner('⏱️ خسرت السباق… ارجعله وجرّب تاني', 'bad', 3); enemyWait(); }
+  }
+  const M = curMission();
+  if (M && !m.job && M.done(SAVE)) completeMission();
+  // mission marker
+  const tgt = M && M.target ? M.target() : null;
+  missionMark.visible = !!tgt && !ST.kind && !(M.title === 'المطلوب في الحتة' && wanted.caught);
+  if (tgt){ missionMark.position.set(tgt.x, 0, tgt.z); missionMark.children[1].rotation.z += dt; missionMark.scale.setScalar(race.active ? 2.2 : 1); }
+  m.saveT = (m.saveT || 0) - dt; if (m.saveT <= 0){ m.saveT = 5; saveStory(); }
+}
+function storyHudTitle(){ const m = modeObj; if (m.job === 'ahwa') return 'وردية قهوجي ☕'; if (m.job === 'foul') return 'شغل الفول 🧆'; const M = curMission(); return M ? `📱 ${M.title}` : 'طيارة الجامد 👑'; }
+function storyHud(){
+  const m = modeObj, M = curMission();
+  if (m.job) return `الوقت: <b style="display:inline;color:#fff">${fmtTime(m.time||0)}</b> · بعت: ${m.served} · زعلانين: <b style="display:inline;color:#ff9a9a">${m.angry}/٣</b><br>كسبت: ${egp(m.earned)}${m.job === 'ahwa' ? '<br>روح النَصبة (E) ووزّع على الزباين.' : ''}`;
+  if (!M) return 'خلصت القصة! لف في الحتة براحتك واشتغل والعب دومنو.';
+  return M.text(SAVE) + `<br><small style="color:#c2b7a3">السمعة: ${SAVE.rep} ⭐</small>`;
+}
+
 function resetWorld(){
   clearBubbles();
-  vehicles.forEach(v => { v.pos.set(v.home.x, v.home.y||0, v.home.z); v.yaw = v.home.yaw; v.mesh.rotation.set(0, v.yaw, 0); v.speed = 0; });
+  vehicles.forEach(v => { v.pos.set(v.home.x, v.home.y||0, v.home.z); v.yaw = v.home.yaw; v.mesh.rotation.set(0, v.yaw, 0); v.speed = 0; v.dmg = 0; v.broke = false; });
+  motoTag.visible = carTag.visible = false; missionMark.visible = false; race.active = false; enemy.boss = false; enemy.maxHp = 100; $('shop').hidden = true; $('storyEnd').hidden = true;
   npcs.forEach(n => { n.state = 'hidden'; n.g.visible = false; n.role = null; n.onArrive = null; });
   let i = 0;
   for (; i<WALKERS; i++) setWalker(npcs[i]);
@@ -1884,7 +2065,7 @@ function startMode(id){
   modeId = id; runTime = 0; state = 'play';
   $('menu').hidden = true; $('end').hidden = true; $('domino').hidden = true; $('hud').hidden = false;
   const free = resetWorld();
-  hero.money = id === 'free' || id === 'domino' ? Math.max(hero.money, 50) : 0;
+  hero.money = id === 'story' ? SAVE.money : id === 'free' || id === 'domino' ? Math.max(hero.money, 50) : 0;
   const M_ = {
     free: () => { const k = seatDeco(free); void k; spawnEnemy(); hero.pos.copy(SPOT.spawn);
       return { vehicles: true, cafe: true, enemyOn: true, title: 'حر في الحتة',
@@ -1899,6 +2080,28 @@ function startMode(id){
       return { vehicles: false, cafe: false, title: 'فلوس الشارع 💵', got: 0, money: 0,
         hud: () => `لميت ${modeObj.got} من ١٥ رزمة (${egp(modeObj.money)}).<br>${chaser.active ? '<b style="color:#ff7a7a;display:inline">البوليس وراك!</b>' : 'دوّر على النور الأصفر.'}`,
         onKO: () => endMode('العربيات بهدلتك 🚗', `${heroName} لم ${egp(modeObj.money)} قبل ما يقع.`) }; },
+    story: () => {
+      hero.money = SAVE.money; const a = npcs[free], b = npcs[free+1];
+      seatNPC(a, SPOT.domino.x-.85, SPOT.domino.z, Math.PI/2); a.state = 'domino'; a.name = 'عم سيد';
+      seatNPC(b, SPOT.domino.x+.85, SPOT.domino.z, -Math.PI/2); b.state = 'domino'; b.name = 'حمادة';
+      decoGlasses.forEach(g => g.visible = false);
+      spawnEnemy(); enemyBoss(false); hero.pos.copy(SPOT.spawn); race.active = false;
+      const M = curMission();
+      if (!SAVE.started){ SAVE.started = true; if (M && M.onStart) M.onStart(SAVE); }
+      if (M && M.title === 'سباق') enemyWait();
+      if (M && M.title === 'المطلوب في الحتة') spawnWanted();
+      if (M && M.title === 'المواجهة الأخيرة') enemyBoss(true);
+      if (SAVE.ended) enemy.cd = 9999;
+      const patrons = npcs.slice(free+2, free+14), pool = npcs.slice(free+14, free+20);
+      return { vehicles: true, cafe: true, story: true, title: 'القصة', job: null, patrons, pool, tray: [], seatsTaken: new Set(), queue: [], served: 0, angry: 0, earned: 0, spawnT: 1, domBet: 20,
+        canDrive: v => (v === heroMoto && SAVE.owned.moto) || (v === heroCar && SAVE.owned.car),
+        hud: storyHud, hudTitle: storyHudTitle, action: storyAction, vehAction: storyVehAction,
+        onServe: kind => { SAVE.cnt[kind] = (SAVE.cnt[kind]||0) + 1; },
+        onDomino: w => { const bet = Math.min(modeObj.domBet, Math.max(0, Math.floor(hero.money))); if (w){ hero.money += bet; SAVE.cnt.dom = (SAVE.cnt.dom||0) + 1; } else hero.money -= bet; saveStory(); return bet; },
+        onEnemyDown: () => { SAVE.cnt.edown = (SAVE.cnt.edown||0) + 1; if (enemy.boss) SAVE.cnt.fdown = (SAVE.cnt.fdown||0) + 1; saveStory(); },
+        onArrest: () => { SAVE.cnt.arrest = 1; coin(); setTimeout(() => { wanted.active = false; wanted.d.root.visible = false; }, 3500); },
+        onTime: () => endJob(false), onFail: () => endJob(true) };
+    },
     ahwa: () => { hero.pos.set(SPOT.counter.x, .15, SPOT.counter.z + 1.5); decoGlasses.forEach(g => g.visible = false);
       const patrons = npcs.slice(free, free+12); patrons.forEach(n => { n.leaving = false; n.seat = undefined; });
       return { vehicles: false, cafe: false, title: 'قهوجي في قصر الملوك ☕', time: 240, tray: [], served: 0, angry: 0, earned: 0, spawnT: .5, patrons, seatsTaken: new Set(), init: () => resetAhwaStation(),
@@ -1922,7 +2125,7 @@ function startMode(id){
   setObjective(modeObj.title, '');
   camera.position.set(hero.pos.x, 4, hero.pos.z + 6); lookAt.copy(hero.pos);
   refreshTray(); updateHud(); if (id === 'foul') enterStation('foul');
-  banner({ free:'أهلاً بيك في الحتة يا ' + heroName, police:'المطلوب في الحتة… اركب البوكس 🚓', cash:'دوّر على رزم الفلوس 💵', ahwa:'الزباين جايين… جهّز النَصبة ☕', foul:'افتح العربية… الزباين جايين 🧆', domino:'اقعد يا ' + heroName }[id], 'info', 2.6);
+  banner({ story: SAVE.started && SAVE.step ? 'رجعت الحتة يا ' + heroName + ' 👑' : 'يلا يا ' + heroName + '… نبقى الجامد 👑', free:'أهلاً بيك في الحتة يا ' + heroName, police:'المطلوب في الحتة… اركب البوكس 🚓', cash:'دوّر على رزم الفلوس 💵', ahwa:'الزباين جايين… جهّز النَصبة ☕', foul:'افتح العربية… الزباين جايين 🧆', domino:'اقعد يا ' + heroName }[id], 'info', 2.6);
 }
 function bestScore(key, v){ const b = parseFloat(store.get('ty_best_'+key)||'0'); if (v > b){ store.set('ty_best_'+key, String(v)); return 'رقم قياسي جديد! 🏆'; } return `أحسن غلة: ${egp(b)}`; }
 function endMode(title, text, best=''){
@@ -1932,7 +2135,7 @@ function endMode(title, text, best=''){
   exitStation(true); $('domino').hidden = true; document.body.classList.remove('in-domino'); hero.locked = false;
   setTimeout(() => { $('hud').hidden = true; $('end').hidden = false; }, 700);
 }
-function openMenu(){ state = 'menu'; $('hud').hidden = true; $('domino').hidden = true; $('end').hidden = true; $('menu').hidden = false; clearBubbles(); exitStation(true); document.body.classList.remove('in-domino'); if (sirenGain) sirenGain.gain.value = 0; try { speechSynthesis.cancel(); } catch(e){} }
+function openMenu(){ saveStory(); renderModes(); state = 'menu'; $('hud').hidden = true; $('domino').hidden = true; $('end').hidden = true; $('menu').hidden = false; clearBubbles(); exitStation(true); document.body.classList.remove('in-domino'); if (sirenGain) sirenGain.gain.value = 0; try { speechSynthesis.cancel(); } catch(e){} }
 $('againBtn').onclick = () => startMode(modeId);
 $('toMenuBtn').onclick = openMenu;
 
@@ -1944,8 +2147,9 @@ function serveAhwa(c){
   if (i < 0){ say(c, 'مش ده اللي طلبته!', 1.6, 'angry'); buzz(30); return; }
   const item = tr.splice(i,1)[0]; refreshTray(); ahwaTrayVisual(); clink(); buzz(15);
   const f = clamp(c.patience/c.maxPat, 0, 1);
-  const tip = wrongSugar ? 0 : Math.max(0, Math.round(4 + 10*f) - (item.good ? 0 : 3) - (item.stirred ? 0 : 3));
-  const pay = 5 + tip; modeObj.served++; modeObj.earned += pay; hero.money += pay;
+  const tip = wrongSugar ? 0 : Math.max(0, Math.round(4 + 10*f) + (o.reg ? 5 : 0) - (item.good ? 0 : 3) - (item.stirred ? 0 : 3));
+  const now = runTime; modeObj.combo = (now - (modeObj.lastServe ?? -99) < 25) ? (modeObj.combo||0) + 1 : 1; modeObj.lastServe = now; const cb = modeObj.combo >= 3 && !wrongSugar ? Math.min(modeObj.combo - 2, 4) * 3 : 0;
+  const pay = 5 + tip + cb; modeObj.served++; modeObj.earned += pay; hero.money += pay; if (modeObj.onServe) modeObj.onServe('ahwa');
   if (wrongSugar) say(c, item.spoons > need ? 'إيه السكر ده كله!' : 'ده مر يا معلم!', 2.2, 'angry');
   else if (!item.stirred) say(c, 'السكر لسه تحت يا ريس', 2);
   else if (!item.good) say(c, 'الكوباية مش مليانة!', 2);
@@ -1955,7 +2159,7 @@ function serveAhwa(c){
   g.position.set(TABLES[s.ti][0] + (s.x < TABLES[s.ti][0] ? -.25 : .25), .93, TABLES[s.ti][1]); scene.add(g);
   if (c.bubble){ removeBubble(c.bubble); c.bubble = null; }
   c.order = null; c.state = 'drinking'; c.leaveT = 9; c.glass = g;
-  banner(`+${pay} جنيه${tip ? ' (بقشيش ' + tip + ')' : ''}`, wrongSugar ? 'bad' : 'ok', 1.4);
+  banner(`+${pay} جنيه${tip ? ' (بقشيش ' + tip + ')' : ''}${cb ? ' · كومبو ×' + modeObj.combo + ' 🔥' : ''}`, wrongSugar ? 'bad' : 'ok', 1.6);
 }
 function updateAhwa(dt){
   const m = modeObj;
@@ -1968,14 +2172,14 @@ function updateAhwa(dt){
     if (free.length && n){
       const si = rpick(free); m.seatsTaken.add(si); const s = SEATS[si];
       n.leaving = false; n.g.visible = true; n.g.position.set(s.x + R(-3,3), .15, 40.5); n.state = 'goto'; n.speed = R(1.6, 2.1); n.tx = s.x + (s.x < TABLES[s.ti][0] ? -.25 : .25); n.tz = s.z + .6; n.seat = si;
-      n.onArrive = n2 => { seatNPC(n2, s.x, s.z, s.ry); n2.state = 'customer'; n2.order = { drink: rpick(DRINKS), sugar: rpick(SUGARS) }; n2.maxPat = 120; n2.patience = 120; n2.bubble = orderBubble(n2); say(n2, `واحد ${n2.order.drink} ${n2.order.sugar} يا ريس!`, 0); buzz(15); };
+      n.onArrive = n2 => { seatNPC(n2, s.x, s.z, s.ry); n2.state = 'customer'; const rg = REGULARS[n2.name]; n2.order = rg && Math.random() < .75 ? { ...rg, reg: true } : { drink: rpick(DRINKS), sugar: rpick(SUGARS) }; n2.maxPat = 120; n2.patience = 120; n2.bubble = orderBubble(n2); say(n2, n2.order.reg ? `زي العادة يا ${heroName}! ${n2.order.drink} ${n2.order.sugar}` : `واحد ${n2.order.drink} ${n2.order.sugar} يا ريس!`, 0); buzz(15); };
     } else m.spawnT = 2;
   }
   for (const n of m.patrons){
     if (n.state === 'customer' && n.order){
       n.patience -= dt; const f = clamp(n.patience/n.maxPat, 0, 1);
       if (n.bubble) n.bubble.el.innerHTML = `${orderLabel(n.order)}<div class="pat"><i style="width:${f*100}%;background:${f<.3?'#d33':'#3aa84a'}"></i></div>`;
-      if (n.patience <= 0){ m.angry++; removeBubble(n.bubble); n.bubble = null; n.order = null; say(n, 'إيه القهوة دي! ماشي', 2, 'angry'); leaveSeat(n); if (m.angry >= 3) endMode('الزباين زعلوا 😤', `${heroName} وصّل ${m.served} طلب بس ٣ زباين مشيوا زعلانين.`, bestScore('ahwa', m.earned)); }
+      if (n.patience <= 0){ m.angry++; removeBubble(n.bubble); n.bubble = null; n.order = null; say(n, 'إيه القهوة دي! ماشي', 2, 'angry'); leaveSeat(n); if (m.angry >= 3){ if (m.onFail) m.onFail(); else endMode('الزباين زعلوا 😤', `${heroName} وصّل ${m.served} طلب بس ٣ زباين مشيوا زعلانين.`, bestScore('ahwa', m.earned)); } }
     } else if (n.state === 'drinking'){ n.leaveT -= dt; if (n.leaveT <= 0){ if (n.glass){ scene.remove(n.glass); n.glass = null; } leaveSeat(n); } }
   }
 }
@@ -1998,7 +2202,7 @@ function newDominoMatch(){ DOM.score = { p: 0, ai: 0 }; DOM.matchOver = false; n
 function newDominoRound(){
   const all = []; for (let a=0;a<=6;a++) for (let b=a;b<=6;b++) all.push([a,b]);
   for (let i=all.length-1;i>0;i--){ const j = Math.floor(Math.random()*(i+1)); [all[i],all[j]] = [all[j],all[i]]; }
-  Object.assign(DOM, { hand: all.slice(0,7).sort((a,b) => (b[0]+b[1]) - (a[0]+a[1])), ai: all.slice(7,14), bone: all.slice(14), board: [], L: null, R: null, sel: null, selCheat: false, over: false, qafla: false, lastAI: null, accused: false });
+  Object.assign(DOM, { weak: [], hand: all.slice(0,7).sort((a,b) => (b[0]+b[1]) - (a[0]+a[1])), ai: all.slice(7,14), bone: all.slice(14), board: [], L: null, R: null, sel: null, selCheat: false, over: false, qafla: false, lastAI: null, accused: false });
   let st = null;
   for (let d=6; d>=0 && !st; d--){ if (DOM.hand.some(t => t[0]===d && t[1]===d)) st = { who: 'p', t: [d,d] }; else if (DOM.ai.some(t => t[0]===d && t[1]===d)) st = { who: 'ai', t: [d,d] }; }
   if (!st) st = [...DOM.hand.map(t => ({ who:'p', t })), ...DOM.ai.map(t => ({ who:'ai', t }))].sort((a,b) => (b.t[0]+b.t[1]) - (a.t[0]+a.t[1]))[0];
@@ -2018,7 +2222,7 @@ function unplace(side, prev){ if (side === 'L') DOM.board.shift(); else DOM.boar
 function isBlocked(){ if (!DOM.board.length) return false; return ![...DOM.hand, ...DOM.ai, ...DOM.bone].some(t => t[0]===DOM.L || t[1]===DOM.L || t[0]===DOM.R || t[1]===DOM.R); }
 function dMsg(t){ $('dMsg').textContent = t; }
 function renderDomino(){
-  $('dScore').textContent = `${heroName} ${DOM.score.p} — ${DOM.score.ai} عم سيد · الماتش لـ ${DOM.target}`;
+  $('dScore').textContent = `${heroName} ${DOM.score.p} — ${DOM.score.ai} عم سيد · الماتش لـ ${DOM.target}${modeObj.domBet ? ' · الرهان ' + Math.min(modeObj.domBet, Math.floor(hero.money)) + ' ج' : ''}`;
   $('dAi').innerHTML = DOM.ai.map(() => '<i></i>').join('');
   $('dBone').textContent = `الكومة: ${DOM.bone.length}`;
   const b = $('dBoard');
@@ -2066,7 +2270,7 @@ function commitPlayer(i, side, cheat=false){
   if (announced) dMsg('قلت «قفلة» ومكانتش قفلة 😅');
   DOM.turn = 'ai'; renderDomino(); setTimeout(aiTurn, 1000);
 }
-$('dDraw').onclick = () => { if (DOM.turn !== 'p' || !DOM.bone.length) return; const t = DOM.bone.pop(); DOM.hand.push(t); DOM.hand.sort((a,b) => (b[0]+b[1]) - (a[0]+a[1])); dMsg(`سحبت ${tName(t)}`); tone(500,600,.05,'triangle',.08); renderDomino(); };
+$('dDraw').onclick = () => { if (DOM.turn !== 'p' || !DOM.bone.length) return; DOM.weak = [...new Set([...(DOM.weak||[]), DOM.L, DOM.R])]; const t = DOM.bone.pop(); DOM.hand.push(t); DOM.hand.sort((a,b) => (b[0]+b[1]) - (a[0]+a[1])); dMsg(`سحبت ${tName(t)}`); tone(500,600,.05,'triangle',.08); renderDomino(); };
 $('dPass').onclick = () => {
   if (DOM.turn !== 'p' || DOM.over) return;
   const canPlay = DOM.hand.some(fits);
@@ -2074,7 +2278,7 @@ $('dPass').onclick = () => {
   if (canPlay){
     if (Math.random() < .5){ DOM.score.ai += 50; buzz(60); dMsg('عم سيد: «عدّيت وانت معاك؟! غشاش» 🚨 +٥٠ لعم سيد'); renderDomino(); checkMatch(); return; }
     dMsg('عدّيت وانت معاك… عم سيد مخدش باله 🤫');
-  } else dMsg('عدّيت');
+  } else { dMsg('عدّيت'); DOM.weak = [...new Set([...(DOM.weak||[]), DOM.L, DOM.R])]; }
   DOM.qafla = false; DOM.lastAI = null; DOM.turn = 'ai'; renderDomino(); setTimeout(aiTurn, 900);
 };
 $('dCheat').onclick = () => {
@@ -2083,6 +2287,10 @@ $('dCheat').onclick = () => {
   else dMsg('ظلمت الراجل… مكانش بيغش 😅');
   DOM.lastAI = null; renderDomino(); checkMatch();
 };
+function aiScore(o){
+  const t = o.t, exposed = o.side === 'L' ? (t[1] === DOM.L ? t[0] : t[1]) : (t[0] === DOM.R ? t[1] : t[0]); const other = o.side === 'L' ? DOM.R : DOM.L;
+  return t[0] + t[1] + (t[0] === t[1] ? 5 : 0) + ((DOM.weak||[]).includes(exposed) ? 9 : 0) + (exposed === other ? 2 : 0) + DOM.ai.filter(x => x !== t && (x[0] === exposed || x[1] === exposed)).length * 2;
+}
 function aiLegal(){ const o = []; DOM.ai.forEach(t => { if (t[0]===DOM.L || t[1]===DOM.L) o.push({ t, side: 'L' }); if (t[0]===DOM.R || t[1]===DOM.R) o.push({ t, side: 'R' }); }); return o; }
 function aiTurn(){
   if (DOM.over || DOM.turn !== 'ai') return;
@@ -2094,13 +2302,13 @@ function aiTurn(){
   if (Math.random() < .04 && DOM.ai.length > 1){ const bad = DOM.ai.find(t => !(t[0]===DOM.L || t[1]===DOM.L || t[0]===DOM.R || t[1]===DOM.R)); if (bad){ const prev = { L: DOM.L, R: DOM.R }, side = Math.random() < .5 ? 'L' : 'R'; placeTile(bad, side, true); DOM.ai.splice(DOM.ai.indexOf(bad), 1); DOM.lastSide = side; DOM.lastAI = { cheat: 'tile', t: bad, side, prev }; DOM.turn = 'p'; dMsg(`عم سيد نزل ${tName(bad)}… دورك`); tone(600,420,.06,'triangle',.15); renderDomino(); return; } }
   let drew = 0; while (!opts.length && DOM.bone.length){ DOM.ai.push(DOM.bone.pop()); drew++; opts = aiLegal(); }
   if (!opts.length){ DOM.lastAI = { cheat: null }; DOM.turn = 'p'; dMsg(drew ? `عم سيد سحب ${drew} وعدّى… دورك` : 'عم سيد عدّى… دورك'); renderDomino(); return; }
-  opts.sort((a,b) => ((b.t[0]===b.t[1])*6 + b.t[0] + b.t[1]) - ((a.t[0]===a.t[1])*6 + a.t[0] + a.t[1]));
+  opts.sort((a,b) => aiScore(b) - aiScore(a));
   const o = opts[0]; placeTile(o.t, o.side); DOM.ai.splice(DOM.ai.indexOf(o.t), 1); DOM.lastSide = o.side; DOM.lastAI = { cheat: null };
   tone(600,420,.06,'triangle',.15); speak(tName(o.t));
   const msg = (drew ? `عم سيد سحب ${drew} ونزل ` : 'عم سيد نزل ') + tName(o.t);
   if (!DOM.ai.length){ dMsg(msg); return endRound('ai', 'domino'); }
   if (isBlocked()){ if (Math.random() < .88){ dMsg(msg + ' وقال «قفلة!» 🔒'); return endRound(null, 'qafla', 'ai'); } DOM.score.p += 50; return endRound(null, 'penalty', 'ai'); }
-  DOM.turn = 'p'; dMsg(msg + '… دورك'); renderDomino();
+  DOM.turn = 'p'; dMsg(msg + (Math.random() < .3 ? ' · ' + rpick(['اتلمّ يا ' + heroName, 'دي لعبتي من زمان', 'ركّز يا ابني', 'هتعمل إيه دلوقتي؟']) : '') + '… دورك'); renderDomino();
 }
 function endRound(winner, how, closer){
   DOM.over = true; DOM.turn = null; let txt = '';
@@ -2114,8 +2322,9 @@ function checkMatch(prefix=''){
   const { p, ai } = DOM.score;
   if (p < DOM.target && ai < DOM.target) return false;
   DOM.over = true; DOM.matchOver = true; DOM.turn = null; const w = p >= ai;
-  dMsg(`${prefix ? prefix + ' — ' : ''}${w ? `🏆 كسبت الماتش ${p}–${ai}! (+50 جنيه)` : `عم سيد كسب الماتش ${ai}–${p} 😅`}`);
-  if (w){ hero.money += 50; coin(); }
+  let betTxt = ''; if (modeObj.onDomino){ const b = modeObj.onDomino(w); if (b) betTxt = w ? ` · +${b} جنيه` : ` · -${b} جنيه`; }
+  dMsg(`${prefix ? prefix + ' — ' : ''}${w ? `🏆 كسبت الماتش ${p}–${ai}!` : `عم سيد كسب الماتش ${ai}–${p} 😅`}${betTxt}`);
+  if (w) coin(); speak(w ? 'ماشي… كسبت المرة دي' : 'اتعلم يا ابني');
   renderDomino(); return true;
 }
 // ================= camera =================
@@ -2125,9 +2334,11 @@ function updateCamera(dt){
   const v = hero.veh;
   if (ST.kind){ stationCamera(dt); } else if (v){
     const fx = Math.sin(v.yaw), fz = Math.cos(v.yaw); const back = v.type === 'moto' ? 5.8 : 7.6, up = v.type === 'moto' ? 2.6 : 3.2;
+    const fv = 46 + clamp(Math.abs(v.speed)/v.max, 0, 1)*12; if (Math.abs(camera.fov - fv) > .2){ camera.fov += (fv - camera.fov)*damp(3, dt); camera.updateProjectionMatrix(); }
     _t.set(v.pos.x - fx*back, v.pos.y + up, v.pos.z - fz*back); camera.position.lerp(_t, damp(5, dt));
     lookAt.lerp(_t.set(v.pos.x + fx*3, v.pos.y + 1.1, v.pos.z + fz*3), damp(8, dt));
   } else {
+    if (Math.abs(camera.fov - 46) > .2){ camera.fov += (46 - camera.fov)*damp(4, dt); camera.updateProjectionMatrix(); }
     camDist += (camTarget - camDist) * damp(5, dt); const p = hero.pos;
     _t.set(p.x, p.y + 1.1 + camDist*.44, p.z + camDist); camera.position.lerp(_t, damp(5, dt));
     lookAt.lerp(_t.set(p.x, p.y + 1.2, p.z), damp(9, dt));
@@ -2161,6 +2372,7 @@ function drawRadar(t){
   if (chaser.active) dot(chaserCar.position.x, chaserCar.position.z, 4, Math.floor(t*6)%2 ? '#ff3347' : '#3a6bff');
   if (enemy.active) dot(enemy.pos.x, enemy.pos.z, 3.5, '#ff8a3d');
   if (wanted.active && !wanted.caught) dot(wanted.pos.x, wanted.pos.z, 4.5, Math.floor(t*4)%2 ? '#ff2020' : '#ffffff');
+  if (modeId === 'story'){ dot(SHOP.pos.x, SHOP.pos.z, 3, '#b48cff'); if (missionMark.visible){ rctx.fillStyle = Math.floor(t*3)%2 ? '#ffc94a' : '#fff3c4'; rctx.font = 'bold 14px sans-serif'; rctx.textAlign = 'center'; rctx.fillText('★', rx(missionMark.position.x), rz(missionMark.position.z)+5); } }
   if (modeObj.vehicles){ dot(heroCar.pos.x, heroCar.pos.z, 2.5, '#e8b21a'); dot(heroMoto.pos.x, heroMoto.pos.z, 2.5, '#ff5a5a'); dot(copCar.pos.x, copCar.pos.z, 2.5, '#6ea8ff'); }
   const f = hero.veh ? hero.veh.pos : hero.pos; rctx.fillStyle = '#fff'; rctx.strokeStyle = '#000'; rctx.lineWidth = 1.5; rctx.beginPath(); rctx.arc(rx(f.x), rz(f.z), 4, 0, 7); rctx.fill(); rctx.stroke();
 }
@@ -2207,8 +2419,9 @@ function update(dt, t){
       for (const c of cash){ if (c.taken) continue; if (Math.hypot(c.x-hero.pos.x, c.z-hero.pos.z) < 1.4){ c.taken = true; c.pop = .001; modeObj.got++; modeObj.money += c.value; coin(); if (modeObj.got === 15){ const best = parseFloat(store.get('ty_best_cash')||'0'); let bt = ''; if (!best || runTime < best){ store.set('ty_best_cash', String(runTime)); bt = 'رقم قياسي جديد! 🏆'; } else bt = `أحسن وقت: ${fmtTime(best)}`; endMode('لميت كل الفلوس! 💰', `${heroName} لم ${egp(modeObj.money)} في ${fmtTime(runTime)}.`, bt); break; } if (!chaser.active) spawnChaser(); else banner(`+${c.value} جنيه`, 'ok', 1.1); } }
       updateChaser(dt);
     }
-    if (modeId === 'ahwa') updateAhwa(dt);
-    if (modeId === 'foul') updateFoul(dt);
+    if (modeId === 'ahwa' || modeObj.job === 'ahwa') updateAhwa(dt);
+    if (modeId === 'story') updateStory(dt);
+    if (modeId === 'foul' || modeObj.job === 'foul') updateFoul(dt);
     if (ST.kind) updateStation(dt, t);
     // traffic hits on foot
     if (!hero.veh && hero.inv <= 0) for (const c of traffic){ const L = carLocal(c, hero.pos); if (Math.abs(L.along) < c.userData.len && Math.abs(L.lat) < 1.2){ heroDamage(modeId === 'cash' ? 34 : 25, 'car'); hero.inv = 1.6; const fx = Math.sin(c.rotation.y), fz = Math.cos(c.rotation.y), side = L.lat >= 0 ? 1 : -1; hero.knock.set(fz*side*9 + fx*c.userData.speed*.5, 0, -fx*side*9 + fz*c.userData.speed*.5); horn(); break; } }
@@ -2249,7 +2462,7 @@ function update(dt, t){
     const pr = $('prompt'); if (nearAction){ pr.innerHTML = `<kbd>E</kbd>${nearAction.text}`; pr.classList.add('show'); } else pr.classList.remove('show');
     if (bannerT > 0){ bannerT -= dt; if (bannerT <= 0) $('banner').className = 'banner'; }
     if (chaser.active && bannerT <= 0) banner('🚨 البوليس وراك!', 'police', 1.5);
-    hudT -= dt; if (hudT <= 0){ hudT = .2; updateHud(); if (modeObj.hud) $('objText').innerHTML = modeObj.hud(); }
+    hudT -= dt; if (hudT <= 0){ hudT = .2; updateHud(); if (modeObj.hud) $('objText').innerHTML = modeObj.hud(); if (modeObj.hudTitle) $('objTitle').textContent = modeObj.hudTitle(); }
     drawRadar(t);
   }
 }
@@ -2262,8 +2475,9 @@ const clock = new THREE.Clock(); let elapsed = 0;
 let fpsAcc = 0, fpsN = 0, pxr = renderer.getPixelRatio();
 renderer.setAnimationLoop(() => { const raw = clock.getDelta(), dt = Math.min(raw, .05); elapsed += dt; update(dt, elapsed); renderer.render(scene, camera);
   if (state === 'play'){ fpsAcc += raw; fpsN++; if (fpsN >= 150){ const avg = fpsAcc/fpsN; if (avg > 1/30 && pxr > .8){ pxr = Math.max(.8, pxr - .2); renderer.setPixelRatio(pxr); renderer.setSize(innerWidth, innerHeight); } else if (avg > 1/24 && sun.castShadow){ sun.castShadow = false; } fpsAcc = 0; fpsN = 0; } } });
+renderModes();
 $('loadMsg').textContent = 'اختار مود وابدأ.';
-window.__game = { hero, enemy, wanted, vehicles, npcs, keys, get state(){ return state; }, get mode(){ return modeObj; }, startMode, action, punch, dbg: { ST, AH, FL, DOM, ahwaTap, ahwaHold, foulTap, stationBtn, enterStation, exitStation, openDomino, playerPick, SA, SF }, step(n=60){ for (let i=0;i<n;i++){ elapsed += 1/60; update(1/60, elapsed); } renderer.render(scene, camera); } };
+window.__game = { hero, enemy, wanted, vehicles, npcs, keys, get state(){ return state; }, get mode(){ return modeObj; }, startMode, action, punch, dbg: { ST, AH, FL, DOM, ahwaTap, ahwaHold, foulTap, stationBtn, enterStation, exitStation, openDomino, playerPick, SA, SF, get SAVE(){ return SAVE; }, completeMission, startJob, endJob, race, buyVehicle, MISSIONS, startRace, openShop, renderModes }, step(n=60){ for (let i=0;i<n;i++){ elapsed += 1/60; update(1/60, elapsed); } renderer.render(scene, camera); } };
 </script>
 </body>
 </html>
