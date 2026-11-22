@@ -3,7 +3,7 @@ const lookAt = new THREE.Vector3(); let camYaw = 0;
 const ray = new THREE.Ray(), headPos = new THREE.Vector3(), _t = new THREE.Vector3();
 function updateCamera(dt){
   const v = hero.veh;
-  if (ST.kind){ stationCamera(dt); } else if (v){
+  if (CUT.on){ /* the cutscene moves the camera */ } else if (ST.kind){ stationCamera(dt); } else if (v){
     // look-around offset from dragging; it eases back behind the vehicle after a moment
     if (performance.now() - CAM.lastDrag > 1400) CAM.veh *= Math.exp(-dt*2.5);
     const vy = v.yaw + CAM.veh, fx = Math.sin(vy), fz = Math.cos(vy); const back = v.type === 'moto' ? 5.8 : 7.6, up = (v.type === 'moto' ? 2.6 : 3.2) * (.6 + CAM.tilt*.9);
@@ -18,6 +18,7 @@ function updateCamera(dt){
     lookAt.lerp(_t.set(p.x, p.y + 1.2, p.z), damp(9, dt));
     const o = CAM.orbitSm, hgt = .4 + camDist*CAM.tilt;
     camera.position.set(lookAt.x + Math.sin(o)*camDist, lookAt.y - .1 + hgt, lookAt.z + Math.cos(o)*camDist);
+    if (HOUSE.inside){ const r = HOUSE.room; camera.position.x = clamp(camera.position.x, r.x0 + .25, r.x1 - .25); camera.position.z = clamp(camera.position.z, r.z0 + .25, r.z1 - .1); camera.position.y = Math.min(camera.position.y, 2.75); }
   }
   if (shake > 0){ shake -= dt; camera.position.x += (Math.random()-.5)*shake*.5; camera.position.y += (Math.random()-.5)*shake*.5; }
   camera.lookAt(lookAt);
@@ -26,6 +27,8 @@ function updateCamera(dt){
   const f = v ? v.pos : hero.pos; headPos.set(f.x, f.y + 1.4, f.z);
   ray.origin.copy(camera.position); ray.direction.copy(headPos).sub(camera.position); const segLen = ray.direction.length(); ray.direction.normalize();
   for (const b of buildings){
+    if (b.cx === undefined){ b.box.getCenter(_t); b.cx = _t.x; b.cz = _t.z; }
+    const ddx = b.cx - f.x, ddz = b.cz - f.z, vis = ddx*ddx + ddz*ddz < 215*215; if (b.grp.visible !== vis) b.grp.visible = vis; if (!vis) continue;
     const hit = ray.intersectBox(b.box, _t); const blocking = hit && camera.position.distanceTo(_t) < segLen - .3;
     const target = blocking ? .18 : 1;
     if (Math.abs(b.opacity - target) > .005){ b.opacity += (target - b.opacity) * damp(10, dt); const tr = b.opacity < .98; for (const m of b.mats){ m.opacity = b.opacity; if (m.transparent !== tr){ m.transparent = tr; m.depthWrite = !tr; m.needsUpdate = true; } } }

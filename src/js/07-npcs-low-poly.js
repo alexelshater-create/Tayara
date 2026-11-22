@@ -26,7 +26,7 @@ function makeNPC(){
   const n = { g, body, legs, arms, state: 'hidden', phase: R(0,6), speed: R(1.1,1.6), yaw: 0, t: 0, dir: 1, block: 0, downT: 0, fall: 0, fleeT: 0, name: pick(NAMES), role: null, head: 2.05*sc };
   g.visible = false; npcs.push(n); return n;
 }
-for (let i=0;i<40;i++) makeNPC();
+for (let i=0;i<46;i++) makeNPC();
 const walkBlocks = blocksInfo.map((b,i) => i);
 function perimPos(b, t){ const r = 16.6, c = [[b.cx-r,b.cz-r],[b.cx+r,b.cz-r],[b.cx+r,b.cz+r],[b.cx-r,b.cz+r]]; const s = ((Math.floor(t)%4)+4)%4, f = t - Math.floor(t); const a = c[s], e = c[(s+1)%4]; return [a[0]+(e[0]-a[0])*f, a[1]+(e[1]-a[1])*f]; }
 function setWalker(n){ n.state = 'walk'; n.role = 'walker'; n.block = pick(walkBlocks); n.t = R(0,4); n.dir = rng()<.5 ? 1 : -1; n.g.visible = true; n.g.rotation.set(0,0,0); n.body.position.y = 0; n.fall = 0; n.downT = 0; }
@@ -35,6 +35,7 @@ function npcHit(n, power=1){
   if (n.state === 'hidden') return;
   n.prevState = n.state === 'down' ? n.prevState : n.state; n.state = 'down'; n.downT = 2.6 + power; n.fleeT = 5;
   n.fightT = ((n.prevState === 'walk' || n.prevState === 'fight') && Math.random() < .35) ? 7 : 0;
+  if (n.thug){ n.thugHits = (n.thugHits||0) + 1; n.fightT = 999; if (n.thugHits >= 3){ n.thugDone = true; n.downT = 999; n.fightT = 0; say(n, 'خلاص… خلاص!', 2, 'angry'); thwack(); return; } }
   say(n, rpick(['آه يا عم!','إيه ده يا جدع!','هبلغ عنك!','يا ساتر!','حرام عليك!']), 2, 'angry'); thwack();
 }
 function updateNPC(n, dt){

@@ -10,7 +10,7 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const maxAniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0xd8cbb3, 60, 230);
+scene.fog = new THREE.Fog(0xd8cbb3, 55, 205);
 const camera = new THREE.PerspectiveCamera(46, innerWidth/innerHeight, 0.1, 900);
 const sky = new Sky(); sky.scale.setScalar(4000); scene.add(sky);
 const su = sky.material.uniforms;
@@ -19,7 +19,7 @@ const sunDir = new THREE.Vector3().setFromSphericalCoords(1, THREE.MathUtils.deg
 su.sunPosition.value.copy(sunDir);
 const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromScene(new RoomEnvironment(renderer), 0.04).texture;
-scene.add(new THREE.HemisphereLight(0xd9e4f0, 0x7a6650, 0.42));
+const hemi = new THREE.HemisphereLight(0xd9e4f0, 0x7a6650, 0.42); scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xffe3bd, 2.9);
 sun.castShadow = true; sun.shadow.mapSize.set(LOW ? 1024 : 2048, LOW ? 1024 : 2048);
 Object.assign(sun.shadow.camera, { left:-45, right:45, top:45, bottom:-45, near:1, far:280 });

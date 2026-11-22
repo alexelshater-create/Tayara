@@ -29,6 +29,7 @@
   </div>
   <div id="banner" class="banner"></div>
   <div id="prompt" class="prompt"></div>
+  <button id="jobEnd" class="jobend" hidden>✋ خلّص الشغل</button>
   <div id="tray" class="tray" hidden></div>
   <div id="joy"><div id="knob"></div></div>
   <div id="joyHint">اسحب بصباعك<br>هنا عشان تمشي</div>
@@ -89,8 +90,14 @@
   </div>
 </div>
 
+<div id="fade"></div>
+<div id="chap" hidden><small></small><b></b></div>
+<div id="cine" hidden><i class="cbar t"></i><i class="cbar b"></i><button id="cineSkip">تخطّي ⏭</button></div>
+<div id="dlg" hidden><div id="dlgFace"></div><div class="dl"><b id="dlgName"></b><p id="dlgText"></p><small>دوس عشان تكمّل ▸</small></div></div>
+<div id="rhy" hidden><div class="rtop"><b>💃 رقصة الفرح</b><span id="rhyScore"></span></div><div class="rbar"><i id="rhyBar"></i></div><div id="rhyMsg" class="rhymsg"></div><div id="rhyNotes"></div><div class="rline"></div><div class="rlanes"><button class="rlane l0">D</button><button class="rlane l1">F</button><button class="rlane l2">J</button><button class="rlane l3">K</button></div></div>
+<div id="mapOv" class="overlay" hidden><div class="mappanel"><div class="maptop"><b>🗺️ خريطة الحتة</b><button class="ghost" id="mapClose">قفل ✕</button></div><canvas id="mapCanvas"></canvas><div class="maplegend"><span><i style="background:#fff"></i>انت</span><span>★ المهمة</span><span><i style="background:#1e66d0"></i>موقف</span><span><i style="background:#ff8a3d"></i>العربي</span></div></div></div>
 <div id="shop" class="overlay soft" hidden><div class="panel shopp"><h2 id="shopTitle" style="margin:0;color:var(--gold)"></h2><div class="dinfo" id="shopMoney"></div><div id="shopItems" class="shopitems"></div><div class="row"><button class="ghost" id="shopClose">خلاص</button></div></div></div>
-<div id="storyEnd" class="overlay" hidden><div class="panel endp"><div class="face" data-face></div><h2>طيارة الجامد 👑</h2><p>عملتها! اشتغلت وحوّشت، اشتريت الموتوسيكل والعربية، مسكت المطلوب، ووقّعت اللي بيكرهك. الحتة كلها بقت عارفاك.</p><div class="row"><button class="primary" id="storyEndBtn">كمّل لف في الحتة</button></div></div></div>
+<div id="storyEnd" class="overlay" hidden><div class="panel endp"><div class="face" data-face></div><h2>طيارة الجامد 👑</h2><p>عملتها! من صبي قهوجي مفلس لشريك في قصر الملوك. العربي بقى أخوك، شمس سلّم نفسه، يوسف اتعدل، وإسلام اتجوز. الحتة كلها بقت عارفاك.</p><div class="row"><button class="primary" id="storyEndBtn">كمّل لف في الحتة</button></div></div></div>
 <div id="end" class="overlay" hidden>
   <div class="panel endp">
     <div class="face" data-face></div>

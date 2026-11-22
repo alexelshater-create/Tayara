@@ -10,6 +10,7 @@ function hitEnemy(dmg, from){
 }
 function updateEnemy(dt){
   if (!enemy.active) return;
+  if (enemy.ally){ allyUpdate(dt); return; }
   const p = enemy.pos, target = hero.veh ? hero.veh.pos : hero.pos;
   const dx = target.x - p.x, dz = target.z - p.z, dist = Math.hypot(dx, dz);
   let vx = 0, vz = 0;

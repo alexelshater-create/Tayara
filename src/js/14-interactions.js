@@ -3,10 +3,12 @@ let nearAction = null;
 function computeAction(){
   nearAction = null; if (state !== 'play' || hero.locked) return;
   const p = hero.pos;
+  if (HOUSE.inside){ nearAction = houseAction(); return; }
   if (hero.veh){ const va = modeObj.vehAction && modeObj.vehAction(); nearAction = va || { text: 'انزل', fn: () => exitVehicle(false) }; return; }
   if (thief.active && !thief.caught && thief.pos.distanceTo(p) < 2){ nearAction = { text: 'امسك يوسف!', fn: thiefCaught }; return; }
   const ma = modeObj.action && modeObj.action(); if (ma){ nearAction = ma; return; }
-  if (modeObj.vehicles){ let best = null, bd = 3.2; for (const v of vehicles){ if (modeObj.canDrive && !modeObj.canDrive(v)) continue; const d = Math.hypot(v.pos.x-p.x, v.pos.z-p.z); if (d < bd){ bd = d; best = v; } } if (best){ nearAction = { text: best.type==='moto' ? 'اركب الموتوسيكل' : best.type==='police' ? 'اركب البوكس' : 'اركب العربية', fn: () => enterVehicle(best) }; return; } }
+  if (modeObj.vehicles){ const st = nearestStop(p); if (st){ nearAction = { text: '🚏 اركب مواصلة', fn: () => openTransit(st) }; return; } }
+  if (modeObj.vehicles){ let best = null, bd = 3.2; for (const v of vehicles){ if (modeObj.canDrive && !modeObj.canDrive(v)) continue; const d = Math.hypot(v.pos.x-p.x, v.pos.z-p.z); if (d < bd){ bd = d; best = v; } } if (best){ nearAction = { text: best.type==='moto' ? 'اركب الموتوسيكل' : best.type==='police' ? 'اركب البوكس' : best.type==='tuk' ? 'اركب التوكتوك' : 'اركب العربية', fn: () => enterVehicle(best) }; return; } }
   if (modeObj.cafe){
     if (p.distanceTo(SPOT.domino) < 2.4) { nearAction = { text: 'العب دومنو مع عم سيد', fn: () => openDomino() }; return; }
     if (p.distanceTo(SPOT.counter) < 2.6) { nearAction = { text: 'اشرب كوباية شاي (٥ جنيه)', fn: () => { if (hero.money < 5) return banner('مفيش فلوس كفاية', 'bad', 1.5); hero.money -= 5; hero.hp = Math.min(100, hero.hp+20); clink(); banner('شاي تقيل ومظبوط 🍵 +٢٠ صحة', 'ok', 2); } }; return; }
@@ -20,9 +22,10 @@ function punch(){
   const p = hero.pos; let best = null, bd = 1.9;
   const camRightX = Math.cos(camYaw), camRightZ = -Math.sin(camYaw);
   for (const n of npcs){ if (n.state === 'hidden' || n.state === 'down') continue; const d = Math.hypot(n.g.position.x-p.x, n.g.position.z-p.z); if (d < bd){ bd = d; best = { n, x:n.g.position.x, z:n.g.position.z }; } }
-  if (enemy.active && enemy.d.downT <= 0){ const d = enemy.pos.distanceTo(p); if (d < Math.max(bd, 1.9)){ bd = d; best = { enemy: true, x: enemy.pos.x, z: enemy.pos.z }; } }
+  if (enemy.active && !enemy.ally && enemy.d.downT <= 0){ const d = enemy.pos.distanceTo(p); if (d < Math.max(bd, 1.9)){ bd = d; best = { enemy: true, x: enemy.pos.x, z: enemy.pos.z }; } }
   if (wanted.active && !wanted.caught){ const d = wanted.pos.distanceTo(p); if (d < 1.9 && d <= bd + .3){ best = { wanted: true, x: wanted.pos.x, z: wanted.pos.z }; } }
   if (thief.active && !thief.caught){ const d = thief.pos.distanceTo(p); if (d < 1.9){ best = { thief: true, x: thief.pos.x, z: thief.pos.z }; } }
+  { const bt = bossTarget(p); if (bt) best = bt; }
   hero.d.punchSide = best ? (((best.x-p.x)*camRightX + (best.z-p.z)*camRightZ) >= 0 ? 1 : -1) : 1;
   hero.d.punchT = .28; noise(.08, 2500, .15);
   const pnow = runTime; hero.combo = (pnow - (hero.lastPunch ?? -9) < .8) ? (hero.combo||0) + 1 : 1; hero.lastPunch = pnow; const big = hero.combo % 3 === 0;
@@ -33,5 +36,6 @@ function punch(){
     else if (best.enemy){ hitEnemy(big ? 35 : 18, p); if (big) say(enemy, '💥', .8, 'angry'); }
     else if (best.wanted) arrestWanted();
     else if (best.thief) thiefCaught();
+    else if (best.boss) bossHit(big);
   }, 120);
 }

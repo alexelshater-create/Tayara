@@ -61,11 +61,11 @@ function makeTuktuk(color){
 
 const vehicles = [];
 function addVehicle(type, x, z, yaw, color){
-  const mesh = type==='moto' ? makeMoto(color) : makeCar(color, type);
+  const mesh = type==='moto' ? makeMoto(color) : type==='tuk' ? makeTuktuk(color) : makeCar(color, type);
   mesh.position.set(x, 0, z); mesh.rotation.y = yaw;
   const v = { type, mesh, pos: mesh.position, yaw, speed: 0, steer: 0,
-    max: type==='moto' ? 26 : type==='police' ? 25 : 22, accel: type==='moto' ? 12 : 10, turn: type==='moto' ? 2.5 : 1.9,
-    circles: type==='moto' ? [[0,.6]] : [[1.25,1.05],[-1.25,1.05]], home: { x, z, yaw } };
+    max: type==='moto' ? 26 : type==='police' ? 25 : type==='tuk' ? 15 : 22, accel: type==='moto' ? 12 : type==='tuk' ? 8 : 10, turn: type==='moto' ? 2.5 : type==='tuk' ? 2.3 : 1.9,
+    circles: type==='moto' ? [[0,.6]] : type==='tuk' ? [[.7,.85],[-.6,.85]] : [[1.25,1.05],[-1.25,1.05]], home: { x, z, yaw } };
   vehicles.push(v); return v;
 }
 const reserved = [[11,43.3],[19,43],[32,43]];
@@ -78,10 +78,10 @@ function vCircles(v, x=v.pos.x, z=v.pos.z, yaw=v.yaw){ const fx=Math.sin(yaw), f
 
 // traffic
 const traffic = [];
-for (let i=0;i<18;i++){
+for (let i=0;i<30;i++){
   const kind = i%5===0 ? 'tuk' : i%3===0 ? 'taxi' : 'car';
   const c = kind==='tuk' ? makeTuktuk(pick(['#b3121f','#1f4fa8','#e0a21a'])) : makeCar(kind==='taxi' ? '#f2f2f2' : pick(COLORS), kind);
-  c.userData = { kind, axis: i%2 ? 'x' : 'z', road: pick(ROADS), dir: rng()<.5 ? 1 : -1, s: R(-HALF-15, HALF+15), base: kind==='tuk' ? R(6,8) : R(8,12.5), speed: 9, len: kind==='tuk' ? 1.4 : 2.45 };
+  const ax = i%5 === 0 ? 'z' : 'x'; c.userData = { kind, axis: ax, road: ax === 'x' ? pick(ROADS_Z) : BRIDGE.x, dir: rng()<.5 ? 1 : -1, s: ax === 'x' ? R(X0-15, XMAX+15) : R(Z0, BRIDGE.z1), base: kind==='tuk' ? R(6,8) : R(8,12.5), speed: 9, len: kind==='tuk' ? 1.4 : 2.45 };
   traffic.push(c);
 }
 function placeTraffic(c){ const u = c.userData; if (u.axis==='x'){ c.position.set(u.s, 0, u.road + 3*u.dir); c.rotation.y = u.dir>0 ? Math.PI/2 : -Math.PI/2; } else { c.position.set(u.road - 3*u.dir, 0, u.s); c.rotation.y = u.dir>0 ? 0 : Math.PI; } }

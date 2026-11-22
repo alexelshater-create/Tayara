@@ -3,7 +3,7 @@ function enterVehicle(v){
   if (!modeObj.vehicles){ banner('مفيش ركوب في المود ده', 'info', 1.8); return; }
   if (modeObj.canDrive && !modeObj.canDrive(v)){ banner('دي مش بتاعتك', 'info', 1.5); return; }
   hero.veh = v; v.speed = 0; CAM.veh = 0; hero.d.blob.visible = false;
-  banner(v.type === 'moto' ? 'ركبت الموتوسيكل 🏍️' : v.type === 'police' ? 'ركبت البوكس 🚓' : 'ركبت العربية 🚗', 'ok', 1.6);
+  banner(v.type === 'moto' ? 'ركبت الموتوسيكل 🏍️' : v.type === 'police' ? 'ركبت البوكس 🚓' : v.type === 'tuk' ? 'ركبت التوكتوك 🛺' : 'ركبت العربية 🚗', 'ok', 1.6);
   tone(90, 140, .4, 'sawtooth', .12);
 }
 function exitVehicle(force){
@@ -34,9 +34,9 @@ function driveVehicle(v, dt, inX, inZ, brake){
   if (drift && Math.random() < dt*14){ _t.set(v.pos.x - Math.sin(v.yaw)*1.8, .2, v.pos.z - Math.cos(v.yaw)*1.8); puff(_t, .5); }
   if ((v.dmg||0) > 60 && Math.random() < dt*6){ _t.set(v.pos.x + Math.sin(v.yaw)*1.8, 1.1, v.pos.z + Math.cos(v.yaw)*1.8); puff(_t, .45); }
   const nx = v.pos.x + Math.sin(nyaw)*v.speed*dt, nz = v.pos.z + Math.cos(nyaw)*v.speed*dt;
-  const poseBlocked = (x, z, yaw) => vCircles(v, x, z, yaw).some(c => staticBlocked(c.x, c.z, c.r) || vehBlockedAt(c.x, c.z, c.r, v) || Math.abs(c.x) > LIMIT+3 || Math.abs(c.z) > LIMIT+3);
+  const poseBlocked = (x, z, yaw) => vCircles(v, x, z, yaw).some(c => staticBlocked(c.x, c.z, c.r) || vehBlockedAt(c.x, c.z, c.r, v) || !inWorld(c.x, c.z));
   if (poseBlocked(nx, nz, nyaw)){
-    if (Math.abs(v.speed) > 7){ thwack(); shake = .4; heroDamage((Math.abs(v.speed) > 14 ? 10 : 4) * DIFF.dmg, 'crash'); v.dmg = (v.dmg||0) + Math.abs(v.speed)*1.6; if (v.dmg >= 100 && !v.broke){ v.broke = true; banner('العربية اتبهدلت… بقت بطيئة 💨', 'bad', 2.5); } }
+    if (Math.abs(v.speed) > 7){ if (typeof onVehicleCrash === 'function') onVehicleCrash(v, Math.abs(v.speed)); thwack(); shake = .4; heroDamage((Math.abs(v.speed) > 14 ? 10 : 4) * DIFF.dmg, 'crash'); v.dmg = (v.dmg||0) + Math.abs(v.speed)*1.6; if (v.dmg >= 100 && !v.broke){ v.broke = true; banner('العربية اتبهدلت… بقت بطيئة 💨', 'bad', 2.5); } }
     v.speed *= -.25;
     // still let the driver turn the nose away from what they hit
     const turnOnly = v.yaw + v.steer * v.turn * .6 * dt * (throttle < 0 ? -1 : 1);
@@ -47,5 +47,5 @@ function driveVehicle(v, dt, inX, inZ, brake){
   v.mesh.rotation.y = v.yaw;
   if (v.type === 'moto') v.mesh.rotation.z = -v.steer * .35 * clamp(Math.abs(v.speed)/10, 0, 1);
   // traffic bump
-  for (const c of traffic){ if (Math.hypot(c.position.x - v.pos.x, c.position.z - v.pos.z) < (v.type==='moto' ? 2.1 : 2.9)){ if (Math.abs(v.speed) > 3 || c.userData.speed > 3){ thwack(); shake = .5; heroDamage((v.type==='moto' ? 18 : 6) * DIFF.dmg, 'car'); v.speed = -v.speed*.3 - 2; c.userData.speed = 0; v.dmg = (v.dmg||0) + 12; } } }
+  for (const c of traffic){ if (Math.hypot(c.position.x - v.pos.x, c.position.z - v.pos.z) < (v.type==='moto' ? 2.1 : 2.9)){ if (Math.abs(v.speed) > 3 || c.userData.speed > 3){ if (typeof onVehicleCrash === 'function') onVehicleCrash(v, Math.abs(v.speed) + 6); thwack(); shake = .5; heroDamage((v.type==='moto' ? 18 : 6) * DIFF.dmg, 'car'); v.speed = -v.speed*.3 - 2; c.userData.speed = 0; v.dmg = (v.dmg||0) + 12; } } }
 }

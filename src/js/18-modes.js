@@ -1,10 +1,10 @@
 // ================= modes =================
 let state = 'menu', modeId = 'free', modeObj = {}, heroName = 'طيارة', shake = 0, runTime = 0;
 function renderModes(){
-  const has = SAVE.started || SAVE.step > 0;
-  const M = curMission();
+  const has = SAVE.started || SAVE.m > 0;
+  const M = curM();
   const list = [
-    { id:'story', icon:'👑', name: has ? 'كمّل القصة' : 'القصة', desc: has ? (M ? `المهمة ${SAVE.step+1} من ${MISSIONS.length}: ${M.title} · ${egp(SAVE.money)}` : 'خلصت القصة! لف في الحتة براحتك.') : 'طيارة مفلس… اشتغل وحوّش، اشتري موتوسيكل وعربية، امسك المطلوب، ووقّع اللي بيكرهك.' },
+    { id:'story', icon:'👑', name: has ? 'كمّل القصة' : 'القصة', desc: has ? (M ? `${CHAPS[M.ch][0]} · المهمة ${SAVE.m+1} من ${MS.length}: ${M.title} · ${egp(SAVE.money)}` : 'خلصت القصة! لف في الحتة براحتك.') : 'طيارة صبي قهوجي مفلس… شغل وإيجار، عدو بيلف وراه، حرامي ساندوتشات، ومطلوب اسمه شمس. قصة طويلة في ٧ فصول.' },
     { id:'ahwa', icon:'☕', name:'وردية قهوجي', desc:'دور سريع في قصر الملوك: حضّر الشاي والقهوة بإيدك ووزّع.' },
     { id:'domino', icon:'🎲', name:'دومنو مع عم سيد', desc:'ماتش لـ ١٠١ بالقواعد المصرية.' },
   ];
