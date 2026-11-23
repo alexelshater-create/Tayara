@@ -9,7 +9,7 @@ function playWedding(){
     for (let b = 0; b * RHY.beat < RHY.dur; b += gap){ if (Math.random() < .2) continue; RHY.notes.push({ at: b * RHY.beat, lane: Math.floor(Math.random()*4), done: false, el: null }); if (b > 30 && Math.random() < .15) RHY.notes.push({ at: b * RHY.beat, lane: Math.floor(Math.random()*4), done: false, el: null }); }
     RHY.total = RHY.notes.length;
     $('rhy').hidden = false; $('rhyNotes').innerHTML = ''; hero.locked = true; document.body.classList.add('in-rhythm');
-    if (!musicOn && AC){ musicGain.gain.value = .11; } beatNext = AC ? AC.currentTime + .05 : 0;
+    beatNext = AC ? AC.currentTime + .05 : 0;
     rhyMsg('استعد… 💃');
   });
 }
@@ -38,7 +38,7 @@ function updateRhythm(dt){
   $('rhyScore').textContent = `${RHY.hits} / ${RHY.total}`;
   if (Math.floor((RHY.t) / RHY.beat) !== Math.floor((RHY.t - dt) / RHY.beat) && RHY.t > 0){ noise(.05, 2200, .12); }
   if (RHY.t >= RHY.dur + 1){
-    RHY.on = false; $('rhy').hidden = true; hero.locked = false; document.body.classList.remove('in-rhythm'); $('rhyNotes').innerHTML = ''; if (!musicOn && AC) musicGain.gain.value = 0;
+    RHY.on = false; $('rhy').hidden = true; hero.locked = false; document.body.classList.remove('in-rhythm'); $('rhyNotes').innerHTML = '';
     const pct = RHY.total ? RHY.hits / RHY.total : 0; const r = RHY.res; RHY.res = null; r && r({ pct, hits: RHY.hits, total: RHY.total });
   }
 }

@@ -1,5 +1,5 @@
-// ================= intro: character cards, then the poster =================
-// Plays once on the first visit (after a tap, so music can start) and again from the menu. The same layout draws the poster images.
+// ================= intro: the film (Google Flow) with name tags, else character cards and the poster =================
+// Plays once on the first visit (after a tap, so the sound can start) and again from the menu. The same layout draws the poster images.
 const POSTER_CAST = [
   { k: 'youssef', name: 'يوسف إبراهيم', line: 'حرامي الساندوتشات… ممنوع دخوله في أي حتة', color: '#f4a300', from: 1 },
   { k: 'arabi', name: 'العربي', line: 'كان عايز الشغلانة… وعايز طيارة يختفي', color: '#e0457b', from: -1 },
@@ -28,7 +28,42 @@ function introLayout(){
   const t = $('iTitle'); Object.assign(t.style, { left: `${L.title.x*100}%`, top: `${L.title.y*100}%`, fontSize: `${(wide ? innerHeight : innerWidth) * L.title.s * (wide ? 1 : 1.9)}px` });
   document.querySelector('#intro .ibg').style.backgroundPosition = `${L.fx*100}% center`;
 }
+// the film: who appears when (seconds into assets/intro/intro.mp4)
+const INTRO_TAGS = [
+  { t: 9.0, end: 13.2, name: 'طيارة', line: 'صبي القهوة… وهيبقى الجامد', color: '#ffc94a' },
+  { t: 16.4, end: 20.6, name: 'العربي', line: 'ابن الحاج العربي الكبير… والفلوس عنده مش مشكلة', color: '#e0457b' },
+  { t: 24.6, end: 28.8, name: 'إسلام', line: 'الصاحب الجدع… وعريس الحتة', color: '#12a39a' },
+  { t: 31.2, end: 35.6, name: 'يوسف إبراهيم', line: 'بيدوّر على شغل… ولقى حاجة تانية', color: '#f4a300' },
+  { t: 39.4, end: 43.6, name: 'شمس', line: 'محدش شاف وشه… غير اللي ندم', color: '#c62828' },
+];
+const INTRO_TITLE_AT = 46;
 function playIntroSeq(){
+  if (INTRO.playing) return;
+  const v = $('iVideo');
+  if (!v || INTRO.noVideo || !v.canPlayType('video/mp4')) return playPosterIntro();
+  INTRO.playing = true; INTRO.timers.forEach(clearTimeout); INTRO.timers = []; initAudio();
+  const box = $('intro'); box.hidden = false; box.className = 'intro on video'; $('iFinal').className = 'ifinal'; $('iTitle').classList.remove('slam'); $('iTap').classList.remove('show');
+  const tag = $('iTag'); tag.className = 'iname'; let shown = -1, titled = false;
+  if (!v.src) v.src = 'assets/intro/intro.mp4';
+  v.muted = muted; v.currentTime = 0;
+  v.onerror = () => { INTRO.noVideo = true; INTRO.playing = false; playPosterIntro(); };
+  const tick = () => {
+    if (!INTRO.playing || box.hidden) return;
+    const t = v.currentTime, k = INTRO_TAGS.findIndex(c => t >= c.t && t < c.end);
+    if (k !== shown){
+      if (k >= 0){ const c = INTRO_TAGS[k]; tag.style.setProperty('--c', c.color); tag.querySelector('b').textContent = c.name; tag.querySelector('span').textContent = c.line; tag.className = 'iname'; void tag.offsetWidth; tag.className = 'iname show'; }
+      else if (shown >= 0) tag.className = 'iname hide';
+      shown = k;
+    }
+    if (!titled && t >= INTRO_TITLE_AT){ titled = true; introLayout(); box.classList.add('final'); $('iFinal').className = 'ifinal in'; setTimeout(() => $('iTitle').classList.add('slam'), 60); }
+    requestAnimationFrame(tick);
+  };
+  v.onended = () => { $('iTap').classList.add('show'); INTRO.ready = true; };
+  const p = v.play(); if (p && p.catch) p.catch(() => { v.muted = true; v.play().catch(() => { INTRO.playing = false; playPosterIntro(); }); });
+  requestAnimationFrame(tick);
+}
+// the older intro (illustrated character cards, then the poster): used when the film can't play
+function playPosterIntro(){
   if (INTRO.playing) return; INTRO.playing = true; INTRO.timers.forEach(clearTimeout); INTRO.timers = [];
   initAudio(); const box = $('intro'); box.hidden = false; box.className = 'intro on'; $('iCard').className = 'icard'; $('iFinal').className = 'ifinal'; $('iTap').classList.remove('show');
   const card = $('iCard'); let t = 900;
@@ -43,7 +78,7 @@ function playIntroSeq(){
   iAt(t + 1500, () => { $('iTitle').classList.add('slam'); if (AC && !muted){ noise(.5, 400, .6); tone(110, 55, .5, 'sawtooth', .12); } shake = .3; });
   iAt(t + 2600, () => { $('iTap').classList.add('show'); INTRO.ready = true; });
 }
-function endIntro(){ INTRO.timers.forEach(clearTimeout); INTRO.timers = []; INTRO.playing = false; INTRO.ready = false; $('intro').hidden = true; $('intro').className = 'intro'; store.set('ty_intro', '1'); }
+function endIntro(){ const v = $('iVideo'); if (v){ v.pause(); } INTRO.timers.forEach(clearTimeout); INTRO.timers = []; INTRO.playing = false; INTRO.ready = false; $('intro').hidden = true; $('intro').className = 'intro'; store.set('ty_intro', '1'); }
 $('introSkip').onclick = e => { e.stopPropagation(); endIntro(); };
 $('intro').addEventListener('pointerdown', e => { if (INTRO.ready && !e.target.closest('button')) endIntro(); });
 $('iSave').onclick = async e => { e.stopPropagation(); const wide = innerWidth >= innerHeight; const cv = await makePosterImage(wide ? 1920 : 1080, wide ? 1080 : 1920); const a = document.createElement('a'); a.href = cv.toDataURL('image/jpeg', .92); a.download = `tayara-poster-${wide ? 'wide' : 'tall'}.jpg`; document.body.appendChild(a); a.click(); a.remove(); };
@@ -53,7 +88,7 @@ function introOnLoad(){
   if (store.get('ty_intro') === '1') return;
   $('introStart').hidden = false;
 }
-$('introStartBtn').onclick = () => { $('introStart').hidden = true; if (!musicOn){ musicOn = true; store.set('ty_music', '1'); setBtnStates(); } playIntroSeq(); };
+$('introStartBtn').onclick = () => { $('introStart').hidden = true; playIntroSeq(); };
 $('introStartSkip').onclick = () => { $('introStart').hidden = true; store.set('ty_intro', '1'); };
 // ---- the poster as an image (same layout, drawn on a canvas) ----
 const posterCache = {};

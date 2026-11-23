@@ -1,4 +1,4 @@
-// ================= interactions =================
+﻿// ================= interactions =================
 let nearAction = null;
 function computeAction(){
   nearAction = null; if (state !== 'play') return;
@@ -13,7 +13,7 @@ function computeAction(){
   if (modeObj.vehicles){ const st = nearestStop(p); if (st){ nearAction = { text: '🚏 اركب مواصلة', fn: () => openTransit(st) }; return; } }
   if (modeObj.vehicles){ let best = null, bd = 3.2; for (const v of vehicles){ if (modeObj.canDrive && !modeObj.canDrive(v)) continue; const d = Math.hypot(v.pos.x-p.x, v.pos.z-p.z); if (d < bd){ bd = d; best = v; } } if (best){ nearAction = { text: best.type==='moto' ? 'اركب الموتوسيكل' : best.type==='police' ? 'اركب البوكس' : best.type==='tuk' ? 'اركب التوكتوك' : 'اركب العربية', fn: () => enterVehicle(best) }; return; } }
   if (modeObj.cafe){
-    if (p.distanceTo(SPOT.domino) < 2.4) { nearAction = { text: 'العب دومنو مع عم سيد', fn: () => openDomino() }; return; }
+    if (p.distanceTo(SPOT.domino) < 2.4) { nearAction = { text: 'العب دومنو مع الحاج كامل', fn: () => openDomino() }; return; }
     if (Math.hypot(p.x - TAWLA_SPOT.x, p.z - TAWLA_SPOT.z) < 1.9) { nearAction = { text: 'العب طاولة مع عم رجب 🎯', fn: openTawla }; return; }
     if (p.distanceTo(SPOT.counter) < 2.6) { nearAction = { text: 'اشرب كوباية شاي (٥ جنيه)', fn: () => { if (hero.money < 5) return banner('مفيش فلوس كفاية', 'bad', 1.5); hero.money -= 5; hero.hp = Math.min(100, hero.hp+20); clink(); banner('شاي تقيل ومظبوط 🍵 +٢٠ صحة', 'ok', 2); } }; return; }
     if (Math.hypot(p.x-SPOT.cart.x, p.z-(SPOT.cart.z+1.4)) < 2.4) { nearAction = { text: 'اشتري سندوتش فلافل (٥ جنيه)', fn: () => { if (hero.money < 5) return banner('مفيش فلوس كفاية', 'bad', 1.5); hero.money -= 5; hero.hp = Math.min(100, hero.hp+35); coin(); banner('سندوتش فلافل سخن 🧆 +٣٥ صحة', 'ok', 2); } }; return; }
@@ -31,7 +31,8 @@ function punch(){
   if (thief.active && !thief.caught){ const d = thief.pos.distanceTo(p); if (d < 1.9){ best = { thief: true, x: thief.pos.x, z: thief.pos.z }; } }
   { const bt = bossTarget(p); if (bt) best = bt; }
   hero.d.punchSide = best ? (((best.x-p.x)*camRightX + (best.z-p.z)*camRightZ) >= 0 ? 1 : -1) : 1;
-  hero.d.punchT = .28; noise(.08, 2500, .15);
+  hero.d.punchT = .28; punchWhoosh();
+  if (hero.d.is3D){ hero.d.punchSide = (hero.combo||0) % 2 ? -1 : 1; if (best) hero.d.yaw = Math.atan2(best.x - p.x, best.z - p.z); }   // the 3D hero turns to the target and swaps hands
   const pnow = runTime; hero.combo = (pnow - (hero.lastPunch ?? -9) < .8) ? (hero.combo||0) + 1 : 1; hero.lastPunch = pnow; const big = hero.combo % 3 === 0;
   if (!best) return;
   setTimeout(() => {

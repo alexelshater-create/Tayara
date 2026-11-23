@@ -2,7 +2,7 @@
 let AC = null, master = null, sfx = null, musicGain = null, crowdGain = null, sirenGain = null;
 let muted = store.get('ty_mute') === '1', musicOn = store.get('ty_music') !== '0', voiceOn = store.get('ty_voice') !== '0';
 let musicEl = null, beatNext = 0, beatStep = 0;
-function setBtnStates(){ $('muteBtn').textContent = muted ? '🔇' : '🔊'; $('musicBtn').classList.toggle('off', !musicOn); $('voiceBtn').classList.toggle('off', !voiceOn); }
+function setBtnStates(){ $('muteBtn').textContent = muted ? '🔇' : '🔊'; $('voiceBtn').classList.toggle('off', !voiceOn); }
 setBtnStates();
 function initAudio(){
   if (AC){ AC.resume(); return; }
@@ -10,7 +10,7 @@ function initAudio(){
     AC = new (window.AudioContext || window.webkitAudioContext)();
     master = AC.createGain(); master.gain.value = muted ? 0 : 1; master.connect(AC.destination);
     sfx = AC.createGain(); sfx.gain.value = .7; sfx.connect(master);
-    musicGain = AC.createGain(); musicGain.gain.value = musicOn ? .11 : 0; musicGain.connect(master);
+    musicGain = AC.createGain(); musicGain.gain.value = .07; musicGain.connect(master);
     // crowd murmur
     const len = AC.sampleRate*2, buf = AC.createBuffer(1, len, AC.sampleRate), d = buf.getChannelData(0); let last = 0;
     for (let i=0;i<len;i++){ last = last*.97 + (Math.random()*2-1)*.03; d[i] = last*6; }
@@ -22,8 +22,6 @@ function initAudio(){
     const lfo = AC.createOscillator(); lfo.frequency.value = .7; const lg = AC.createGain(); lg.gain.value = 230; lfo.connect(lg); lg.connect(osc.frequency);
     const lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1700;
     sirenGain = AC.createGain(); sirenGain.gain.value = 0; osc.connect(lp); lp.connect(sirenGain); sirenGain.connect(master); osc.start(); lfo.start();
-    // optional real track: music.mp3 next to the page (added by the owner)
-    fetch('music.mp3', { method: 'HEAD' }).then(r => { if (r.ok && (r.headers.get('content-type')||'').includes('audio')){ musicEl = new Audio('music.mp3'); musicEl.loop = true; musicEl.volume = .22; if (musicOn && !muted) musicEl.play().catch(()=>{}); } }).catch(()=>{});
     beatNext = AC.currentTime + .1;
   } catch(e){ AC = null; }
 }
@@ -42,13 +40,13 @@ const thwack = () => { noise(.18, 900, .6); tone(160, 60, .15, 'sine', .4); };
 const horn = () => { tone(415, 415, .16, 'square', .07); tone(523, 523, .16, 'square', .05); tone(415, 415, .22, 'square', .07, .22); tone(523, 523, .22, 'square', .05, .22); };
 const clink = () => { tone(2600, 2500, .25, 'sine', .08); tone(3400, 3300, .2, 'sine', .05, .05); };
 const coin = () => { tone(880,1320,.12,'square',.07); tone(1320,1760,.16,'square',.06,.08); };
-// original mahraganat-style beat (maqsum rhythm, hijaz riff)
+// original mahraganat-style beat (maqsum rhythm, hijaz riff): only during the wedding dance game
 const BPM = 126, STEP = 60/BPM/4, ROOT = 146.83;
 const HIJ = [0,1,4,5,7,8,10,12];
 const RIFF = [0,null,1,null,4,null,1,0, null,0,5,null,4,1,0,null, 7,null,8,null,7,5,4,null, 5,4,1,null,0,null,null,null];
 const BASS = [0,null,null,0,null,null,0,null, -2,null,null,-2,null,null,1,null];
 function beatTick(){
-  if (!AC || !musicOn || muted || musicEl) return;
+  if (!AC || muted || !RHY.on) return;   // the beat is only for the wedding dance game
   while (beatNext < AC.currentTime + .15){
     const s = beatStep % 32, t = beatNext, q = s % 16;
     if (q === 0 || q === 8 || q === 11){ const o = AC.createOscillator(), g = AC.createGain(); o.frequency.setValueAtTime(140, t); o.frequency.exponentialRampToValueAtTime(42, t+.22); env(g, t, .002, .28, .9); o.connect(g); g.connect(musicGain); o.start(t); o.stop(t+.3); }
@@ -66,5 +64,4 @@ try { speechSynthesis.onvoiceschanged = pickVoice; pickVoice(); } catch(e){}
 let lastSpeak = 0;
 function speak(text){ if (muted || !voiceOn || !arVoice || !AC) return; const now = performance.now(); if (now - lastSpeak < 2500) return; lastSpeak = now; try { const u = new SpeechSynthesisUtterance(text.replace(/[^؀-ۿ\s!؟?]/g,'')); u.voice = arVoice; u.lang = arVoice.lang; u.volume = .4; u.rate = 1.05; u.pitch = .85 + Math.random()*.35; speechSynthesis.cancel(); speechSynthesis.speak(u); } catch(e){} }
 $('muteBtn').onclick = () => { muted = !muted; store.set('ty_mute', muted?'1':'0'); if (master) master.gain.value = muted ? 0 : 1; if (musicEl){ muted || !musicOn ? musicEl.pause() : musicEl.play().catch(()=>{}); } if (muted) try { speechSynthesis.cancel(); } catch(e){} setBtnStates(); };
-$('musicBtn').onclick = () => { musicOn = !musicOn; store.set('ty_music', musicOn?'1':'0'); if (musicGain) musicGain.gain.value = musicOn ? .11 : 0; if (musicEl){ musicOn && !muted ? musicEl.play().catch(()=>{}) : musicEl.pause(); } if (AC) beatNext = AC.currentTime + .05; setBtnStates(); };
 $('voiceBtn').onclick = () => { voiceOn = !voiceOn; store.set('ty_voice', voiceOn?'1':'0'); setBtnStates(); if (voiceOn && !arVoice) banner('جهازك مفيهوش صوت عربي، الكلام هيظهر مكتوب بس', 'info', 3); };

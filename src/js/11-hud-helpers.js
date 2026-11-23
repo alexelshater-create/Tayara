@@ -10,7 +10,7 @@ function updateHud(){
 }
 function heroDamage(n, why){
   if (hero.inv > 0 || state !== 'play' || CUT.on || HOUSE.inside) return;
-  hero.hp -= n; hero.hurtT = 0; flash(); thwack(); shake = Math.max(shake, .35);
+  hero.hp -= n; hero.hurtT = 0; hero.d.hitT = .45; flash(); thwack(); shake = Math.max(shake, .35);
   if (hero.hp <= 0){ hero.hp = 0; modeObj.onKO ? modeObj.onKO(why) : knockout(why); }
 }
 function knockout(why){

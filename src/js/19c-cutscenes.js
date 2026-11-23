@@ -4,7 +4,7 @@
 const CAST = {
   tayara: { name: () => heroName, face: () => CH.hero.img.face }, arabi: { name: () => 'العربي', face: () => CH.enemy.img.face },
   shams: { name: () => 'شمس', face: () => CH.wanted.img.face }, youssef: { name: () => 'يوسف إبراهيم', face: () => CH.youssef.img.face },
-  islam: { name: () => 'إسلام', face: () => CH.islam.img.face }, sayed: { name: () => 'عم سيد', emoji: '👴' },
+  islam: { name: () => 'إسلام', face: () => CH.islam.img.face }, sayed: { name: () => 'الحاج كامل', emoji: '👳‍♂️' },
   moallem: { name: () => 'المعلم عبده', emoji: '🧔' }, landlord: { name: () => 'الحاج محمود', emoji: '👳' }, azzouz: { name: () => 'عزوز', emoji: '👨‍🍳' },
   fathi: { name: () => 'الحاج فتحي', emoji: '🧆' }, crowd: { name: () => 'الناس', emoji: '👥' }, police: { name: () => 'الظابط', emoji: '👮' }, mechanic: { name: () => 'الأسطى رضا', emoji: '🔧' }, phone: { name: () => 'الموبايل', emoji: '📱' }, thug: { name: () => 'رجالة شمس', emoji: '😠' },
 };
@@ -31,6 +31,7 @@ function dlgShow(who, text){
   $('dlgFace').innerHTML = face ? `<img src="${face}" alt="">` : `<span>${c.emoji || '💬'}</span>`;
   $('dlgName').textContent = c.name(); $('dlg').hidden = false; $('dlgText').textContent = '';
   CUT.typing = { full: text, i: 0 };
+  const td = { tayara: hero.d, arabi: enemyD, shams: wantedD, youssef: youssefD, islam: islamD }[who]; if (td && td.is3D) td.talkT = clamp(text.length * .055, 1.2, 4.5);
   if (!muted && !playVoice(text)) speak(text);
 }
 function dlgTap(){

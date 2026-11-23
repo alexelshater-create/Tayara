@@ -1,8 +1,8 @@
-// ================= main update =================
+﻿// ================= main update =================
 let chatterT = 3;
 function update(dt, t){
   tickCutscene(dt);
-  beatTick();
+  beatTick(); sfxUpdate(dt, t);
   const playing = state === 'play';
   if (playing){
     runTime += dt;
@@ -74,7 +74,7 @@ function update(dt, t){
   const hd = hero.d;
   if (hero.veh){
     const v = hero.veh;
-    if (v.type === 'moto'){ hd.root.visible = true; hd.P.legL.visible = hd.P.legR.visible = false; hd.root.position.set(v.pos.x - Math.sin(v.yaw)*.25, v.pos.y + .86 - hd.hipY, v.pos.z - Math.cos(v.yaw)*.25); animDoll(hd, 0, 0, dt, t); }
+    if (v.type === 'moto'){ hd.root.visible = true; hd.P.legL.visible = hd.P.legR.visible = false; hd.root.position.set(v.pos.x - Math.sin(v.yaw)*.25, v.pos.y + .86 - hd.hipY, v.pos.z - Math.cos(v.yaw)*.25); hd.faceYaw = v.yaw; animDoll(hd, 0, 0, dt, t); }
     else hd.root.visible = false;
   } else { hd.root.visible = !ST.kind; hd.P.legL.visible = hd.P.legR.visible = true; hd.root.position.copy(hero.pos); animDoll(hd, hero.vel.x, hero.vel.z, dt, t); cheerPose(dt); hd.doll.visible = !(hero.inv > 0 && Math.floor(hero.inv*12) % 2 === 1); }
   if (enemy.active && !CUT.idle.has(enemy.d)) animDoll(enemy.d, enemy.vel.x, enemy.vel.z, dt, t);
@@ -104,4 +104,4 @@ renderer.setAnimationLoop(() => { const raw = clock.getDelta(), dt = Math.min(ra
   if (state === 'play'){ fpsAcc += raw; fpsN++; if (fpsN >= 150){ const avg = fpsAcc/fpsN; if (avg > 1/30 && pxr > .8){ pxr = Math.max(.8, pxr - .2); renderer.setPixelRatio(pxr); renderer.setSize(innerWidth, innerHeight); } else if (avg > 1/24 && sun.castShadow){ sun.castShadow = false; } fpsAcc = 0; fpsN = 0; } } });
 renderModes();
 $('loadMsg').textContent = 'اختار مود وابدأ.'; introOnLoad();
-window.__game = { hero, enemy, wanted, vehicles, npcs, keys, get state(){ return state; }, get mode(){ return modeObj; }, startMode, action, punch, dbg: { playIntroSeq, endIntro, makePosterImage, introLayout, VOICE, playVoice, vHash, voiceLeft, heroCheer, cats, mesa, PROG_R: () => PROG.ramadan, nightVisuals, openGarage, applyGarage, GARAGE_POS, TW, openTawla, twRoll, twPlayerMove, twStartGame, closeTawla, sequences, TAWLA_SPOT, ACT, ACTS, actStart, actEnd, kameenSpawn, pigeons, RAMPS, parkCar, LOT, PEN, COOP, PROG, ACH, achCheck, openAch, openPhoto, closePhoto, takePhoto, PHOTO, goldGlasses, staticBlocked, blocked, obstacles, freeSpot, SPOT, STOPS, ST, AH, FL, DOM, ahwaTap, ahwaHold, foulTap, stationBtn, enterStation, exitStation, openDomino, playerPick, SA, SF, get SAVE(){ return SAVE; }, startJob, endJob, race, buyVehicle, MS, ST2, CUT, JOB, RHY, HOUSE, TOD, boss, pickups, checkpoints, idx, curM, finishMission, failMission, applyStoryWorld, playCut, dlgTap, applyTimeOfDay, enterHouse, exitHouse, houseAction, openTransit, ride, startPizzaJob, startTukJob, endJob2, playWedding, rhyHit, pizzaMoto, tukVeh, arabiMoto, heroMoto, storyAction, openShop, renderModes, thief, thiefStart, thiefCaught, islamD, CAM }, step(n=60){ for (let i=0;i<n;i++){ elapsed += 1/60; update(1/60, elapsed); } renderer.render(scene, camera); } };
+window.__game = { hero, enemy, wanted, vehicles, npcs, keys, get state(){ return state; }, get mode(){ return modeObj; }, startMode, action, punch, dbg: { SFX, spawnThugs, npcWear3D, playIntroSeq, endIntro, makePosterImage, introLayout, VOICE, playVoice, vHash, voiceLeft, heroCheer, cats, mesa, PROG_R: () => PROG.ramadan, nightVisuals, openGarage, applyGarage, GARAGE_POS, TW, openTawla, twRoll, twPlayerMove, twStartGame, closeTawla, sequences, TAWLA_SPOT, ACT, ACTS, actStart, actEnd, kameenSpawn, pigeons, RAMPS, parkCar, LOT, PEN, COOP, PROG, ACH, achCheck, openAch, openPhoto, closePhoto, takePhoto, PHOTO, goldGlasses, staticBlocked, blocked, obstacles, freeSpot, SPOT, STOPS, ST, AH, FL, DOM, ahwaTap, ahwaHold, foulTap, stationBtn, enterStation, exitStation, openDomino, playerPick, SA, SF, get SAVE(){ return SAVE; }, startJob, endJob, race, buyVehicle, MS, ST2, CUT, JOB, RHY, HOUSE, TOD, boss, pickups, checkpoints, idx, curM, finishMission, failMission, applyStoryWorld, playCut, dlgTap, applyTimeOfDay, enterHouse, exitHouse, houseAction, openTransit, ride, startPizzaJob, startTukJob, endJob2, playWedding, rhyHit, pizzaMoto, tukVeh, arabiMoto, heroMoto, storyAction, openShop, renderModes, thief, thiefStart, thiefCaught, islamD, CAM }, step(n=60){ for (let i=0;i<n;i++){ elapsed += 1/60; update(1/60, elapsed); } renderer.render(scene, camera); } };

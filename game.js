@@ -608,8 +608,8 @@ const tableList = TABLES.map(([x,z]) => ({ x, z })).concat([{ x: SPOT.domino.x, 
   const top = new THREE.CylinderGeometry(.55,.55,.05,20); top.translate(0,.88,0);
   const leg = new THREE.CylinderGeometry(.05,.05,.72,8); leg.translate(0,.5,0);
   const foot = new THREE.CylinderGeometry(.3,.3,.04,14); foot.translate(0,.17,0);
-  instanced(mergeGeometries([top]), new THREE.MeshStandardMaterial({ color: 0xd9d4c7, roughness: .5, metalness: .2 }), tableList);
-  instanced(mergeGeometries([leg, foot]), new THREE.MeshStandardMaterial({ color: 0x4a4a4a, metalness: .6, roughness: .4 }), tableList);
+  const oldTop = instanced(mergeGeometries([top]), new THREE.MeshStandardMaterial({ color: 0xd9d4c7, roughness: .5, metalness: .2 }), tableList);
+  const oldBase = instanced(mergeGeometries([leg, foot]), new THREE.MeshStandardMaterial({ color: 0x4a4a4a, metalness: .6, roughness: .4 }), tableList);
   tableList.forEach(t => obstacles.push({ minX:t.x-.5, maxX:t.x+.5, minZ:t.z-.5, maxZ:t.z+.5 }));
   const chairParts = []; box(chairParts, .44,.05,.44, 0,.47,0, '#ffffff'); box(chairParts, .44,.48,.05, 0,.72,-.2, '#ffffff');
   for (const [a,b] of [[-.19,-.19],[.19,-.19],[-.19,.19],[.19,.19]]) box(chairParts, .04,.47,.04, a,.235,b, '#ffffff');
@@ -617,6 +617,16 @@ const tableList = TABLES.map(([x,z]) => ({ x, z })).concat([{ x: SPOT.domino.x, 
   const chairs = SEATS.map(s => ({ x:s.x, z:s.z, ry:s.ry, y:.15 })).concat([{ x:SPOT.domino.x-.85, z:SPOT.domino.z, ry:Math.PI/2, y:.15 }, { x:SPOT.domino.x+.85, z:SPOT.domino.z, ry:-Math.PI/2, y:.15 }]);
   const chairIM = instanced(chairGeo, new THREE.MeshStandardMaterial({ vertexColors: true, color: 0xffffff, roughness: .6 }), chairs);
   const cc = new THREE.Color(); chairs.forEach((c,i) => { cc.set(i%3===0 ? '#c9302c' : '#f2f0ea'); chairIM.setColorAt(i, cc); });
+  // the café's real furniture (assets/props/cafe-set.glb: green bistro chairs, marble tables on iron feet) replaces the simple shapes once it has loaded
+  (async () => { try {
+    const { GLTFLoader } = await import('three/addons/GLTFLoader.js');
+    const g = (await new GLTFLoader().loadAsync('assets/props/cafe-set.glb')).scene; g.updateMatrixWorld(true);
+    const part = n => { let m = null; g.traverse(o => { if (o.isMesh && (o.name === n || o.parent.name === n) && !m) m = o; }); if (!m) return null; const geo = m.geometry.clone(); geo.applyMatrix4(m.matrixWorld); return { geo, mat: m.material }; };
+    const ch = part('chair'), tt = part('table_top'), tb = part('table_base'); if (!ch || !tt || !tb) return;
+    const onFloor = list => list.map(t => ({ ...t, y: .15 }));
+    instanced(ch.geo, ch.mat, chairs); instanced(tt.geo, tt.mat, onFloor(tableList)); instanced(tb.geo, tb.mat, onFloor(tableList));
+    chairIM.visible = false; if (oldTop) oldTop.visible = false; if (oldBase) oldBase.visible = false;
+  } catch (e){ console.warn('café furniture model failed, keeping the simple one', e); } })();
   // dominoes on the domino table
   const dp = []; for (let i=0;i<9;i++) box(dp, .09,.025,.18, SPOT.domino.x - .36 + i*.095, 1.04, SPOT.domino.z + (i%2?.05:-.05), '#f4f0e6');
   for (let i=0;i<5;i++) box(dp, .09,.18,.025, SPOT.domino.x - .2 + i*.1, 1.11, SPOT.domino.z - .38, '#f4f0e6');
@@ -755,7 +765,7 @@ function addVehicle(type, x, z, yaw, color){
     circles: type==='moto' ? [[0,.6]] : type==='tuk' ? [[.7,.85],[-.6,.85]] : [[1.25,1.05],[-1.25,1.05]], home: { x, z, yaw } };
   vehicles.push(v); return v;
 }
-const reserved = [[11,43.3],[19,43],[32,43]];
+const reserved = [[11,43.3],[19,43],[32,43],[26,43.2]];   // the last one is العربي's sports car (05c)
 const heroMoto = addVehicle('moto', 11, 43.3, Math.PI/2, '#b3121f');
 const heroCar = addVehicle('car', 19, 43, Math.PI/2, '#e8b21a');
 const copCar = addVehicle('police', 32, 43, Math.PI/2, '#f4f4f4');
@@ -777,6 +787,379 @@ traffic.forEach(placeTraffic);
 const chaserCar = makeCar('#f4f4f4', 'police'); chaserCar.visible = false;
 const chaserLight = new THREE.PointLight(0xff2040, 0, 22, 1.6); chaserLight.position.set(0, 2.2, 0); chaserCar.add(chaserLight);
 
+// ---- 05b-rig3d.js ----
+﻿// ================= 3D characters: auto-rig + procedural moves =================
+// Models come from tools/shrink_model.py: one textured mesh, A-pose, feet on y = 0, facing +z, 1.8 m tall.
+// The rig finds the joints from the shape, builds 18 bones and skin weights, and the moves are drawn in code.
+const RV = (x, y, z) => new THREE.Vector3(x, y, z);
+function segDist(p, a, b){ const ab = b.clone().sub(a), t = Math.max(0, Math.min(1, p.clone().sub(a).dot(ab) / ab.lengthSq())); return p.distanceTo(a.clone().addScaledVector(ab, t)); }
+
+function findJoints(pos, H){
+  const n = pos.count, P = i => RV(pos.getX(i), pos.getY(i), pos.getZ(i));
+  let tipL = null, tipR = null;                         // hand tips: the furthest points to each side
+  for (let i = 0; i < n; i++){ const x = pos.getX(i); if (!tipL || x > tipL.x) tipL = P(i); if (!tipR || x < tipR.x) tipR = P(i); }
+  const legX = (y0, y1, side) => { let s = 0, c = 0; for (let i = 0; i < n; i++){ const y = pos.getY(i), x = pos.getX(i); if (y > y0*H && y < y1*H && Math.sign(x) === side && Math.abs(x) < .16*H){ s += x; c++; } } return c ? s / c : side * .06*H; };
+  const kneeXL = legX(.26, .31, 1), kneeXR = legX(.26, .31, -1), ankleXL = legX(.04, .08, 1), ankleXR = legX(.04, .08, -1);
+  let zs = 0, zc = 0; for (let i = 0; i < n; i++){ const y = pos.getY(i); if (y > .6*H && y < .75*H && Math.abs(pos.getX(i)) < .08*H){ zs += pos.getZ(i); zc++; } }
+  const cz = zc ? zs / zc : 0;
+  let w = 0; for (let i = 0; i < n; i++){ const y = pos.getY(i), x = Math.abs(pos.getX(i)); if (y > .76*H && y < .8*H && x < .2*H) w = Math.max(w, x); }
+  let shX = Math.max(.08*H, w * .78), shY = .805*H;
+  // T-pose (hands up at shoulder height): the arms fill that height, so measure the chest just under the armpits instead
+  if ((tipL.y + tipR.y) / 2 > .7*H){
+    let wc = 0; for (let i = 0; i < n; i++){ const y = pos.getY(i), x = Math.abs(pos.getX(i)); if (y > .64*H && y < .69*H && x < .2*H) wc = Math.max(wc, x); }
+    shX = Math.max(.07*H, wc * .82); shY = Math.max(.76*H, Math.min(.83*H, (tipL.y + tipR.y) / 2 + .005*H));
+  }
+  const arm = (tip, s) => { const sh = RV(s*shX, shY, cz), d = tip.clone().sub(sh); return { sh, el: sh.clone().addScaledVector(d, .42), wr: sh.clone().addScaledVector(d, .76), tip: tip.clone() }; };
+  const hipY = .52*H;
+  const leg = (kx, ax, s) => ({ hip: RV(s*Math.max(.045*H, Math.abs(kx)*.9), hipY, cz), knee: RV(kx, .285*H, cz + .01*H), ankle: RV(ax, .045*H, cz - .01*H), toe: RV(ax, .01*H, cz + .075*H) });
+  return { cz, H, armL: arm(tipL, 1), armR: arm(tipR, -1), legL: leg(kneeXL, ankleXL, 1), legR: leg(kneeXR, ankleXR, -1),
+    pelvis: RV(0, hipY, cz), spine: RV(0, .6*H, cz), chest: RV(0, .7*H, cz), neck: RV(0, .82*H, cz), head: RV(0, .87*H, cz), top: RV(0, 1.0*H, cz) };
+}
+
+function rigModel(srcMesh){
+  const geo = srcMesh.geometry.clone(), pos = geo.attributes.position; geo.computeBoundingBox();
+  const H = geo.boundingBox.max.y - geo.boundingBox.min.y, J = findJoints(pos, H);
+  const bones = {}, list = [];
+  const mk = (name, at, parent) => { const b = new THREE.Bone(); b.name = name; const pw = parent ? parent.userData.w : RV(0, 0, 0); b.position.copy(at).sub(pw); b.userData.w = at.clone(); if (parent) parent.add(b); bones[name] = b; list.push(b); return b; };
+  const root = mk('root', RV(0, 0, J.cz), null);
+  const pelvis = mk('pelvis', J.pelvis, root), spine = mk('spine', J.spine, pelvis), chest = mk('chest', J.chest, spine), neck = mk('neck', J.neck, chest); mk('head', J.head, neck);
+  for (const [s, A, Lg] of [['L', J.armL, J.legL], ['R', J.armR, J.legR]]){
+    const ua = mk('upperArm' + s, A.sh, chest), la = mk('lowerArm' + s, A.el, ua); mk('hand' + s, A.wr, la);
+    const ul = mk('upperLeg' + s, Lg.hip, pelvis), ll = mk('lowerLeg' + s, Lg.knee, ul); mk('foot' + s, Lg.ankle, ll);
+  }
+  const segs = [
+    ['pelvis', J.pelvis, J.spine, 0], ['spine', J.spine, J.chest, 0], ['chest', J.chest, J.neck, 0], ['neck', J.neck, J.head, 0], ['head', J.head, J.top, 0],
+    ['upperArmL', J.armL.sh, J.armL.el, 1], ['lowerArmL', J.armL.el, J.armL.wr, 1], ['handL', J.armL.wr, J.armL.tip, 1],
+    ['upperArmR', J.armR.sh, J.armR.el, -1], ['lowerArmR', J.armR.el, J.armR.wr, -1], ['handR', J.armR.wr, J.armR.tip, -1],
+    ['upperLegL', J.legL.hip, J.legL.knee, 1], ['lowerLegL', J.legL.knee, J.legL.ankle, 1], ['footL', J.legL.ankle, J.legL.toe, 1],
+    ['upperLegR', J.legR.hip, J.legR.knee, -1], ['lowerLegR', J.legR.knee, J.legR.ankle, -1], ['footR', J.legR.ankle, J.legR.toe, -1],
+  ];
+  const NB = { pelvis: ['spine', 'upperLegL', 'upperLegR'], spine: ['pelvis', 'chest'], chest: ['spine', 'neck', 'upperArmL', 'upperArmR'], neck: ['chest', 'head'], head: ['neck'],
+    upperArmL: ['chest', 'lowerArmL'], lowerArmL: ['upperArmL', 'handL'], handL: ['lowerArmL'], upperArmR: ['chest', 'lowerArmR'], lowerArmR: ['upperArmR', 'handR'], handR: ['lowerArmR'],
+    upperLegL: ['pelvis', 'lowerLegL'], lowerLegL: ['upperLegL', 'footL'], footL: ['lowerLegL'], upperLegR: ['pelvis', 'lowerLegR'], lowerLegR: ['upperLegR', 'footR'], footR: ['lowerLegR'] };
+  const idx = {}; for (const [name] of segs) idx[name] = list.indexOf(bones[name]);
+  const n = pos.count, si = new Uint16Array(n*4), sw = new Float32Array(n*4), p = RV(0, 0, 0), d = segs.map(s => [s[0], 0]);
+  for (let i = 0; i < n; i++){
+    p.set(pos.getX(i), pos.getY(i), pos.getZ(i));
+    const side = Math.abs(p.x) < .015*H ? 0 : Math.sign(p.x);
+    for (let k = 0; k < segs.length; k++){ const [name, a, b, s] = segs[k]; d[k][0] = name; d[k][1] = (s && side && s !== side) ? 1e9 : segDist(p, a, b); }
+    const sorted = d.slice().sort((a, b) => a[1] - b[1]);
+    const best = sorted[0], ok = NB[best[0]];
+    const cand = sorted.filter(([name, dist]) => (name === best[0] || ok.includes(name)) && dist < best[1] * 1.7 + .01*H).slice(0, 4);
+    let tot = 0; const ws = cand.map(([name, dist]) => { const w = 1 / Math.pow(dist + .004*H, 4); tot += w; return [name, w]; });
+    ws.forEach(([name, w], k) => { si[i*4 + k] = idx[name]; sw[i*4 + k] = w / tot; });
+  }
+  smoothWeights(geo, pos, si, sw, list.length, segs.map(([name, , , sd]) => [idx[name], sd]), H);
+  // long dresses (no gap between the legs at knee height): the skirt follows the pelvis at the top and both thighs
+  // lower down, blended across the middle, so it sways with the steps instead of splitting into two trouser legs
+  // a dress fills the middle from its front to its back; trousers only touch in the middle (baggy legs, inner seams)
+  let kn = 0, mid = 0, zs = 0, zMax = -1e9, zMin = 1e9, mMax = -1e9, mMin = 1e9;
+  for (let i = 0; i < n; i++){ const y = pos.getY(i); if (y > .2*H && y < .3*H){ const z = pos.getZ(i); kn++; zs += z; zMax = Math.max(zMax, z); zMin = Math.min(zMin, z); if (Math.abs(pos.getX(i)) < .015*H){ mid++; mMax = Math.max(mMax, z); mMin = Math.min(mMin, z); } } }
+  const zc = kn ? zs / kn : 0;
+  const skirt = kn > 0 && mid / kn > .04 && (mMax - zc) > .8 * (zMax - zc) && (zc - mMin) > .8 * (zc - zMin);
+  if (skirt){
+    const arms = new Set(['upperArmL', 'lowerArmL', 'handL', 'upperArmR', 'lowerArmR', 'handR'].map(nm => idx[nm]));
+    const top = J.pelvis.y - .02*H, bot = .02*H, sm = x => x * x * (3 - 2 * x);
+    for (let i = 0; i < n; i++){
+      const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+      if (y >= top || y <= bot || (arms.has(si[i*4]) && sw[i*4] > .4)) continue;
+      if (y < .065*H && [J.legL, J.legR].some(L => segDist(RV(x, y, z), L.ankle, L.toe) < .045*H)) continue;   // the shoes stay on the feet
+      // above the knees: pelvis -> thighs; below: thighs -> shins (so it hangs down when she sits); blended left/right
+      const c01 = v => Math.max(0, Math.min(1, v)), kneeY = (J.legL.knee.y + J.legR.knee.y) / 2, s = sm(c01(.5 + x / (.2*H)));
+      if (y >= kneeY){
+        const t = sm(c01((top - y) / (top - kneeY)));
+        si[i*4] = idx.pelvis; si[i*4+1] = idx.upperLegL; si[i*4+2] = idx.upperLegR; si[i*4+3] = idx.spine;
+        sw[i*4] = 1 - t; sw[i*4+1] = t * s; sw[i*4+2] = t * (1 - s); sw[i*4+3] = 0;
+      } else {
+        const u = sm(c01((kneeY - y) / (kneeY - .14*H)));
+        si[i*4] = idx.upperLegL; si[i*4+1] = idx.upperLegR; si[i*4+2] = idx.lowerLegL; si[i*4+3] = idx.lowerLegR;
+        sw[i*4] = (1 - u) * s; sw[i*4+1] = (1 - u) * (1 - s); sw[i*4+2] = u * s; sw[i*4+3] = u * (1 - s);
+      }
+    }
+  }
+  geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4));
+  geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(sw, 4));
+  const mesh = new THREE.SkinnedMesh(geo, srcMesh.material);
+  mesh.add(root); mesh.bind(new THREE.Skeleton(list));
+  mesh.frustumCulled = false;
+  const armAng = s => { const A = s > 0 ? J.armL : J.armR; const v = A.wr.clone().sub(A.sh); return Math.atan2(Math.abs(v.x), -v.y); };
+  return { mesh, bones, J, H, skirt, head: measureHead(pos, H, J), armDown: { L: armAng(1), R: armAng(-1) }, t: 0, phase: 0 };
+}
+// face landmarks from the shape (for the glasses, cap and chain)
+function measureHead(pos, H, J){
+  const n = pos.count, X = i => pos.getX(i), Y = i => pos.getY(i), Z = i => pos.getZ(i);
+  let noseY = .9*H, nz = -1e9;                                   // the nose tip: the most forward point of the face
+  for (let i = 0; i < n; i++){ const y = Y(i); if (y > .83*H && y < .93*H && Math.abs(X(i)) < .012*H && Z(i) > nz){ nz = Z(i); noseY = y; } }
+  const eyeY = noseY + .02*H, capY = eyeY + .025*H, neckY = noseY - .05*H, chestY = neckY - .045*H;
+  let faceZ = -1e9, rx = 0, z0 = 1e9, z1 = -1e9, nF = -1e9, nB = 1e9, nX = 0, cF = -1e9;
+  for (let i = 0; i < n; i++){
+    const x = Math.abs(X(i)), y = Y(i), z = Z(i);
+    if (Math.abs(y - eyeY) < .012*H && x > .012*H && x < .03*H) faceZ = Math.max(faceZ, z);
+    if (y > capY){ rx = Math.max(rx, x); z0 = Math.min(z0, z); z1 = Math.max(z1, z); }
+    if (Math.abs(y - neckY) < .006*H && x < .06*H){ nF = Math.max(nF, z); nB = Math.min(nB, z); nX = Math.max(nX, x); }
+    if (Math.abs(y - chestY) < .006*H && x < .035*H) cF = Math.max(cF, z);
+  }
+  // wrist thickness where the watch goes
+  const A = J.armL, dir = A.wr.clone().sub(A.el).normalize(), w = A.el.clone().lerp(A.wr, .86), q = RV(0, 0, 0), pds = [];
+  for (let i = 0; i < n; i++){ q.set(X(i), Y(i), Z(i)).sub(w); const al = q.dot(dir); if (Math.abs(al) > .006*H) continue; const pd = q.addScaledVector(dir, -al).length(); if (pd < .028*H) pds.push(pd); }
+  pds.sort((a, b) => a - b); const wr = pds.length ? pds[Math.floor(pds.length * .8)] : 0;
+  return { wristR: wr || .03, eyeY, faceZ, capY, rx, rz: (z1 - z0) / 2, cz: (z1 + z0) / 2, neckY, neckF: nF, neckB: nB, neckX: nX, chestY, chestF: cF };
+}
+// the shop's accessories as real 3D pieces on the bones
+function make3DAccessories(R){
+  const B = R.bones, J = R.J, Hd = R.head, H = R.H, at = (bone, w) => w.clone().sub(bone.userData.w);
+  const gold = new THREE.MeshStandardMaterial({ color: 0xf2c14e, metalness: 1, roughness: .28 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x0b1016, metalness: .4, roughness: .12 });
+  const out = {};
+  { // sunglasses
+    const g = new THREE.Group(), fz = Hd.faceZ + .012, hw = Hd.rx * .97, depth = Math.max(.08, fz - Hd.cz);
+    for (const s of [-1, 1]){ const l = new THREE.Mesh(new RoundedBoxGeometry(.048, .032, .008, 2, .008), dark); l.position.set(s*.03, 0, 0); g.add(l);
+      const sd = new THREE.Mesh(new THREE.BoxGeometry(Math.max(.005, hw - .054), .006, .006), dark); sd.position.set(s*(.054 + (hw - .054)/2), .007, -.004); g.add(sd);
+      const tm = new THREE.Mesh(new THREE.BoxGeometry(.006, .006, depth), dark); tm.position.set(s*hw, .007, -depth/2); g.add(tm); }
+    const br = new THREE.Mesh(new THREE.BoxGeometry(.014, .006, .006), dark); br.position.set(0, .008, .002); g.add(br);
+    g.position.copy(at(B.head, RV(0, Hd.eyeY, fz))); B.head.add(g); out.glasses = g;
+  }
+  { // red cap
+    const g = new THREE.Group(), red = new THREE.MeshStandardMaterial({ color: 0xc0392b, roughness: .75 }), sx = Hd.rx * 1.13, sz = Hd.rz * 1.1;
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(1, 28, 14, 0, Math.PI*2, 0, Math.PI/2), red); dome.scale.set(sx, H - Hd.capY + .035, sz); g.add(dome);
+    const brim = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, .007, 24, 1, false, -Math.PI/2, Math.PI), new THREE.MeshStandardMaterial({ color: 0xa93226, roughness: .75 })); brim.scale.set(sx * .92, 1, .085); brim.position.set(0, .004, sz * .93); brim.rotation.x = .1; g.add(brim);
+    g.position.copy(at(B.head, RV(0, Hd.capY, Hd.cz))); B.head.add(g); out.cap = g;
+  }
+  { // gold chain: round the back of the neck, hanging onto the chest, with a medal
+    const g = new THREE.Group(), fz = Hd.chestF + .008, bz = Hd.neckB - .004, dy = Hd.neckY - Hd.chestY, dz = fz - bz;
+    const tilt = Math.atan2(dy, dz), rz = Math.hypot(dy, dz) / 2;
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(1, .0045 / Math.min(Hd.neckX * .95 + .006, rz), 6, 40), gold); ring.rotation.x = Math.PI/2; ring.scale.set(Hd.neckX * .95 + .006, rz, Math.min(Hd.neckX * .95 + .006, rz));
+    const tg = new THREE.Group(); tg.rotation.x = tilt; tg.add(ring); g.add(tg);
+    const med = new THREE.Mesh(new THREE.CylinderGeometry(.015, .015, .004, 18), gold); med.rotation.x = Math.PI/2 - .25; med.position.set(0, -.018, rz + .006); tg.add(med);
+    g.position.copy(at(B.chest, RV(0, (Hd.neckY + Hd.chestY) / 2, (fz + bz) / 2))); B.chest.add(g); out.chain = g;
+  }
+  { // watch on the left wrist
+    const A = J.armL, dir = A.wr.clone().sub(A.el).normalize(), w = A.el.clone().lerp(A.wr, .86);
+    const g = new THREE.Group(); g.quaternion.setFromUnitVectors(RV(0, 1, 0), dir);
+    const wr = Hd.wristR + .003; g.add(new THREE.Mesh(new THREE.CylinderGeometry(wr, wr, .022, 18, 1, true), new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: .6, side: THREE.DoubleSide })));
+    const face = new THREE.Mesh(new THREE.CylinderGeometry(.017, .017, .008, 18), gold); face.rotation.z = Math.PI/2; face.position.x = wr + .003; g.add(face);
+    g.position.copy(at(B.lowerArmL, w)); B.lowerArmL.add(g); out.watch = g;
+  }
+  return out;
+}
+
+// soften the skin weights over the surface (3 rounds of averaging with the neighbours), so elbows,
+// knees, shoulders and hips bend smoothly instead of creasing; left/right limbs stay apart.
+function smoothWeights(geo, pos, si, sw, nb, segSide, H){
+  const n = pos.count, key = new Map(), wid = new Int32Array(n); let nw = 0;
+  for (let i = 0; i < n; i++){ const k = Math.round(pos.getX(i)*2e4) + ',' + Math.round(pos.getY(i)*2e4) + ',' + Math.round(pos.getZ(i)*2e4); let w = key.get(k); if (w === undefined){ w = nw++; key.set(k, w); } wid[i] = w; }
+  const W = new Float32Array(nw*nb), side = new Int8Array(nw);
+  for (let i = 0; i < n; i++){ const w = wid[i]; side[w] = Math.abs(pos.getX(i)) < .015*H ? 0 : Math.sign(pos.getX(i)); for (let k = 0; k < 4; k++) W[w*nb + si[i*4+k]] = Math.max(W[w*nb + si[i*4+k]], sw[i*4+k]); }
+  // neighbours (welded) from the triangles
+  const ix = geo.index.array, nbs = Array.from({ length: nw }, () => []);
+  for (let f = 0; f < ix.length; f += 3){ const a = wid[ix[f]], b = wid[ix[f+1]], c = wid[ix[f+2]]; nbs[a].push(b, c); nbs[b].push(a, c); nbs[c].push(a, b); }
+  const sideOf = new Int8Array(nb); for (const [bi, sd] of segSide) sideOf[bi] = sd;
+  let T = new Float32Array(nw*nb);
+  for (let it = 0; it < 3; it++){
+    for (let v = 0; v < nw; v++){
+      const L = nbs[v], o = v*nb; if (!L.length){ for (let b = 0; b < nb; b++) T[o+b] = W[o+b]; continue; }
+      for (let b = 0; b < nb; b++){ let sum = 0; for (const u of L) sum += W[u*nb + b]; T[o+b] = W[o+b]*.5 + sum / L.length * .5; }
+      if (side[v]) for (let b = 0; b < nb; b++) if (sideOf[b] && sideOf[b] !== side[v]) T[o+b] = 0;
+    }
+    const tmp = W.slice(); W.set(T); T = tmp;
+  }
+  // back to the 4 strongest bones per vertex
+  const order = new Array(nb);
+  for (let i = 0; i < n; i++){
+    const o = wid[i]*nb; for (let b = 0; b < nb; b++) order[b] = b; order.sort((x, y) => W[o+y] - W[o+x]);
+    let tot = 0; for (let k = 0; k < 4; k++) tot += W[o + order[k]];
+    for (let k = 0; k < 4; k++){ si[i*4+k] = order[k]; sw[i*4+k] = tot > 0 ? W[o + order[k]] / tot : (k ? 0 : 1); }
+  }
+}
+
+const _re = new THREE.Euler(), _qa = new THREE.Quaternion(), _qb = new THREE.Quaternion(), _qc = new THREE.Quaternion();
+const AX = RV(1, 0, 0), AY = RV(0, 1, 0), AZ = RV(0, 0, 1);
+function brot(b, x, y, z){ b.quaternion.setFromEuler(_re.set(x, y, z)); }
+function addRot(b, x, y, z){ b.quaternion.multiply(_qc.setFromEuler(_re.set(x, y, z))); }
+function armRot(b, down, side, swing, out = 0, twist = 0){
+  // lower the arm from the A-pose toward the body (around z), then swing it forward/back (around x)
+  _qa.setFromAxisAngle(AX, swing); _qb.setFromAxisAngle(AZ, side * -(down - .12 - out));
+  b.quaternion.copy(_qa).multiply(_qb);
+  if (twist) b.quaternion.multiply(_qc.setFromAxisAngle(AY, twist));   // twist turns the bent forearm in toward the body
+}
+const lerpN = (a, b, k) => a + (b - a) * k;
+// two-bone IK: turn the upper arm and forearm so the hand reaches `target` (world), elbow toward `pole` (world direction).
+// k blends from the pose already set (0) to the full reach (1).
+const _iv1 = RV(0,0,0), _iv2 = RV(0,0,0), _iv3 = RV(0,0,0), _iv4 = RV(0,0,0), _iv5 = RV(0,0,0), _iv6 = RV(0,0,0), _iv7 = RV(0,0,0), _iv8 = RV(0,0,0);
+const _iq1 = new THREE.Quaternion(), _iq2 = new THREE.Quaternion(), _iq3 = new THREE.Quaternion(), _iqA = new THREE.Quaternion(), _iqB = new THREE.Quaternion();
+function aimBone(b, child, dir){
+  // rotate bone b (in world terms) so the direction to its child points along dir
+  b.updateWorldMatrix(true, true);
+  const p = b.getWorldPosition(_iv7), c = child.getWorldPosition(_iv8), cur = c.sub(p).normalize();
+  _iq1.setFromUnitVectors(cur, dir);
+  const wq = b.getWorldQuaternion(_iq2), pq = b.parent.getWorldQuaternion(_iq3);
+  b.quaternion.copy(pq.invert().multiply(_iq1.multiply(wq)));
+}
+function ikArm(R, side, target, pole, k = 1){
+  if (k <= 0) return;
+  const s = side > 0 ? 'L' : 'R', ua = R.bones['upperArm' + s], la = R.bones['lowerArm' + s], hd = R.bones['hand' + s];
+  const fkU = _iqA.copy(ua.quaternion), fkL = _iqB.copy(la.quaternion);
+  R.mesh.updateMatrixWorld(true);
+  const S = ua.getWorldPosition(RV(0,0,0)), E = la.getWorldPosition(RV(0,0,0)), W = hd.getWorldPosition(RV(0,0,0));
+  const a = E.distanceTo(S), b = W.distanceTo(E), dir = target.clone().sub(S);
+  const d = Math.max(Math.abs(a - b) + 1e-3, Math.min(a + b - 1e-3, dir.length())); dir.normalize();
+  const cosA = (a * a + d * d - b * b) / (2 * a * d), sinA = Math.sqrt(Math.max(0, 1 - cosA * cosA));
+  const n = RV(0,0,0).crossVectors(dir, pole).normalize(), toPole = RV(0,0,0).crossVectors(n, dir).normalize();
+  const elbowDir = dir.clone().multiplyScalar(cosA).addScaledVector(toPole, sinA).normalize();
+  aimBone(ua, la, elbowDir);
+  const E2 = la.getWorldPosition(RV(0,0,0)); aimBone(la, hd, target.clone().sub(E2).normalize());
+  if (k < 1){ ua.quaternion.copy(fkU.slerp(ua.quaternion, k)); la.quaternion.copy(fkL.slerp(la.quaternion, k)); }
+}
+// o: { f: steps per second (walk/run), k: punch / hit strength 0..1, side: 1 right hand / -1 left,
+//      look: head turn (radians, + = to his left), lean: body roll in turns, snap: no blending }
+function poseRig(R, move, dt, o = {}){
+  const B = R.bones, H = R.H; R.t += dt;
+  const t = R.t; let ph = R.phase;
+  if (move !== R.move){ R.move = move; R.since = 0; } R.since = (R.since || 0) + dt;
+  for (const k in B){ if (k !== 'root') B[k].quaternion.identity(); }
+  B.root.position.y = 0; B.pelvis.position.set(R.J.pelvis.x, R.J.pelvis.y, 0);
+  let swingL = 0, swingR = 0, elL = -.18, elR = -.18, outL = -.04, outR = -.04, twL = 0, twR = 0;
+  if (move === 'idle'){
+    // breathing, a slow weight shift from foot to foot, and now and then a look around
+    const br = Math.sin(t * 1.8), ws = Math.sin(t * .7);
+    brot(B.chest, br * .02, 0, 0); brot(B.head, Math.sin(t * .7) * .03, Math.sin(t * .37) * .1 + Math.max(0, Math.sin(t * .13) - .8) * 2.2, 0);
+    B.pelvis.position.x += ws * .008*H; brot(B.pelvis, 0, 0, ws * .025); brot(B.spine, 0, 0, -ws * .02);
+    brot(B.upperLegL, 0, 0, -ws * .025); brot(B.upperLegR, 0, 0, -ws * .025); brot(B.lowerLegL, Math.max(0, -ws) * .08, 0, 0); brot(B.lowerLegR, Math.max(0, ws) * .08, 0, 0);
+    swingL = .04 + br * .03; swingR = .04 - br * .03;
+  } else if (move === 'walk' || move === 'run'){
+    const run = move === 'run', amp = run ? 1 : .62, f = o.f || (run ? 9.5 : 6.2); ph = R.phase += dt * f; const s = Math.sin(ph), c = Math.cos(ph);
+    const la = R.skirt ? .6 : 1;   // in a long dress the steps are shorter
+    brot(B.upperLegL, (-s * .55 * amp - (run ? .1 : 0)) * la, 0, 0); brot(B.upperLegR, (s * .55 * amp - (run ? .1 : 0)) * la, 0, 0);
+    const knee = (run ? 1.45 : 1.1) * (R.skirt ? .55 : 1);
+    brot(B.lowerLegL, Math.max(0, -Math.sin(ph - .9)) * knee * amp + .06, 0, 0); brot(B.lowerLegR, Math.max(0, Math.sin(ph - .9)) * knee * amp + .06, 0, 0);
+    brot(B.footL, s * .22 * amp, 0, 0); brot(B.footR, -s * .22 * amp, 0, 0);
+    swingL = s * .5 * amp; swingR = -s * .5 * amp;
+    elL = run ? -1.3 : -.25 - Math.max(0, -swingL) * .5; elR = run ? -1.3 : -.25 - Math.max(0, -swingR) * .5;
+    B.pelvis.position.y += Math.abs(c) * .018*H * amp - (run ? .022*H : 0); B.pelvis.position.x += s * .006*H;
+    brot(B.pelvis, run ? .12 : .03, s * .09 * amp, -s * .035 * amp); brot(B.chest, run ? .07 : .01, -s * .15 * amp, s * .02);
+    brot(B.head, run ? -.08 : 0, s * .05 * amp, 0);
+  } else if (move === 'punch'){
+    // boxing guard, the punching arm shoots straight out, the shoulder turns into it
+    const k = o.k ?? Math.max(0, Math.sin(Math.min(1, (t % 1.1) / .35) * Math.PI)), sd = o.side || 1;
+    swingL = swingR = -.75; elL = elR = -2.1; outL = outR = -.06;
+    if (sd > 0){ swingR = lerpN(-.75, -1.5, k); elR = lerpN(-2.1, -.08, k); outR = lerpN(-.06, .02, k); }
+    else { swingL = lerpN(-.75, -1.5, k); elL = lerpN(-2.1, -.08, k); outL = lerpN(-.06, .02, k); }
+    brot(B.pelvis, .06, .18 * k * sd, 0); brot(B.chest, .1 * k, .38 * k * sd, 0); brot(B.head, 0, -.5 * k * sd, 0);
+    B.pelvis.position.y -= .015*H;
+    brot(B.upperLegL, -.32, 0, .04); brot(B.lowerLegL, .38, 0, 0); brot(B.footL, -.06, 0, 0); brot(B.upperLegR, .22, 0, -.04); brot(B.lowerLegR, .18, 0, 0);
+  } else if (move === 'hit'){
+    // knocked back: leans away, arms thrown back, knees give a little
+    const k = o.k ?? 1;
+    brot(B.chest, -.3 * k, .15 * k, 0); brot(B.neck, -.15 * k, 0, 0); brot(B.head, -.18 * k, -.2 * k, .1 * k);
+    B.pelvis.position.z = -.025*H * k; B.pelvis.position.y -= .02*H * k;
+    brot(B.upperLegL, -.2 * k, 0, 0); brot(B.lowerLegL, .4 * k, 0, 0); brot(B.upperLegR, .15 * k, 0, 0); brot(B.lowerLegR, .3 * k, 0, 0);
+    swingL = .35 * k; swingR = .25 * k; elL = elR = -.18 - .35 * k; outL = outR = -.04 + .4 * k;
+  } else if (move === 'talk'){
+    // talking with the hands: one hand explains, the other joins in now and then; little nods
+    const a = Math.sin(t * 3.1), b = Math.sin(t * 4.3 + 1), c = Math.max(0, Math.sin(t * 1.7));
+    swingR = -.4 + a * .14; elR = -1.2 + b * .3; outR = -.02 + a * .04;
+    swingL = -.1 - c * .3; elL = -.3 - c * .8; outL = -.04 + c * .05;
+    brot(B.chest, .02, Math.sin(t * 1.1) * .07, 0); brot(B.head, Math.sin(t * 5) * .05, Math.sin(t * 1.3) * .14, Math.sin(t * .9) * .04);
+    const ws = Math.sin(t * .7); B.pelvis.position.x += ws * .006*H; brot(B.pelvis, 0, 0, ws * .02);
+  } else if (move === 'sit' || move === 'shisha'){
+    brot(B.upperLegL, -1.5, 0, .05); brot(B.upperLegR, -1.5, 0, -.05); brot(B.lowerLegL, 1.5, 0, 0); brot(B.lowerLegR, 1.5, 0, 0);
+    B.root.position.y = -(R.J.pelvis.y - .29*H); swingL = swingR = -.35; elL = elR = -.6;
+    brot(B.spine, .06, 0, 0); brot(B.head, Math.sin(t * .6) * .03, Math.sin(t * .3) * .1, 0);
+    if (move === 'shisha'){
+      // a 9-second cycle: the hose goes up to the mouth, a long draw with the head back a little, then down again; leaning back, relaxed
+      const c = t % 9, ss = x => x * x * (3 - 2 * x), k = c < .8 ? ss(c / .8) : c < 2.6 ? 1 : c < 3.4 ? 1 - ss((c - 2.6) / .8) : 0;
+      brot(B.spine, -.04, 0, 0); brot(B.head, -.1 * k + Math.sin(t * .6) * .02, Math.sin(t * .3) * .12 * (1 - k), 0);
+      o.ikMouth = k;   // the right hand is placed at the mouth further down (two-bone IK)
+    }
+  } else if (move === 'moto'){
+    brot(B.upperLegL, -1.15, 0, .18); brot(B.upperLegR, -1.15, 0, -.18); brot(B.lowerLegL, 1.35, 0, 0); brot(B.lowerLegR, 1.35, 0, 0);
+    B.root.position.y = -(R.J.pelvis.y - .5*H); brot(B.pelvis, .25, 0, 0); brot(B.chest, .15, 0, 0);
+    swingL = swingR = -1.05; elL = elR = -.35; outL = outR = .25;
+  } else if (move === 'dance'){
+    ph = R.phase += dt * 7; const s = Math.sin(ph), s2 = Math.sin(ph * .5);
+    B.pelvis.position.x += s * .03*H; B.pelvis.position.y += Math.abs(Math.cos(ph)) * .02*H;
+    brot(B.pelvis, 0, s2 * .3, s * .08); brot(B.chest, 0, -s2 * .2, -s * .1); brot(B.head, 0, s2 * .2, s * .1);
+    swingL = -1.2 - s * .5; swingR = -1.2 + s * .5; elL = -1.4; elR = -1.4; outL = outR = .7;
+    brot(B.upperLegL, -.15 - Math.max(0, s) * .4, 0, 0); brot(B.lowerLegL, Math.max(0, s) * .6, 0, 0);
+    brot(B.upperLegR, -.15 - Math.max(0, -s) * .4, 0, 0); brot(B.lowerLegR, Math.max(0, -s) * .6, 0, 0);
+  } else if (move === 'cheer'){
+    const s = Math.abs(Math.sin(t * 8));
+    outL = outR = 1.6 + s * .25; elL = elR = -.35 - s * .4; swingL = swingR = -.15;
+    B.pelvis.position.y += s * .05*H; brot(B.upperLegL, -.2 * s, 0, 0); brot(B.upperLegR, -.2 * s, 0, 0); brot(B.lowerLegL, .35 * s, 0, 0); brot(B.lowerLegR, .35 * s, 0, 0);
+    brot(B.head, -.15, 0, 0);
+  } else if (move === 'wave'){
+    swingR = -.2; outR = 2.1; elR = -.2 - Math.abs(Math.sin(t * 6)) * .9; swingL = .05;
+    brot(B.head, 0, -.15, 0);
+  }
+  // long hair and wide sleeves over the shoulders stretch if the arms go up high: keep them lower in a long dress
+  if (R.skirt){ outL = Math.min(outL, .85); outR = Math.min(outR, .85); swingL = Math.max(swingL, -1.25); swingR = Math.max(swingR, -1.25); }
+  armRot(B.upperArmL, R.armDown.L, 1, swingL, outL, twL); armRot(B.upperArmR, R.armDown.R, -1, swingR, outR, twR);
+  brot(B.lowerArmL, elL, 0, 0); brot(B.lowerArmR, elR, 0, 0);
+  // looking at someone, and leaning into turns
+  if (o.look){ const lk = Math.max(-1.1, Math.min(1.1, o.look)); addRot(B.neck, 0, lk * .4, 0); addRot(B.head, 0, lk * .6, 0); }
+  if (o.lean){ const ln = Math.max(-.25, Math.min(.25, o.lean)); addRot(B.pelvis, 0, 0, ln * .4); addRot(B.chest, 0, 0, ln * .6); }
+  // hand to the mouth (the shisha hose), or any hand to a point in the world (o.ikTarget = { side, pos, pole, k })
+  if (o.ikMouth > 0){
+    R.mesh.updateMatrixWorld(true); const hp = B.head.getWorldPosition(_iv1), fw = _iv2.set(0, 0, 1).applyQuaternion(R.mesh.getWorldQuaternion(_iq1));
+    const up = _iv3.set(0, 1, 0), right = _iv4.crossVectors(fw, up).normalize();   // the character's right (+z forward, x left)
+    const mouth = _iv5.copy(hp).addScaledVector(fw, .15 * R.mesh.scale.y).addScaledVector(up, -.11 * R.mesh.scale.y).addScaledVector(right, .06);   // the wrist sits under the chin, so the fingers hold the hose at the lips
+    ikArm(R, -1, mouth, _iv6.copy(up).multiplyScalar(-1).addScaledVector(right, .8).addScaledVector(fw, -.3), o.ikMouth);
+  }
+  if (o.ikTarget) ikArm(R, o.ikTarget.side, o.ikTarget.pos, o.ikTarget.pole, o.ikTarget.k ?? 1);
+  // blend from the last pose: quick inside a move, softer when the move changes, so nothing snaps
+  const P = R.prev || (R.prev = {}), first = !P.root;
+  const rate = o.snap || first ? 0 : move === 'punch' ? 35 : R.since < .4 ? 10 : 40, a = rate ? 1 - Math.exp(-rate * dt) : 1;
+  for (const k in B){
+    const b = B[k], p = P[k] || (P[k] = { q: b.quaternion.clone(), v: b.position.clone() });
+    if (a < 1){ p.q.slerp(b.quaternion, a); p.v.lerp(b.position, a); b.quaternion.copy(p.q); b.position.copy(p.v); }
+    else { p.q.copy(b.quaternion); p.v.copy(b.position); }
+  }
+}
+
+// a copy of a rigged model with its own skeleton (the mesh data and texture are shared): for NPCs of the same look
+function cloneRig(R){
+  const root = R.bones.root.clone(true), bones = {};
+  root.traverse(b => { if (b.isBone) bones[b.name] = b; });
+  const list = R.mesh.skeleton.bones.map(b => bones[b.name]);
+  const mesh = new THREE.SkinnedMesh(R.mesh.geometry, R.mesh.material); mesh.castShadow = R.mesh.castShadow; mesh.frustumCulled = false;
+  mesh.add(root); mesh.bind(new THREE.Skeleton(list, R.mesh.skeleton.boneInverses.map(m => m.clone())), new THREE.Matrix4());
+  return { ...R, mesh, bones, t: Math.random() * 10, phase: Math.random() * 6, prev: null, move: null, since: 0 };
+}
+
+// ---- 05c-models3d.js ----
+﻿// ================= 3D characters: loading =================
+// load a model made by tools/shrink_model.py; null when it is missing or broken (the game then keeps the photo character)
+async function loadModel3D(name){
+  try {
+    const { GLTFLoader } = await import('three/addons/GLTFLoader.js');
+    const g = await new GLTFLoader().loadAsync(`assets/models/${name}.glb`);
+    let src = null; g.scene.traverse(o => { if (o.isMesh && !src) src = o; });
+    if (!src) return null;
+    const R = rigModel(src);
+    const m = R.mesh.material; m.side = THREE.FrontSide; if (m.map) m.map.anisotropy = 4;
+    R.mesh.castShadow = !LOW;
+    return R;
+  } catch (e){ console.warn('3D model failed, using the photo:', name, e); return null; }
+}
+// which models exist is written by build.py; anyone without a model keeps the photo character.
+// Only the characters the game already places are loaded (shadia and haidy, islam's bride, join when their scenes are built).
+const MODELS_USED = ['tayara', 'arabi', 'islam', 'shams', 'youssef', 'kamel', 'thug', 'soldier', 'npc'];
+const MODEL_LIST = store.get('chars2d') === '1' ? [] : (await fetch('assets/models/index.json').then(r => r.json()).catch(() => [])).filter(n => MODELS_USED.includes(n));
+const MODELS3D = Object.fromEntries(await Promise.all(MODEL_LIST.map(async n => [n, await loadModel3D(n)])));
+
+// العربي's sports car (assets/props/arabi-car.glb): parked in front of the café. It is his, so in the story you
+// can't take it (jobOnly); in the free modes anyone can drive it, fast.
+let arabiCar = null;
+{
+  const g = await (async () => { try { const { GLTFLoader } = await import('three/addons/GLTFLoader.js'); return (await new GLTFLoader().loadAsync('assets/props/arabi-car.glb')).scene; } catch (e){ console.warn('Arabi car model failed', e); return null; } })();
+  if (g){
+    g.traverse(o => { if (o.isMesh){ o.castShadow = !LOW; o.receiveShadow = true; } });
+    const x = 26, z = 43.2, yaw = Math.PI / 2; g.position.set(x, 0, z); g.rotation.y = yaw; scene.add(g);
+    arabiCar = { type: 'sport', mesh: g, pos: g.position, yaw, speed: 0, steer: 0, max: 34, accel: 15, turn: 1.85, circles: [[1.3, 1.05], [-1.3, 1.05]], home: { x, z, yaw, y: 0 }, jobOnly: 'arabiCar' };
+    vehicles.push(arabiCar);
+  }
+}
+
 // ---- 06-photo-characters.js ----
 // ================= photo characters =================
 const blobTex = makeTex(128,128,(g)=>{ const gr = g.createRadialGradient(64,64,0,64,64,64); gr.addColorStop(0,'rgba(0,0,0,.6)'); gr.addColorStop(1,'rgba(0,0,0,0)'); g.fillStyle=gr; g.fillRect(0,0,128,128); });
@@ -797,7 +1180,55 @@ function makeDoll(c, heightM){
   scene.add(root);
   return { S, c, root, doll, P, mats, blob, phase: 0, tilt: 0, punchT: 0, punchSide: 1, downT: 0, fall: 0, height: heightM, hipY: (c.FY - c.parts.body[1] - c.parts.body[3]) * S };
 }
+// a 3D character with the same fields as a photo doll, so the rest of the game can use either one.
+// P holds stand-ins (not in the scene): hiding the legs still means "seated" (moto), and photo-only extras attach harmlessly.
+function makeDoll3D(R, c, heightM){
+  const root = new THREE.Group(), doll = new THREE.Group(); root.add(doll);
+  const k = heightM / R.H; R.mesh.scale.setScalar(k); doll.add(R.mesh);
+  const P = { legL: new THREE.Object3D(), legR: new THREE.Object3D(), body: new THREE.Object3D(), armL: new THREE.Object3D(), armR: new THREE.Object3D() };
+  const blob = new THREE.Mesh(blobGeo, blobMat); blob.rotation.x = -Math.PI/2; blob.position.y = .03; blob.scale.set(.7, .9, 1); root.add(blob);
+  scene.add(root);
+  return { is3D: true, R, S: heightM / c.PH, c, root, doll, P, mats: [R.mesh.material], blob, phase: 0, tilt: 0, punchT: 0, punchSide: 1, downT: 0, fall: 0, height: heightM,
+    hipY: .5 * heightM - .02, yaw: 0, faceYaw: null, forceMove: null, seatMove: 'moto' };
+}
+// a thud when someone hits the ground
+function fallSfx(d){ if (d.fall > .6 && !d.thudded){ d.thudded = true; if (d.root.visible) thud(sfxVol(d.root.position.x, d.root.position.z)); } else if (d.fall < .2) d.thudded = false; }
+function makeCharacter(model, c, heightM){ return MODELS3D[model] ? makeDoll3D(MODELS3D[model], c, heightM) : makeDoll(c, heightM); }
+function anim3D(d, vx, vz, dt, t){
+  const sp = Math.hypot(vx, vz), seated = !d.P.legL.visible;
+  let move = seated ? d.seatMove : sp > 5.4 ? 'run' : sp > .35 ? 'walk' : 'idle', o = { f: clamp(sp * 1.55, 4.5, 11) };
+  if (d.forceMove){ move = d.forceMove; d.forceMove = null; }
+  if (d.punchT > 0 && !seated){ d.punchT -= dt; move = 'punch'; o.k = Math.sin(clamp(1 - d.punchT/.28, 0, 1) * Math.PI); o.side = d.punchSide; }
+  if (d.downT > 0) d.downT -= dt;
+  d.fall += ((d.downT > 0 ? 1 : 0) - d.fall) * damp(d.downT > 0 ? 9 : 4, dt);
+  if (d.fall > .05) move = 'idle';
+  fallSfx(d);
+  // taking a hit (set by the damage code), and talking with the hands while his line is on screen
+  if (d.hitT > 0){ d.hitT -= dt; if (!seated && d.fall < .05 && move !== 'punch'){ move = 'hit'; o.k = clamp(d.hitT / .45 * 1.6, 0, 1); } }
+  if (d.talkT > 0){ d.talkT -= dt; if (move === 'idle' && d.fall < .05) move = 'talk'; }
+  // facing: the bike's heading when seated, the way he moves when walking; standing still, the others turn to the hero
+  let want = null;
+  if (seated) want = d.faceYaw;
+  else if (sp > .35) want = Math.atan2(vx, vz);
+  else if (d !== hero.d){ const dx = hero.pos.x - d.root.position.x, dz = hero.pos.z - d.root.position.z, dd = Math.hypot(dx, dz); if (dd > .4 && dd < 25) want = Math.atan2(dx, dz); }
+  const yaw0 = d.yaw;
+  if (want != null) d.yaw = seated ? want : lerpAngle(d.yaw, want, damp(sp > .35 ? 12 : 4, dt));
+  d.root.rotation.y = d.yaw;
+  // lean into turns when running; standing still, the head turns toward the camera (cutscenes) or the hero
+  const turn = dt > 0 ? lerpAngle(0, d.yaw - yaw0, 1) / dt : 0;
+  d.lean = (d.lean || 0) + ((sp > 3 && !seated ? clamp(-turn * sp * .012, -.25, .25) : 0) - (d.lean || 0)) * damp(6, dt); o.lean = d.lean;
+  if (!seated && sp < .35 && d.fall < .05){
+    const tgt = CUT.on || d === hero.d ? camera.position : hero.pos, dx = tgt.x - d.root.position.x, dz = tgt.z - d.root.position.z;
+    const rel = lerpAngle(0, Math.atan2(dx, dz) - d.yaw, 1), want2 = Math.abs(rel) < 1.7 && Math.hypot(dx, dz) < 20 ? rel * .85 : 0;
+    d.look = (d.look || 0) + (want2 - (d.look || 0)) * damp(5, dt);
+  } else d.look = (d.look || 0) * (1 - damp(8, dt));
+  o.look = d.look;
+  d.blob.visible = d.blob.visible && !seated;
+  poseRig(d.R, move, dt, o);
+  d.doll.position.set(0, d.fall * .12, 0); d.doll.rotation.set(-d.fall * 1.45, 0, 0);
+}
 function animDoll(d, vx, vz, dt, t){
+  if (d.is3D) return anim3D(d, vx, vz, dt, t);
   const sp = Math.hypot(vx, vz);
   d.phase += dt * sp * 1.6;
   const amp = Math.min(sp/5, 1.35), s = Math.sin(d.phase);
@@ -818,9 +1249,10 @@ function animDoll(d, vx, vz, dt, t){
   if (d.downT > 0) d.downT -= dt;
   d.fall += ((d.downT > 0 ? 1 : 0) - d.fall) * damp(d.downT > 0 ? 9 : 4, dt);
   d.doll.rotation.x = -d.fall * 1.45; d.doll.position.y += d.fall * .12;
+  fallSfx(d);
 }
-const hero = { d: makeDoll(CH.hero, 1.8), pos: new THREE.Vector3(), vel: new THREE.Vector3(), knock: new THREE.Vector3(), hp: 100, stamina: 1, tired: false, inv: 0, hurtT: 0, money: 50, veh: null, locked: false, lastDir: new THREE.Vector3(0,0,1) };
-const wantedD = makeDoll(CH.wanted, 1.78), enemyD = makeDoll(CH.enemy, 1.84);
+const hero = { d: makeCharacter('tayara', CH.hero, 1.8), pos: new THREE.Vector3(), vel: new THREE.Vector3(), knock: new THREE.Vector3(), hp: 100, stamina: 1, tired: false, inv: 0, hurtT: 0, money: 50, veh: null, locked: false, lastDir: new THREE.Vector3(0,0,1) };
+const wantedD = makeCharacter('shams', CH.wanted, 1.78), enemyD = makeCharacter('arabi', CH.enemy, 1.84);
 
 // ---- 07-npcs-low-poly.js ----
 // ================= NPCs (low-poly) =================
@@ -832,7 +1264,7 @@ const HAIR = ['#14100c','#2a1d15','#3b2b20','#6e6e6e','#1b1410'];
 const matCache = {}; const M = c => matCache[c] ||= new THREE.MeshStandardMaterial({ color: c, roughness: .85 });
 const NG = { leg: new THREE.BoxGeometry(.15,.9,.17), arm: new THREE.BoxGeometry(.11,.6,.12), hand: new THREE.SphereGeometry(.06,8,6), torso: new THREE.BoxGeometry(.46,.62,.26), gala: new THREE.BoxGeometry(.5,1.22,.3), head: new THREE.SphereGeometry(.13,14,10), hair: new THREE.SphereGeometry(.137,12,8,0,Math.PI*2,0,Math.PI/2), mus: new THREE.BoxGeometry(.12,.025,.02) };
 const npcs = [];
-const NAMES = ['حمادة','كريم','عم سيد','الحاج محمود','زيزو','أبو علي','شيكو','مصطفى','عم رجب','بيبو','حسن','تامر'];
+const NAMES = ['حمادة','كريم','عم سعيد','الحاج محمود','زيزو','أبو علي','شيكو','مصطفى','عم رجب','بيبو','حسن','تامر'];
 function makeNPC(){
   const g = new THREE.Group(), body = new THREE.Group(); g.add(body);
   const gal = rng() < .3;
@@ -863,6 +1295,18 @@ function npcHit(n, power=1){
   if (n.thug){ n.thugHits = (n.thugHits||0) + 1; n.fightT = 999; if (n.thugHits >= 3){ n.thugDone = true; n.downT = 999; n.fightT = 0; say(n, 'خلاص… خلاص!', 2, 'angry'); thwack(); return; } }
   say(n, rpick(['آه يا عم!','إيه ده يا جدع!','هبلغ عنك!','يا ساتر!','حرام عليك!']), 2, 'angry'); thwack();
 }
+// an NPC can wear a 3D model instead of the low-poly body (شمس's men use the thug / soldier models)
+function npcWear3D(n, model){
+  if (n.r3 || !MODELS3D[model]) return false;
+  n.r3 = cloneRig(MODELS3D[model]); n.g.add(n.r3.mesh); n.body.visible = false; return true;
+}
+function npcTakeOff3D(n){ if (!n.r3) return; n.g.remove(n.r3.mesh); n.r3 = null; n.body.visible = true; }
+function animNPC3D(n, moving, sitting, dt){
+  let move = sitting ? 'sit' : moving > 3 ? 'run' : moving > 0 ? 'walk' : 'idle', o = { f: clamp(moving * 1.55, 4.5, 11) };
+  if (n.punchT > 0){ n.punchT -= dt; move = 'punch'; o.k = Math.sin(clamp(1 - n.punchT / .3, 0, 1) * Math.PI); o.side = 1; }
+  if (n.state === 'down') move = 'idle';
+  poseRig(n.r3, move, dt, o);
+}
 function updateNPC(n, dt){
   if (n.state === 'hidden') return;
   let moving = 0;
@@ -883,7 +1327,7 @@ function updateNPC(n, dt){
     n.fightT -= dt; const tp = hero.pos; const dx = tp.x - n.g.position.x, dz = tp.z - n.g.position.z, d = Math.hypot(dx, dz);
     if (n.fightT <= 0 || d > 25 || hero.veh){ const bp = perimPos(blocksInfo[n.block], n.t); n.state = 'goto'; n.tx = bp[0]; n.tz = bp[1]; n.onArrive = n2 => { n2.state = 'walk'; }; }
     else if (d > 1.1){ const s = 4*dt; moveWithSlide(n.g.position, dx/d*s, dz/d*s, .3); n.yaw = Math.atan2(dx, dz); moving = 4; }
-    else { n.yaw = Math.atan2(dx, dz); n.atkT = (n.atkT||0) - dt; if (n.atkT <= 0){ n.atkT = 1.2; n.arms[1].rotation.x = -1.6; setTimeout(() => { n.arms[1].rotation.x = 0; if (n.state === 'fight' && n.g.position.distanceTo(hero.pos) < 1.7) heroDamage(5, 'npc'); }, 150); } }
+    else { n.yaw = Math.atan2(dx, dz); n.atkT = (n.atkT||0) - dt; if (n.atkT <= 0){ n.atkT = 1.2; n.arms[1].rotation.x = -1.6; n.punchT = .3; setTimeout(() => { n.arms[1].rotation.x = 0; if (n.state === 'fight' && n.g.position.distanceTo(hero.pos) < 1.7) heroDamage(5, 'npc'); }, 150); } }
     n.g.position.y = groundY(n.g.position.x, n.g.position.z);
   }
   // animation
@@ -893,9 +1337,13 @@ function updateNPC(n, dt){
   else if (sitting){ n.legs[0].rotation.x = n.legs[1].rotation.x = -1.45; n.arms[0].rotation.x = n.arms[1].rotation.x = -.5; n.body.position.y = -.43; }
   else { n.legs[0].rotation.x *= .8; n.legs[1].rotation.x *= .8; n.arms[0].rotation.x *= .8; n.arms[1].rotation.x *= .8; n.body.position.y *= .8; }
   if (n.gestT > 0){ n.gestT -= dt; n.arms[1].rotation.x = -1.15 + Math.sin(n.gestT*9)*.45; n.arms[1].rotation.z = .25; } else if (n.arms[1].rotation.z) n.arms[1].rotation.z *= .8;
+  if (n.r3) animNPC3D(n, moving, sitting, dt);
   n.g.rotation.y = lerpAngle(n.g.rotation.y, n.yaw, damp(10, dt));
   n.g.rotation.x = -n.fall * 1.5; n.g.position.y += 0;
 }
+
+// a few people in the street wear the 3D man in the galabeya (models/npc.glb)
+[2, 7, 12, 19].forEach(i => { if (npcs[i]) npcWear3D(npcs[i], 'npc'); });
 
 // ---- 08-bubbles.js ----
 // ================= bubbles =================
@@ -925,7 +1373,7 @@ function updateBubbles(dt){
 let AC = null, master = null, sfx = null, musicGain = null, crowdGain = null, sirenGain = null;
 let muted = store.get('ty_mute') === '1', musicOn = store.get('ty_music') !== '0', voiceOn = store.get('ty_voice') !== '0';
 let musicEl = null, beatNext = 0, beatStep = 0;
-function setBtnStates(){ $('muteBtn').textContent = muted ? '🔇' : '🔊'; $('musicBtn').classList.toggle('off', !musicOn); $('voiceBtn').classList.toggle('off', !voiceOn); }
+function setBtnStates(){ $('muteBtn').textContent = muted ? '🔇' : '🔊'; $('voiceBtn').classList.toggle('off', !voiceOn); }
 setBtnStates();
 function initAudio(){
   if (AC){ AC.resume(); return; }
@@ -933,7 +1381,7 @@ function initAudio(){
     AC = new (window.AudioContext || window.webkitAudioContext)();
     master = AC.createGain(); master.gain.value = muted ? 0 : 1; master.connect(AC.destination);
     sfx = AC.createGain(); sfx.gain.value = .7; sfx.connect(master);
-    musicGain = AC.createGain(); musicGain.gain.value = musicOn ? .11 : 0; musicGain.connect(master);
+    musicGain = AC.createGain(); musicGain.gain.value = .07; musicGain.connect(master);
     // crowd murmur
     const len = AC.sampleRate*2, buf = AC.createBuffer(1, len, AC.sampleRate), d = buf.getChannelData(0); let last = 0;
     for (let i=0;i<len;i++){ last = last*.97 + (Math.random()*2-1)*.03; d[i] = last*6; }
@@ -945,8 +1393,6 @@ function initAudio(){
     const lfo = AC.createOscillator(); lfo.frequency.value = .7; const lg = AC.createGain(); lg.gain.value = 230; lfo.connect(lg); lg.connect(osc.frequency);
     const lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1700;
     sirenGain = AC.createGain(); sirenGain.gain.value = 0; osc.connect(lp); lp.connect(sirenGain); sirenGain.connect(master); osc.start(); lfo.start();
-    // optional real track: music.mp3 next to the page (added by the owner)
-    fetch('music.mp3', { method: 'HEAD' }).then(r => { if (r.ok && (r.headers.get('content-type')||'').includes('audio')){ musicEl = new Audio('music.mp3'); musicEl.loop = true; musicEl.volume = .22; if (musicOn && !muted) musicEl.play().catch(()=>{}); } }).catch(()=>{});
     beatNext = AC.currentTime + .1;
   } catch(e){ AC = null; }
 }
@@ -965,13 +1411,13 @@ const thwack = () => { noise(.18, 900, .6); tone(160, 60, .15, 'sine', .4); };
 const horn = () => { tone(415, 415, .16, 'square', .07); tone(523, 523, .16, 'square', .05); tone(415, 415, .22, 'square', .07, .22); tone(523, 523, .22, 'square', .05, .22); };
 const clink = () => { tone(2600, 2500, .25, 'sine', .08); tone(3400, 3300, .2, 'sine', .05, .05); };
 const coin = () => { tone(880,1320,.12,'square',.07); tone(1320,1760,.16,'square',.06,.08); };
-// original mahraganat-style beat (maqsum rhythm, hijaz riff)
+// original mahraganat-style beat (maqsum rhythm, hijaz riff): only during the wedding dance game
 const BPM = 126, STEP = 60/BPM/4, ROOT = 146.83;
 const HIJ = [0,1,4,5,7,8,10,12];
 const RIFF = [0,null,1,null,4,null,1,0, null,0,5,null,4,1,0,null, 7,null,8,null,7,5,4,null, 5,4,1,null,0,null,null,null];
 const BASS = [0,null,null,0,null,null,0,null, -2,null,null,-2,null,null,1,null];
 function beatTick(){
-  if (!AC || !musicOn || muted || musicEl) return;
+  if (!AC || muted || !RHY.on) return;   // the beat is only for the wedding dance game
   while (beatNext < AC.currentTime + .15){
     const s = beatStep % 32, t = beatNext, q = s % 16;
     if (q === 0 || q === 8 || q === 11){ const o = AC.createOscillator(), g = AC.createGain(); o.frequency.setValueAtTime(140, t); o.frequency.exponentialRampToValueAtTime(42, t+.22); env(g, t, .002, .28, .9); o.connect(g); g.connect(musicGain); o.start(t); o.stop(t+.3); }
@@ -989,8 +1435,76 @@ try { speechSynthesis.onvoiceschanged = pickVoice; pickVoice(); } catch(e){}
 let lastSpeak = 0;
 function speak(text){ if (muted || !voiceOn || !arVoice || !AC) return; const now = performance.now(); if (now - lastSpeak < 2500) return; lastSpeak = now; try { const u = new SpeechSynthesisUtterance(text.replace(/[^؀-ۿ\s!؟?]/g,'')); u.voice = arVoice; u.lang = arVoice.lang; u.volume = .4; u.rate = 1.05; u.pitch = .85 + Math.random()*.35; speechSynthesis.cancel(); speechSynthesis.speak(u); } catch(e){} }
 $('muteBtn').onclick = () => { muted = !muted; store.set('ty_mute', muted?'1':'0'); if (master) master.gain.value = muted ? 0 : 1; if (musicEl){ muted || !musicOn ? musicEl.pause() : musicEl.play().catch(()=>{}); } if (muted) try { speechSynthesis.cancel(); } catch(e){} setBtnStates(); };
-$('musicBtn').onclick = () => { musicOn = !musicOn; store.set('ty_music', musicOn?'1':'0'); if (musicGain) musicGain.gain.value = musicOn ? .11 : 0; if (musicEl){ musicOn && !muted ? musicEl.play().catch(()=>{}) : musicEl.pause(); } if (AC) beatNext = AC.currentTime + .05; setBtnStates(); };
 $('voiceBtn').onclick = () => { voiceOn = !voiceOn; store.set('ty_voice', voiceOn?'1':'0'); setBtnStates(); if (voiceOn && !arVoice) banner('جهازك مفيهوش صوت عربي، الكلام هيظهر مكتوب بس', 'info', 3); };
+
+// ---- 09b-sfx.js ----
+﻿// ================= sound effects =================
+// Everything is made in code with Web Audio (no sound files): the engine that rises and falls with speed,
+// tyres, doors, crashes, footsteps, punches, falls, the sea and gulls, crickets at night, the shisha, UI clicks.
+const SFX = { ready: false, stepD: 0, lastSp: 0, crashT: 0, gullT: 4, cricketT: 2, shishaT: 2, eng: null, skid: null, sea: null };
+function sfxVol(x, z, r = 8){ const d = Math.hypot(camera.position.x - x, camera.position.z - z); return 1 / (1 + Math.max(0, d - 2) / r); }
+function loopNoise(type, freq, q = .7){
+  if (!noiseBuf){ noiseBuf = AC.createBuffer(1, AC.sampleRate, AC.sampleRate); const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random()*2 - 1; }
+  const s = AC.createBufferSource(); s.buffer = noiseBuf; s.loop = true; s.loopStart = Math.random() * .5;
+  const f = AC.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q; const g = AC.createGain(); g.gain.value = 0;
+  s.connect(f); f.connect(g); g.connect(sfx); s.start(); return { s, f, g };
+}
+function sfxInit(){
+  if (!AC || SFX.ready) return; SFX.ready = true;
+  // engine: a sawtooth and a square an octave down, through a low-pass, plus a little rumble
+  const o1 = AC.createOscillator(), o2 = AC.createOscillator(), g2 = AC.createGain(), lp = AC.createBiquadFilter(), g = AC.createGain();
+  o1.type = 'sawtooth'; o2.type = 'square'; g2.gain.value = .45; lp.type = 'lowpass'; lp.frequency.value = 600; g.gain.value = 0;
+  o1.connect(lp); o2.connect(g2); g2.connect(lp); lp.connect(g); g.connect(sfx); o1.start(); o2.start();
+  SFX.eng = { o1, o2, lp, g, rumble: loopNoise('lowpass', 220) };
+  SFX.skid = loopNoise('bandpass', 1700, 3);
+  SFX.sea = loopNoise('lowpass', 520, .5);
+  SFX.wind = loopNoise('bandpass', 380, .4);
+}
+const ramp = (param, v, dt, k = 8) => { param.value += (v - param.value) * (1 - Math.exp(-k * dt)); };
+// one-shots
+function stepSfx(sp){ const v = Math.min(1, sp / 4); noise(.045, 650 + Math.random() * 500, .09 * v); tone(130 + Math.random() * 30, 70, .05, 'sine', .05 * v); }
+function punchWhoosh(){ noise(.16, 1300, .22, 0, 'bandpass'); }
+function thud(v = 1){ tone(110, 42, .28, 'sine', .4 * v); noise(.14, 380, .32 * v); }
+function doorSfx(slam = true){ noise(.05, 2400, .16, 0, 'highpass'); if (slam){ tone(170, 80, .14, 'square', .07, .06); noise(.1, 500, .3, .06); } }
+function engineStart(type){ const b = type === 'moto' ? 70 : type === 'tuk' ? 52 : 40; tone(b * .6, b * 1.6, .35, 'sawtooth', .07); tone(b * 1.6, b * 1.1, .4, 'sawtooth', .05, .32); }
+function crashSfx(sp){ const v = Math.min(1, sp / 18) * .6 + .4; noise(.4, 650, .7 * v); tone(90, 38, .32, 'sawtooth', .22 * v); tone(3100, 2600, .18, 'sine', .04 * v, .06); tone(4200, 3800, .14, 'sine', .03 * v, .1); }
+function gull(v){ const p = 1 + Math.random() * .25; tone(1500 * p, 950 * p, .22, 'sawtooth', .018 * v); tone(1650 * p, 1000 * p, .2, 'sawtooth', .015 * v, .26); }
+function cricket(v){ const f = 4200 + Math.random() * 600; for (let i = 0; i < 3; i++) tone(f, f * .97, .035, 'sine', .012 * v, i * .06); }
+function shishaBubbles(v){ const n = 3 + Math.floor(Math.random() * 4); for (let i = 0; i < n; i++) tone(280 + Math.random() * 180, 700 + Math.random() * 500, .07, 'sine', .05 * v, i * (.06 + Math.random() * .05)); }
+function tileClack(){ noise(.03, 3200, .25, 0, 'highpass'); tone(2100, 1500, .04, 'triangle', .06); }
+function uiClick(){ tone(1250, 900, .035, 'triangle', .045); }
+document.addEventListener('click', e => { if (AC && !muted && e.target.closest && e.target.closest('button')) uiClick(); }, true);
+
+function sfxUpdate(dt, t){
+  if (!AC) return; sfxInit(); if (!SFX.ready || dt <= 0) return;
+  const playing = state === 'play' && !CUT.on, v = hero.veh;
+  // engine and tyres of the vehicle you drive
+  let eg = 0, pitch = 40, sk = 0;
+  if (v && playing){
+    const sp = Math.abs(v.speed), base = v.type === 'moto' ? 72 : v.type === 'tuk' ? 50 : 38;
+    const gear = sp < 1 ? 0 : (sp % 9) / 9;                       // the pitch climbs, drops at each gear change, climbs again
+    pitch = base * (1 + sp * .03 + gear * .55); eg = v.type === 'moto' ? .055 : v.type === 'tuk' ? .05 : .045;
+    const dv = (SFX.lastSp - sp) / dt; SFX.lastSp = sp;
+    if ((dv > 12 && sp > 6) || (Math.abs(v.steer || 0) > .75 && sp > 14)) sk = v.type === 'moto' ? .05 : .085;
+  } else SFX.lastSp = 0;
+  const E = SFX.eng; ramp(E.o1.frequency, pitch, dt, 10); ramp(E.o2.frequency, pitch / 2, dt, 10); ramp(E.lp.frequency, 300 + pitch * 7, dt, 6);
+  ramp(E.g.gain, muted ? 0 : eg, dt, 6); ramp(E.rumble.g.gain, muted ? 0 : eg * .8, dt, 6); ramp(SFX.skid.g.gain, muted ? 0 : sk, dt, 14);
+  SFX.crashT -= dt;
+  // footsteps
+  if (!v && playing && !hero.locked){ const sp = Math.hypot(hero.vel.x, hero.vel.z); if (sp > .5){ SFX.stepD += sp * dt; if (SFX.stepD > (sp > 5.4 ? 1.45 : .78)){ SFX.stepD = 0; stepSfx(sp); } } else SFX.stepD = .5; }
+  // the sea along the corniche (louder as you get close, rolling like waves), wind, gulls by day, crickets at night
+  const p = v ? v.pos : hero.pos, toSea = Math.max(0, NILE_Z - p.z), near = clamp(1 - toSea / 55, 0, 1);
+  const outside = state === 'play' && !HOUSE.inside && !ST.kind;
+  ramp(SFX.sea.g.gain, muted || !outside ? 0 : near * (.045 + .03 * Math.sin(t * .5) + .015 * Math.sin(t * 1.3)), dt, 3);
+  ramp(SFX.wind.g.gain, muted || !outside ? 0 : .006 + near * .012 + .004 * Math.sin(t * .23), dt, 2);
+  const night = isNight();
+  if (outside && !muted){
+    if (!night && near > .15){ SFX.gullT -= dt; if (SFX.gullT <= 0){ SFX.gullT = R(5, 13); gull(near); } }
+    if (night){ SFX.cricketT -= dt; if (SFX.cricketT <= 0){ SFX.cricketT = R(.6, 2.2); cricket(1 - near * .7); } }
+    // الحاج كامل's shisha at the domino table: bubbles when you're near
+    const dv = sfxVol(SPOT.domino.x, SPOT.domino.z, 3); if (dv > .25){ SFX.shishaT -= dt; if (SFX.shishaT <= 0){ SFX.shishaT = R(3, 6.5); shishaBubbles(dv); } }
+  }
+}
 
 // ---- 10-input.js ----
 // ================= input =================
@@ -1060,7 +1574,7 @@ function updateHud(){
 }
 function heroDamage(n, why){
   if (hero.inv > 0 || state !== 'play' || CUT.on || HOUSE.inside) return;
-  hero.hp -= n; hero.hurtT = 0; flash(); thwack(); shake = Math.max(shake, .35);
+  hero.hp -= n; hero.hurtT = 0; hero.d.hitT = .45; flash(); thwack(); shake = Math.max(shake, .35);
   if (hero.hp <= 0){ hero.hp = 0; modeObj.onKO ? modeObj.onKO(why) : knockout(why); }
 }
 function knockout(why){
@@ -1098,7 +1612,7 @@ function enterVehicle(v){
   if (modeObj.canDrive && !modeObj.canDrive(v)){ banner('دي مش بتاعتك', 'info', 1.5); return; }
   hero.veh = v; v.speed = 0; CAM.veh = 0; hero.d.blob.visible = false;
   banner(v.type === 'moto' ? 'ركبت الموتوسيكل 🏍️' : v.type === 'police' ? 'ركبت البوكس 🚓' : v.type === 'tuk' ? 'ركبت التوكتوك 🛺' : 'ركبت العربية 🚗', 'ok', 1.6);
-  tone(90, 140, .4, 'sawtooth', .12);
+  if (v.type !== 'moto') doorSfx(); engineStart(v.type);
 }
 function exitVehicle(force){
   const v = hero.veh; if (!v) return;
@@ -1108,6 +1622,7 @@ function exitVehicle(force){
   for (const [ox,oz] of opts){ const x = v.pos.x+ox, z = v.pos.z+oz; if (!staticBlocked(x,z) && !vehBlockedAt(x,z,PR,null)){ hero.pos.set(x, groundY(x,z), z); placed = true; break; } }
   if (!placed && !force) { banner('مفيش مكان تنزل فيه', 'info', 1.4); return; }
   if (!placed) hero.pos.set(v.pos.x + 2.5, 0, v.pos.z);
+  if (v.type !== 'moto') doorSfx(); else noise(.08, 900, .2);
   v.speed = 0; hero.veh = null; CAM.orbit = CAM.orbitSm = camYaw; CAM.veh = 0; hero.d.blob.visible = true; hero.d.doll.visible = true;
   hero.d.P.legL.visible = hero.d.P.legR.visible = true;
 }
@@ -1141,11 +1656,11 @@ function driveVehicle(v, dt, inX, inZ, brake){
   v.mesh.rotation.y = v.yaw;
   if (v.type === 'moto') v.mesh.rotation.z = -v.steer * .35 * clamp(Math.abs(v.speed)/10, 0, 1);
   // traffic bump
-  for (const c of traffic){ if (Math.hypot(c.position.x - v.pos.x, c.position.z - v.pos.z) < (v.type==='moto' ? 2.1 : 2.9)){ if (Math.abs(v.speed) > 3 || c.userData.speed > 3){ if (typeof onVehicleCrash === 'function') onVehicleCrash(v, Math.abs(v.speed) + 6); thwack(); shake = .5; heroDamage((v.type==='moto' ? 18 : 6) * DIFF.dmg, 'car'); v.speed = -v.speed*.3 - 2; c.userData.speed = 0; v.dmg = (v.dmg||0) + 12; } } }
+  for (const c of traffic){ if (Math.hypot(c.position.x - v.pos.x, c.position.z - v.pos.z) < (v.type==='moto' ? 2.1 : 2.9)){ if (Math.abs(v.speed) > 3 || c.userData.speed > 3){ if (typeof onVehicleCrash === 'function') onVehicleCrash(v, Math.abs(v.speed) + 6); if (SFX.crashT <= 0){ crashSfx(Math.abs(v.speed) + 6); SFX.crashT = .6; } else thwack(); shake = .5; heroDamage((v.type==='moto' ? 18 : 6) * DIFF.dmg, 'car'); v.speed = -v.speed*.3 - 2; c.userData.speed = 0; v.dmg = (v.dmg||0) + 12; } } }
 }
 
 // ---- 14-interactions.js ----
-// ================= interactions =================
+﻿// ================= interactions =================
 let nearAction = null;
 function computeAction(){
   nearAction = null; if (state !== 'play') return;
@@ -1160,7 +1675,7 @@ function computeAction(){
   if (modeObj.vehicles){ const st = nearestStop(p); if (st){ nearAction = { text: '🚏 اركب مواصلة', fn: () => openTransit(st) }; return; } }
   if (modeObj.vehicles){ let best = null, bd = 3.2; for (const v of vehicles){ if (modeObj.canDrive && !modeObj.canDrive(v)) continue; const d = Math.hypot(v.pos.x-p.x, v.pos.z-p.z); if (d < bd){ bd = d; best = v; } } if (best){ nearAction = { text: best.type==='moto' ? 'اركب الموتوسيكل' : best.type==='police' ? 'اركب البوكس' : best.type==='tuk' ? 'اركب التوكتوك' : 'اركب العربية', fn: () => enterVehicle(best) }; return; } }
   if (modeObj.cafe){
-    if (p.distanceTo(SPOT.domino) < 2.4) { nearAction = { text: 'العب دومنو مع عم سيد', fn: () => openDomino() }; return; }
+    if (p.distanceTo(SPOT.domino) < 2.4) { nearAction = { text: 'العب دومنو مع الحاج كامل', fn: () => openDomino() }; return; }
     if (Math.hypot(p.x - TAWLA_SPOT.x, p.z - TAWLA_SPOT.z) < 1.9) { nearAction = { text: 'العب طاولة مع عم رجب 🎯', fn: openTawla }; return; }
     if (p.distanceTo(SPOT.counter) < 2.6) { nearAction = { text: 'اشرب كوباية شاي (٥ جنيه)', fn: () => { if (hero.money < 5) return banner('مفيش فلوس كفاية', 'bad', 1.5); hero.money -= 5; hero.hp = Math.min(100, hero.hp+20); clink(); banner('شاي تقيل ومظبوط 🍵 +٢٠ صحة', 'ok', 2); } }; return; }
     if (Math.hypot(p.x-SPOT.cart.x, p.z-(SPOT.cart.z+1.4)) < 2.4) { nearAction = { text: 'اشتري سندوتش فلافل (٥ جنيه)', fn: () => { if (hero.money < 5) return banner('مفيش فلوس كفاية', 'bad', 1.5); hero.money -= 5; hero.hp = Math.min(100, hero.hp+35); coin(); banner('سندوتش فلافل سخن 🧆 +٣٥ صحة', 'ok', 2); } }; return; }
@@ -1178,7 +1693,8 @@ function punch(){
   if (thief.active && !thief.caught){ const d = thief.pos.distanceTo(p); if (d < 1.9){ best = { thief: true, x: thief.pos.x, z: thief.pos.z }; } }
   { const bt = bossTarget(p); if (bt) best = bt; }
   hero.d.punchSide = best ? (((best.x-p.x)*camRightX + (best.z-p.z)*camRightZ) >= 0 ? 1 : -1) : 1;
-  hero.d.punchT = .28; noise(.08, 2500, .15);
+  hero.d.punchT = .28; punchWhoosh();
+  if (hero.d.is3D){ hero.d.punchSide = (hero.combo||0) % 2 ? -1 : 1; if (best) hero.d.yaw = Math.atan2(best.x - p.x, best.z - p.z); }   // the 3D hero turns to the target and swaps hands
   const pnow = runTime; hero.combo = (pnow - (hero.lastPunch ?? -9) < .8) ? (hero.combo||0) + 1 : 1; hero.lastPunch = pnow; const big = hero.combo % 3 === 0;
   if (!best) return;
   setTimeout(() => {
@@ -1197,7 +1713,7 @@ const enemy = { d: enemyD, pos: new THREE.Vector3(), vel: new THREE.Vector3(), h
 const ENEMY_LINES = ['انت تاني يا طيارة!','تعالى هنا!','مش طايقك!','النهارده يومك!','هتروح فين مني؟'];
 function spawnEnemy(){ enemy.active = true; enemy.d.root.visible = true; enemy.hp = 100; enemy.state = 'roam'; enemy.cd = 6; const p = randomSidewalkPoint(45, hero.pos); enemy.pos.copy(p); enemy.block = blocksInfo.findIndex(b => Math.abs(p.x-b.cx) < 20 && Math.abs(p.z-b.cz) < 20); if (enemy.block < 0) enemy.block = 0; enemy.t = R(0,4); enemy.d.downT = 0; }
 function hitEnemy(dmg, from){
-  enemy.hp -= dmg; thwack(); const dx = enemy.pos.x - from.x, dz = enemy.pos.z - from.z, d = Math.hypot(dx,dz)||1;
+  enemy.hp -= dmg; enemy.d.hitT = .45; thwack(); const dx = enemy.pos.x - from.x, dz = enemy.pos.z - from.z, d = Math.hypot(dx,dz)||1;
   moveWithSlide(enemy.pos, dx/d*1.2, dz/d*1.2);
   if (enemy.hp <= 0){ stat('arabiDown'); enemy.d.downT = 6; enemy.state = 'down'; enemy.cd = 12; enemy.hp = enemy.maxHp || 100; say(enemy, 'ماشي يا طيارة… هترجعلي', 3, 'angry'); if (modeObj.onEnemyDown) modeObj.onEnemyDown(); }
   else say(enemy, rpick(['آه!','ماشي!','بتضربني؟!']), 1.2, 'angry');
@@ -1265,12 +1781,49 @@ function updateWanted(dt){
 
 // ---- 16b-youssef-and-islam.js ----
 // ================= youssef (food thief) and islam (seated at the domino table) =================
-const youssefD = makeDoll(CH.youssef, 1.8); youssefD.root.visible = false;
-const islamD = makeDoll(CH.islam, 1.78); islamD.root.visible = false;
+const youssefD = makeCharacter('youssef', CH.youssef, 1.8); youssefD.root.visible = false;
+const islamD = makeCharacter('islam', CH.islam, 1.78); islamD.root.visible = false;
+if (islamD.is3D){ islamD.seatMove = 'sit'; islamD.hipY = .29 * 1.78 - .06; islamD.faceYaw = islamD.yaw = -Math.PI/2; }   // seated on the chair, facing the domino table
 islamD.P.legL.visible = islamD.P.legR.visible = false; islamD.blob.visible = false;
 function seatIslam(on){
   islamD.root.visible = on;
   if (on) islamD.root.position.set(SPOT.domino.x + .85, .62 - islamD.hipY + .04, SPOT.domino.z);
+}
+// الحاج كامل at the domino table with his shisha (3D model when there is one; otherwise the old seated regular stays)
+const kamelD = MODELS3D.kamel ? makeDoll3D(MODELS3D.kamel, CH.hero, 1.76) : null;
+const HOOKAH = { g: null, smoke: [], bowlT: 0, v: new THREE.Vector3() };
+if (kamelD){ kamelD.root.visible = false; kamelD.seatMove = 'shisha'; kamelD.hipY = .29 * 1.76 - .06; kamelD.faceYaw = kamelD.yaw = Math.PI/2; kamelD.P.legL.visible = kamelD.P.legR.visible = false; kamelD.blob.visible = false; }
+(async () => { try {
+  const { GLTFLoader } = await import('three/addons/GLTFLoader.js');
+  const g = (await new GLTFLoader().loadAsync('assets/props/hookah.glb')).scene;
+  g.traverse(o => { if (o.isMesh) o.castShadow = !LOW; });
+  g.position.set(SPOT.domino.x - 1.32, .15, SPOT.domino.z + .5); g.rotation.y = 2.2; g.visible = !!(kamelD && kamelD.root.visible); scene.add(g); HOOKAH.g = g;
+} catch (e){ console.warn('hookah model failed', e); } })();
+// smoke: soft sprites that rise, spread and fade
+const smokeTex = makeTex(64, 64, g => { const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(240,240,240,.6)'); gr.addColorStop(1, 'rgba(240,240,240,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); });
+for (let i = 0; i < 20; i++){ const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: smokeTex, transparent: true, depthWrite: false, opacity: 0 })); s.visible = false; scene.add(s); HOOKAH.smoke.push({ s, life: 0, max: 1, size: .06, v: new THREE.Vector3() }); }
+function smokePuff(p0, n, big, dir){
+  for (const p of HOOKAH.smoke){ if (n <= 0) break; if (p.life > 0) continue;
+    p.life = p.max = big ? R(2.2, 3.2) : R(1.2, 1.8); p.s.position.set(p0.x + R(-.02, .02), p0.y, p0.z + R(-.02, .02));
+    p.v.set(R(-.04, .04) + (dir ? dir.x * .25 : 0), big ? R(.12, .22) : R(.15, .25), R(-.04, .04) + (dir ? dir.z * .25 : 0)); p.size = big ? .1 : .05; p.s.visible = true; n--; }
+}
+function seatKamel(on){ if (!kamelD) return false; kamelD.root.visible = on; if (HOOKAH.g) HOOKAH.g.visible = on; if (on) kamelD.root.position.set(SPOT.domino.x - .85, .62 - kamelD.hipY + .04, SPOT.domino.z); return true; }
+function updateKamel(dt, t){
+  const on = !!(kamelD && kamelD.root.visible);
+  if (on){
+    animDoll(kamelD, 0, 0, dt, t);
+    // the pose 'shisha' runs a 9-second cycle: hose to the mouth at 0.8s, draws until 2.6s, breathes out at 3.4s
+    const c = kamelD.R.t % 9, c0 = c - dt;
+    if (c > 1 && c0 <= 1 && !muted) shishaBubbles(sfxVol(SPOT.domino.x, SPOT.domino.z, 3));
+    if (c > 3.3 && c0 <= 3.3){ kamelD.R.bones.head.getWorldPosition(HOOKAH.v); const f = kamelD.yaw; HOOKAH.v.x += Math.sin(f) * .12; HOOKAH.v.z += Math.cos(f) * .12; HOOKAH.v.y -= .05; smokePuff(HOOKAH.v, 6, true, { x: Math.sin(f), z: Math.cos(f) }); }
+    // a thin wisp from the coal on the bowl
+    HOOKAH.bowlT -= dt; if (HOOKAH.g && HOOKAH.bowlT <= 0){ HOOKAH.bowlT = R(.5, .9); HOOKAH.v.set(HOOKAH.g.position.x, HOOKAH.g.position.y + .86, HOOKAH.g.position.z); smokePuff(HOOKAH.v, 1, false); }
+  }
+  for (const p of HOOKAH.smoke){
+    if (p.life <= 0) continue; p.life -= dt; if (p.life <= 0 || !on){ p.life = 0; p.s.visible = false; continue; }
+    const k = 1 - p.life / p.max; p.s.position.addScaledVector(p.v, dt); p.v.multiplyScalar(1 - dt * .6);
+    const sz = p.size * (1 + k * 4); p.s.scale.set(sz, sz, 1); p.s.material.opacity = Math.min(1, k * 6) * (1 - k) * .55;
+  }
 }
 const thief = { d: youssefD, pos: new THREE.Vector3(), active: false, caught: false, next: 75, dirX: 0, dirZ: 1, retarget: 0, lostT: 0, shoutT: 0, vx: 0, vz: 0 };
 function thiefReset(){ thief.active = false; thief.caught = false; thief.next = R(60, 110); youssefD.root.visible = false; }
@@ -1314,7 +1867,7 @@ function updateThief(dt, t){
   youssefD.root.position.copy(p); thief.vx = vx; thief.vz = vz;
   animDoll(youssefD, vx, vz, dt, t);
 }
-function updatePhotoSeats(dt, t){ if (islamD.root.visible) animDoll(islamD, 0, 0, dt, t); }
+function updatePhotoSeats(dt, t){ if (islamD.root.visible) animDoll(islamD, 0, 0, dt, t); updateKamel(dt, t); }
 // difficulty switch in the menu
 function renderDiff(){ $('diffBtn').textContent = diffKey === 'easy' ? '😊 سهل' : '💪 عادي'; }
 $('diffBtn').onclick = () => { diffKey = diffKey === 'easy' ? 'normal' : 'easy'; DIFF = DIFFS[diffKey]; store.set('ty_diff', diffKey); renderDiff(); };
@@ -2102,7 +2655,7 @@ function ride(to, fare, kind){
 const CAST = {
   tayara: { name: () => heroName, face: () => CH.hero.img.face }, arabi: { name: () => 'العربي', face: () => CH.enemy.img.face },
   shams: { name: () => 'شمس', face: () => CH.wanted.img.face }, youssef: { name: () => 'يوسف إبراهيم', face: () => CH.youssef.img.face },
-  islam: { name: () => 'إسلام', face: () => CH.islam.img.face }, sayed: { name: () => 'عم سيد', emoji: '👴' },
+  islam: { name: () => 'إسلام', face: () => CH.islam.img.face }, sayed: { name: () => 'الحاج كامل', emoji: '👳‍♂️' },
   moallem: { name: () => 'المعلم عبده', emoji: '🧔' }, landlord: { name: () => 'الحاج محمود', emoji: '👳' }, azzouz: { name: () => 'عزوز', emoji: '👨‍🍳' },
   fathi: { name: () => 'الحاج فتحي', emoji: '🧆' }, crowd: { name: () => 'الناس', emoji: '👥' }, police: { name: () => 'الظابط', emoji: '👮' }, mechanic: { name: () => 'الأسطى رضا', emoji: '🔧' }, phone: { name: () => 'الموبايل', emoji: '📱' }, thug: { name: () => 'رجالة شمس', emoji: '😠' },
 };
@@ -2129,6 +2682,7 @@ function dlgShow(who, text){
   $('dlgFace').innerHTML = face ? `<img src="${face}" alt="">` : `<span>${c.emoji || '💬'}</span>`;
   $('dlgName').textContent = c.name(); $('dlg').hidden = false; $('dlgText').textContent = '';
   CUT.typing = { full: text, i: 0 };
+  const td = { tayara: hero.d, arabi: enemyD, shams: wantedD, youssef: youssefD, islam: islamD }[who]; if (td && td.is3D) td.talkT = clamp(text.length * .055, 1.2, 4.5);
   if (!muted && !playVoice(text)) speak(text);
 }
 function dlgTap(){
@@ -2261,7 +2815,7 @@ function playWedding(){
     for (let b = 0; b * RHY.beat < RHY.dur; b += gap){ if (Math.random() < .2) continue; RHY.notes.push({ at: b * RHY.beat, lane: Math.floor(Math.random()*4), done: false, el: null }); if (b > 30 && Math.random() < .15) RHY.notes.push({ at: b * RHY.beat, lane: Math.floor(Math.random()*4), done: false, el: null }); }
     RHY.total = RHY.notes.length;
     $('rhy').hidden = false; $('rhyNotes').innerHTML = ''; hero.locked = true; document.body.classList.add('in-rhythm');
-    if (!musicOn && AC){ musicGain.gain.value = .11; } beatNext = AC ? AC.currentTime + .05 : 0;
+    beatNext = AC ? AC.currentTime + .05 : 0;
     rhyMsg('استعد… 💃');
   });
 }
@@ -2290,7 +2844,7 @@ function updateRhythm(dt){
   $('rhyScore').textContent = `${RHY.hits} / ${RHY.total}`;
   if (Math.floor((RHY.t) / RHY.beat) !== Math.floor((RHY.t - dt) / RHY.beat) && RHY.t > 0){ noise(.05, 2200, .12); }
   if (RHY.t >= RHY.dur + 1){
-    RHY.on = false; $('rhy').hidden = true; hero.locked = false; document.body.classList.remove('in-rhythm'); $('rhyNotes').innerHTML = ''; if (!musicOn && AC) musicGain.gain.value = 0;
+    RHY.on = false; $('rhy').hidden = true; hero.locked = false; document.body.classList.remove('in-rhythm'); $('rhyNotes').innerHTML = '';
     const pct = RHY.total ? RHY.hits / RHY.total : 0; const r = RHY.res; RHY.res = null; r && r({ pct, hits: RHY.hits, total: RHY.total });
   }
 }
@@ -2415,7 +2969,7 @@ function photoTick(dt, t){
   if (PHOTO.pose === 1){ if (d.punchT <= 0){ d.punchT = .28; d.punchSide = -d.punchSide || 1; } }
   if (PHOTO.pose === 3) d.downT = Math.max(d.downT, .5); else d.downT = 0;
   const dance = PHOTO.pose === 2 ? Math.sin(t*6) : 0;
-  animDoll(d, dance*2.5, 0, dt, t); if (PHOTO.pose === 2){ d.doll.rotation.z = dance*.12; d.doll.position.y += Math.abs(dance)*.08; }
+  if (d.is3D){ d.forceMove = PHOTO.pose === 2 ? 'dance' : null; animDoll(d, 0, 0, dt, t); } else animDoll(d, dance*2.5, 0, dt, t); if (PHOTO.pose === 2 && !d.is3D){ d.doll.rotation.z = dance*.12; d.doll.position.y += Math.abs(dance)*.08; }
   for (const x of [enemy, wanted]) if (x.active && x.d.root.visible) animDoll(x.d, 0, 0, 0, t);
   updateBubbles(dt);
 }
@@ -2978,7 +3532,7 @@ function updateCats(dt, t){
 }
 // ---- hero cheering (arms up and a hop) ----
 function heroCheer(){ hero.cheerT = 1.3; }
-function cheerPose(dt){ if (!(hero.cheerT > 0) || hero.veh) return; hero.cheerT -= dt; const d = hero.d, k = Math.min(1, hero.cheerT*3), hop = Math.abs(Math.sin(hero.cheerT*8))*.25*k; d.P.armL.rotation.z = -2.6*k; d.P.armR.rotation.z = 2.6*k; d.doll.position.y += hop; }
+function cheerPose(dt){ if (!(hero.cheerT > 0) || hero.veh) return; hero.cheerT -= dt; if (hero.d.is3D){ hero.d.forceMove = 'cheer'; return; } const d = hero.d, k = Math.min(1, hero.cheerT*3), hop = Math.abs(Math.sin(hero.cheerT*8))*.25*k; d.P.armL.rotation.z = -2.6*k; d.P.armR.rotation.z = 2.6*k; d.doll.position.y += hop; }
 // ---- Ramadan night (فوانيس، زينة، مسحراتي) ----
 PROG.ramadan = !!PROG.ramadan;
 const ramadan = new THREE.Group(); ramadan.visible = false; scene.add(ramadan);
@@ -3046,8 +3600,8 @@ function playVoice(text){
 function voiceLeft(){ const a = VOICE.cur; if (!a || a.paused) return 0; const d = a.duration; return isFinite(d) ? Math.max(0, d - a.currentTime) : 1.5; }
 
 // ---- 19l-intro.js ----
-// ================= intro: character cards, then the poster =================
-// Plays once on the first visit (after a tap, so music can start) and again from the menu. The same layout draws the poster images.
+// ================= intro: the film (Google Flow) with name tags, else character cards and the poster =================
+// Plays once on the first visit (after a tap, so the sound can start) and again from the menu. The same layout draws the poster images.
 const POSTER_CAST = [
   { k: 'youssef', name: 'يوسف إبراهيم', line: 'حرامي الساندوتشات… ممنوع دخوله في أي حتة', color: '#f4a300', from: 1 },
   { k: 'arabi', name: 'العربي', line: 'كان عايز الشغلانة… وعايز طيارة يختفي', color: '#e0457b', from: -1 },
@@ -3076,7 +3630,42 @@ function introLayout(){
   const t = $('iTitle'); Object.assign(t.style, { left: `${L.title.x*100}%`, top: `${L.title.y*100}%`, fontSize: `${(wide ? innerHeight : innerWidth) * L.title.s * (wide ? 1 : 1.9)}px` });
   document.querySelector('#intro .ibg').style.backgroundPosition = `${L.fx*100}% center`;
 }
+// the film: who appears when (seconds into assets/intro/intro.mp4)
+const INTRO_TAGS = [
+  { t: 9.0, end: 13.2, name: 'طيارة', line: 'صبي القهوة… وهيبقى الجامد', color: '#ffc94a' },
+  { t: 16.4, end: 20.6, name: 'العربي', line: 'ابن الحاج العربي الكبير… والفلوس عنده مش مشكلة', color: '#e0457b' },
+  { t: 24.6, end: 28.8, name: 'إسلام', line: 'الصاحب الجدع… وعريس الحتة', color: '#12a39a' },
+  { t: 31.2, end: 35.6, name: 'يوسف إبراهيم', line: 'بيدوّر على شغل… ولقى حاجة تانية', color: '#f4a300' },
+  { t: 39.4, end: 43.6, name: 'شمس', line: 'محدش شاف وشه… غير اللي ندم', color: '#c62828' },
+];
+const INTRO_TITLE_AT = 46;
 function playIntroSeq(){
+  if (INTRO.playing) return;
+  const v = $('iVideo');
+  if (!v || INTRO.noVideo || !v.canPlayType('video/mp4')) return playPosterIntro();
+  INTRO.playing = true; INTRO.timers.forEach(clearTimeout); INTRO.timers = []; initAudio();
+  const box = $('intro'); box.hidden = false; box.className = 'intro on video'; $('iFinal').className = 'ifinal'; $('iTitle').classList.remove('slam'); $('iTap').classList.remove('show');
+  const tag = $('iTag'); tag.className = 'iname'; let shown = -1, titled = false;
+  if (!v.src) v.src = 'assets/intro/intro.mp4';
+  v.muted = muted; v.currentTime = 0;
+  v.onerror = () => { INTRO.noVideo = true; INTRO.playing = false; playPosterIntro(); };
+  const tick = () => {
+    if (!INTRO.playing || box.hidden) return;
+    const t = v.currentTime, k = INTRO_TAGS.findIndex(c => t >= c.t && t < c.end);
+    if (k !== shown){
+      if (k >= 0){ const c = INTRO_TAGS[k]; tag.style.setProperty('--c', c.color); tag.querySelector('b').textContent = c.name; tag.querySelector('span').textContent = c.line; tag.className = 'iname'; void tag.offsetWidth; tag.className = 'iname show'; }
+      else if (shown >= 0) tag.className = 'iname hide';
+      shown = k;
+    }
+    if (!titled && t >= INTRO_TITLE_AT){ titled = true; introLayout(); box.classList.add('final'); $('iFinal').className = 'ifinal in'; setTimeout(() => $('iTitle').classList.add('slam'), 60); }
+    requestAnimationFrame(tick);
+  };
+  v.onended = () => { $('iTap').classList.add('show'); INTRO.ready = true; };
+  const p = v.play(); if (p && p.catch) p.catch(() => { v.muted = true; v.play().catch(() => { INTRO.playing = false; playPosterIntro(); }); });
+  requestAnimationFrame(tick);
+}
+// the older intro (illustrated character cards, then the poster): used when the film can't play
+function playPosterIntro(){
   if (INTRO.playing) return; INTRO.playing = true; INTRO.timers.forEach(clearTimeout); INTRO.timers = [];
   initAudio(); const box = $('intro'); box.hidden = false; box.className = 'intro on'; $('iCard').className = 'icard'; $('iFinal').className = 'ifinal'; $('iTap').classList.remove('show');
   const card = $('iCard'); let t = 900;
@@ -3091,7 +3680,7 @@ function playIntroSeq(){
   iAt(t + 1500, () => { $('iTitle').classList.add('slam'); if (AC && !muted){ noise(.5, 400, .6); tone(110, 55, .5, 'sawtooth', .12); } shake = .3; });
   iAt(t + 2600, () => { $('iTap').classList.add('show'); INTRO.ready = true; });
 }
-function endIntro(){ INTRO.timers.forEach(clearTimeout); INTRO.timers = []; INTRO.playing = false; INTRO.ready = false; $('intro').hidden = true; $('intro').className = 'intro'; store.set('ty_intro', '1'); }
+function endIntro(){ const v = $('iVideo'); if (v){ v.pause(); } INTRO.timers.forEach(clearTimeout); INTRO.timers = []; INTRO.playing = false; INTRO.ready = false; $('intro').hidden = true; $('intro').className = 'intro'; store.set('ty_intro', '1'); }
 $('introSkip').onclick = e => { e.stopPropagation(); endIntro(); };
 $('intro').addEventListener('pointerdown', e => { if (INTRO.ready && !e.target.closest('button')) endIntro(); });
 $('iSave').onclick = async e => { e.stopPropagation(); const wide = innerWidth >= innerHeight; const cv = await makePosterImage(wide ? 1920 : 1080, wide ? 1080 : 1920); const a = document.createElement('a'); a.href = cv.toDataURL('image/jpeg', .92); a.download = `tayara-poster-${wide ? 'wide' : 'tall'}.jpg`; document.body.appendChild(a); a.click(); a.remove(); };
@@ -3101,7 +3690,7 @@ function introOnLoad(){
   if (store.get('ty_intro') === '1') return;
   $('introStart').hidden = false;
 }
-$('introStartBtn').onclick = () => { $('introStart').hidden = true; if (!musicOn){ musicOn = true; store.set('ty_music', '1'); setBtnStates(); } playIntroSeq(); };
+$('introStartBtn').onclick = () => { $('introStart').hidden = true; playIntroSeq(); };
 $('introStartSkip').onclick = () => { $('introStart').hidden = true; store.set('ty_intro', '1'); };
 // ---- the poster as an image (same layout, drawn on a canvas) ----
 const posterCache = {};
@@ -3156,7 +3745,8 @@ const race = { active: false, t: 0, goal: new THREE.Vector3(-48, 0, -96) };
 const ENEMY_WAIT = new THREE.Vector3(28, .15, 40.2);
 // accessories drawn on top of the hero photo
 const ACC = {};
-{
+if (hero.d.is3D) Object.assign(ACC, make3DAccessories(hero.d.R));
+else {
   const d = hero.d, S = d.S, c = d.c;
   const plane = (tex, cx, cy, w, h, key, order=13) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w*S, h*S), new THREE.MeshBasicMaterial({ map: tex, transparent: true, alphaTest: .05, side: THREE.DoubleSide, toneMapped: false })); m.renderOrder = order; const piv = key ? c.piv[key] : [c.FX, c.FY]; m.position.set((cx - piv[0])*S, (piv[1] - cy)*S, .035); (key ? d.P[key] : d.P.body).add(m); m.visible = false; return m; };
   const tx = (w,h,draw) => { const t = makeTex(w,h,draw); t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping; return t; };
@@ -3239,7 +3829,7 @@ const shamsMoto = makeMoto('#212121'); shamsMoto.visible = false;
 // شمس as a fighter for the final fight
 const boss = { active: false, pos: V(0,0,0), hp: 160, atk: 0, downs: 0, vx: 0, vz: 0 };
 function bossTarget(p){ if (!boss.active || wantedD.downT > 0) return null; const d = boss.pos.distanceTo(p); return d < 1.9 ? { boss: true, x: boss.pos.x, z: boss.pos.z } : null; }
-function bossHit(big){ boss.hp -= big ? 34 : 18; thwack(); say(wanted, rpick(['آه!','ماشي يا طيارة!','لسه بدري!']), 1, 'angry'); if (boss.hp <= 0){ boss.downs++; boss.hp = 160; wantedD.downT = 3.5; say(wanted, boss.downs >= 2 ? 'خلاص… خلاص!' : 'قوم يا شمس… قوم', 2, 'angry'); } }
+function bossHit(big){ boss.hp -= big ? 34 : 18; wantedD.hitT = .45; thwack(); say(wanted, rpick(['آه!','ماشي يا طيارة!','لسه بدري!']), 1, 'angry'); if (boss.hp <= 0){ boss.downs++; boss.hp = 160; wantedD.downT = 3.5; say(wanted, boss.downs >= 2 ? 'خلاص… خلاص!' : 'قوم يا شمس… قوم', 2, 'angry'); } }
 function updateBoss(dt, t){
   if (!boss.active) return;
   const p = boss.pos, tg = hero.pos, dx = tg.x - p.x, dz = tg.z - p.z, dist = Math.hypot(dx, dz); boss.vx = boss.vz = 0;
@@ -3301,7 +3891,7 @@ function ghostStart(d, moto, doll, path, speed){
   doll.root.visible = true; doll.P.legL.visible = doll.P.legR.visible = false; doll.blob.visible = false; doll.downT = 0;
   d.gh = { moto, mesh, doll, path, i: 1, speed, yaw: Math.atan2(path[1][0]-path[0][0], path[1][1]-path[0][1]) }; ghostPose(d.gh, 0);
 }
-function ghostPose(g, dt){ const p = g.mesh.position; g.mesh.rotation.set(0, g.yaw, 0); if (g.moto.mesh) g.moto.yaw = g.yaw; p.y = groundY(p.x, p.z); g.doll.root.position.set(p.x - Math.sin(g.yaw)*.25, p.y + .86 - g.doll.hipY, p.z - Math.cos(g.yaw)*.25); animDoll(g.doll, 0, 0, dt, runTime); }
+function ghostPose(g, dt){ const p = g.mesh.position; g.mesh.rotation.set(0, g.yaw, 0); if (g.moto.mesh) g.moto.yaw = g.yaw; p.y = groundY(p.x, p.z); g.doll.root.position.set(p.x - Math.sin(g.yaw)*.25, p.y + .86 - g.doll.hipY, p.z - Math.cos(g.yaw)*.25); g.doll.faceYaw = g.yaw; animDoll(g.doll, 0, 0, dt, runTime); }
 function ghostStep(g, dt, sp){
   if (g.i < g.path.length){ const p = g.mesh.position, [tx, tz] = g.path[g.i], dx = tx - p.x, dz = tz - p.z, dd = Math.hypot(dx, dz), s = sp*dt;
     if (dd <= s){ p.x = tx; p.z = tz; g.i++; } else { p.x += dx/dd*s; p.z += dz/dd*s; }
@@ -3334,9 +3924,10 @@ function parkArabiMoto(){
 // --- thugs (شمس's men) ---
 function spawnThugs(d){
   d.thugs = [36, 37, 38].map(i => { const n = npcs[i]; const p = sidewalkNear(hero.pos, 9); n.role = 'thug'; n.thug = true; n.thugHits = 0; n.thugDone = false; n.g.visible = true; n.g.position.copy(p); n.state = 'fight'; n.fightT = 999; n.downT = 0; n.fall = 0; n.name = 'واحد من رجالة شمس'; return n; });
+  d.thugs.forEach((n, k) => npcWear3D(n, k === 1 ? 'soldier' : 'thug'));   // شمس's men in 3D when the models are there
   say(d.thugs[0], 'إنتوا بتعملوا إيه هنا؟!', 2.5, 'angry');
 }
-function clearThugs(d){ (d.thugs || []).forEach(n => { n.thug = false; n.thugDone = false; n.state = 'hidden'; n.g.visible = false; n.role = null; n.g.rotation.x = 0; }); d.thugs = null; }
+function clearThugs(d){ (d.thugs || []).forEach(n => { npcTakeOff3D(n); n.thug = false; n.thugDone = false; n.state = 'hidden'; n.g.visible = false; n.role = null; n.g.rotation.x = 0; }); d.thugs = null; }
 
 const MS = [
   // ===== prologue =====
@@ -3400,7 +3991,7 @@ const MS = [
     start: d => { arabiAppear(sidewalkNear(V(27, 0, 40.5), 3)); enemy.cd = 1.2; }, text: () => 'اهرب من العربي (ابعد عنه لحد ما يتوه) أو وقّعه في خناقة 👊', target: () => null,
     update: () => !enemy.active || enemy.d.downT > 0,
     outro: () => [ L('phone', '📱 إسلام: سمعت اللي حصل! العربي ده بيغلي من ساعة ما المعلم شغلك مكانه. خلي بالك منه… هيفضل وراك.') ] },
-  { id: 'domino', ch: 1, title: 'دومنو عم سيد', at: () => SPOT.domino, atR: 4, goText: 'عم سيد بيناديك على ترابيزة الدومنو (★)',
+  { id: 'domino', ch: 1, title: 'دومنو الحاج كامل', at: () => SPOT.domino, atR: 4, goText: 'الحاج كامل بيناديك على ترابيزة الدومنو (★)',
     intro: () => [ shot(SPOT.domino, -2.4, 1.1, 3),
       L('sayed', 'اقعد يا طيارة… سيبك من العربي. الدومنو بيعلّم الصبر.'),
       L('sayed', 'أول دور الدش يفتح. اللي يخلّص حجارته الأول ياخد نِمر اللي في إيد الباقيين، والماتش لـ ١٠١.'),
@@ -3524,12 +4115,12 @@ const MS = [
       L('tayara', 'شمس… الأسطى شمس بقى مطلوب؟! يعني اللي شفته في الورشة صح.') ],
     update: () => true },
   { id: 'sayed', ch: 4, title: 'حكاية شمس',
-    text: () => 'عم سيد عايزك على ترابيزة الدومنو (★)', target: () => SPOT.domino, update: reachU(() => SPOT.domino, 2.8),
+    text: () => 'الحاج كامل عايزك على ترابيزة الدومنو (★)', target: () => SPOT.domino, update: reachU(() => SPOT.domino, 2.8),
     outro: () => [ shot(SPOT.domino, -2.4, 1.1, 3),
       L('sayed', 'شمس ده كان زي ابني يا طيارة… صلّح موتوسيكلات الحتة ببلاش وقت الأزمة.'),
       L('sayed', 'استلف عشان يكبّر الورشة، والفلوس راحت، والديّانة على الباب كل يوم.'),
       L('sayed', 'اللي بيغرق بيتعلق في قشاية… وقشايته كانت حرام. لو لقيته، كلّمه الأول. جايز يرجع.'),
-      L('tayara', 'هحاول يا عم سيد… بس الأول لازم أعرف هو بيعمل إيه بالظبط.') ] },
+      L('tayara', 'هحاول يا حاج كامل… بس الأول لازم أعرف هو بيعمل إيه بالظبط.') ] },
   { id: 'clues', ch: 4, title: 'الأدلة',
     start: () => { addPickup(V(219, .15, -7.4)); addPickup(V(147, .15, -47.6)); addPickup(V(153, .15, 151.6)); },
     text: d => `دوّر على ٣ أدلة: عند الملعب، والسوق، والكورنيش (النقط الصفرا) ${nPick(d, 3)}`, target: () => nearestPick(), update: allPicked,
@@ -3644,7 +4235,7 @@ const MS = [
   { id: 'bossFight', ch: 7, title: 'على الكوبري', reward: 1000, koFail: true, spawn: V(96, 0, 199),
     intro: () => [ { do: () => { heroTo(96, 199); showActor(wantedD, 96, 210); copCar.pos.set(96, 0, 236); copCar.yaw = Math.PI; copCar.mesh.rotation.set(0, Math.PI, 0); } }, { cam: [101, 2.6, 196], look: [96, 1.4, 208], t: 1.4 },
       L('shams', 'خلاص يا طيارة؟ الكوبري مقفول… عايز المكافأة؟ تعالى خدها بإيدك.'),
-      L('tayara', 'مش عايز فلوس يا شمس… عايزك ترجع زي ما كنت. عم سيد لسه بيقول عليك ابنه.'),
+      L('tayara', 'مش عايز فلوس يا شمس… عايزك ترجع زي ما كنت. الحاج كامل لسه بيقول عليك ابنه.'),
       L('shams', 'اللي راح مبيرجعش!!') ],
     start: () => { heroTo(96, 199); boss.active = true; boss.hp = DIFF.dmg < 1 ? 120 : 160; boss.downs = 0; boss.atk = 1.2; boss.pos.set(96, 0, 209); wantedD.root.visible = true; wantedD.P.legL.visible = wantedD.P.legR.visible = true; wantedD.blob.visible = true; wantedD.downT = 0; },
     text: () => `وقّع شمس مرتين 👊 (${boss.downs}/2) · ${'❤️'.repeat(Math.ceil(boss.hp / 40))}`, target: () => null,
@@ -3853,9 +4444,9 @@ function resetWorld(){
   for (const d of [youssefD, enemyD, wantedD]){ d.root.visible = false; d.P.legL.visible = d.P.legR.visible = true; d.blob.visible = true; d.downT = 0; }
   islamD.P.legL.visible = islamD.P.legR.visible = false; islamD.blob.visible = false;
   vehicles.forEach(v => { v.pos.set(v.home.x, v.home.y||0, v.home.z); v.yaw = v.home.yaw; v.mesh.rotation.set(0, v.yaw, 0); v.speed = 0; v.dmg = 0; v.broke = false; });
-  seatIslam(false); thiefReset();
+  seatIslam(false); seatKamel(false); thiefReset();
   motoTag.visible = carTag.visible = false; missionMark.visible = false; race.active = false; enemy.boss = false; enemy.maxHp = 100; $('shop').hidden = true; $('storyEnd').hidden = true;
-  npcs.forEach(n => { n.state = 'hidden'; n.g.visible = false; n.role = null; n.onArrive = null; n.thug = false; n.thugDone = false; n.g.rotation.x = 0; });
+  npcs.forEach(n => { if (n.thug) npcTakeOff3D(n); n.state = 'hidden'; n.g.visible = false; n.role = null; n.onArrive = null; n.thug = false; n.thugDone = false; n.g.rotation.x = 0; });
   let i = 0;
   for (; i<WALKERS; i++) setWalker(npcs[i]);
   enemy.active = false; enemy.d.root.visible = false; wanted.active = false; wanted.d.root.visible = false;
@@ -3871,7 +4462,8 @@ function resetWorld(){
 function seatDeco(start){
   // domino friends + café regulars (decor in free modes)
   const a = npcs[start], b = npcs[start+1];
-  seatNPC(a, SPOT.domino.x-.85, SPOT.domino.z, Math.PI/2); a.state = 'domino'; a.name = 'عم سيد';
+  seatNPC(a, SPOT.domino.x-.85, SPOT.domino.z, Math.PI/2); a.state = 'domino'; a.name = 'الحاج كامل';
+  if (seatKamel(true)){ a.state = 'hidden'; a.g.visible = false; }   // the 3D الحاج كامل takes the seat
   seatNPC(b, SPOT.domino.x+.85, SPOT.domino.z, -Math.PI/2); b.state = 'hidden'; b.g.visible = false; seatIslam(true);
   let k = start+2; [0,3,5,8,10].forEach(si => { const s = SEATS[si]; seatNPC(npcs[k], s.x, s.z, s.ry); k++; });
   const v = npcs[k]; seatNPC(v, SPOT.cartHero.x, SPOT.cartHero.z, 0); v.state = 'idle'; v.g.position.y = .15; k++;
@@ -3901,7 +4493,8 @@ function startMode(id){
         onKO: () => endMode('العربيات بهدلتك 🚗', `${heroName} لم ${egp(modeObj.money)} قبل ما يقع.`) }; },
     story: () => {
       hero.money = SAVE.money; const a = npcs[free], b = npcs[free+1];
-      seatNPC(a, SPOT.domino.x-.85, SPOT.domino.z, Math.PI/2); a.state = 'domino'; a.name = 'عم سيد';
+      seatNPC(a, SPOT.domino.x-.85, SPOT.domino.z, Math.PI/2); a.state = 'domino'; a.name = 'الحاج كامل';
+      if (seatKamel(true)){ a.state = 'hidden'; a.g.visible = false; }
       seatNPC(b, SPOT.domino.x+.85, SPOT.domino.z, -Math.PI/2); b.state = 'hidden'; b.g.visible = false; seatIslam(true);
       decoGlasses.forEach(g => g.visible = false);
       setupNamed(); arabiHide(); enemy.boss = false; enemy.maxHp = 100; hero.pos.copy(SPOT.spawn);
@@ -4027,7 +4620,7 @@ const teamOf = s => s % 2;          // seat 0 (you) and 2 (partner) are team 0
 const isMe = s => s === 0;
 const NS = () => DOM.seats.length;
 const hand = s => DOM.hands[s];
-const teamName = tm => DOM.mode === '1v1' ? (tm === 0 ? heroName : 'عم سيد') : (tm === 0 ? 'إحنا' : 'هما');
+const teamName = tm => DOM.mode === '1v1' ? (tm === 0 ? heroName : 'الحاج كامل') : (tm === 0 ? 'إحنا' : 'هما');
 function openDomino(){
   hero.locked = true; $('domino').hidden = false; document.body.classList.add('in-domino');
   if (DOM.matchOver){ $('dPick').hidden = false; $('dGame').hidden = true; $('dScore').textContent = modeObj.domBet ? `الرهان ${Math.min(modeObj.domBet, Math.floor(hero.money))} جنيه` : ''; }
@@ -4041,7 +4634,7 @@ function newDominoMatch(mode){
   DOM.mode = mode; DOM.score = [0,0]; DOM.matchOver = false; DOM.lastWinner = null;
   DOM.target = mode === '1v1' ? 101 : 151;
   DOM.seats = mode === '1v1'
-    ? [{ name: heroName, face: CH.hero.img.face }, { name: 'عم سيد', face: null }]
+    ? [{ name: heroName, face: CH.hero.img.face }, { name: 'الحاج كامل', face: null }]
     : [{ name: heroName, face: CH.hero.img.face }, { name: 'شمس', face: CH.wanted.img.face }, { name: 'إسلام', face: CH.islam.img.face }, { name: 'العربي', face: CH.enemy.img.face }];
   $('dPick').hidden = true; $('dGame').hidden = false; document.querySelector('.seats').classList.toggle('four', mode === '2v2');
   newDominoRound();
@@ -4192,7 +4785,7 @@ function commitPlayer(i, side, cheat=false){
   const t = hand(0)[i], prev = { L: DOM.L, R: DOM.R };
   const s = placeTile(t, side, cheat); if (!s) return;
   hand(0).splice(i,1); DOM.sel = null; DOM.selCheat = false; DOM.lastSide = s; DOM.cheats = []; DOM.accused = false;
-  tone(700,500,.06,'triangle',.15); buzz(10);
+  tileClack(); buzz(10);
   if (cheat){
     if (Math.random() < .6){ unplace(s, prev); hand(0).splice(i, 0, t); DOM.score[1] += 50; tone(300,150,.4,'sawtooth',.1); buzz(60); dMsg(`🚨 اتمسكت بتغش! +٥٠ لـ ${teamName(1)}`); speak('بتغش؟'); renderDomino(); checkMatch(); return; }
     dMsg(`نزّلت ${tName(t)} غش… محدش خد باله 🤫`);
@@ -4250,13 +4843,13 @@ function aiTurn(){
   const seat = DOM.turn, p = DOM.seats[seat], opp = teamOf(seat) === 1;
   let opts = aiLegal(seat);
   if (DOM.board.length && opp && opts.length && Math.random() < .05){ DOM.cheats.push({ seat, type: 'pass' }); dMsg(`${p.name}: «فوّت»`); return nextTurn(); }
-  if (DOM.board.length && opp && Math.random() < .03 && hand(seat).length > 1){ const bad = hand(seat).find(t => !touches(t, DOM.L) && !touches(t, DOM.R)); if (bad){ const prev = { L: DOM.L, R: DOM.R }, side = Math.random() < .5 ? 'L' : 'R'; placeTile(bad, side, true); hand(seat).splice(hand(seat).indexOf(bad), 1); DOM.lastSide = side; DOM.cheats.push({ seat, type: 'tile', t: bad, side, prev }); dMsg(`${p.name} نزل ${tName(bad)}`); tone(600,420,.06,'triangle',.15); return afterPlay(seat, false); } }
+  if (DOM.board.length && opp && Math.random() < .03 && hand(seat).length > 1){ const bad = hand(seat).find(t => !touches(t, DOM.L) && !touches(t, DOM.R)); if (bad){ const prev = { L: DOM.L, R: DOM.R }, side = Math.random() < .5 ? 'L' : 'R'; placeTile(bad, side, true); hand(seat).splice(hand(seat).indexOf(bad), 1); DOM.lastSide = side; DOM.cheats.push({ seat, type: 'tile', t: bad, side, prev }); dMsg(`${p.name} نزل ${tName(bad)}`); tileClack(); return afterPlay(seat, false); } }
   let drew = 0;
   if (DOM.mode === '1v1') while (!opts.length && DOM.bone.length){ DOM.weak[seat] = [...new Set([...DOM.weak[seat], DOM.L, DOM.R])]; hand(seat).push(DOM.bone.pop()); drew++; opts = aiLegal(seat); }
   if (!opts.length){ DOM.weak[seat] = [...new Set([...DOM.weak[seat], DOM.L, DOM.R])]; dMsg(drew ? `${p.name} سحب ${drew} وفوّت` : `${p.name} فوّت`); return nextTurn(); }
   opts.sort((a,b) => aiScore(seat, b) - aiScore(seat, a));
   const o = opts[0]; placeTile(o.t, o.side); hand(seat).splice(hand(seat).indexOf(o.t), 1); DOM.lastSide = o.side;
-  tone(600,420,.06,'triangle',.15);
+  tileClack();
   const blocked = isBlocked(), says = blocked && Math.random() < .88;
   dMsg(`${drew ? `${p.name} سحب ${drew} ونزل ` : `${p.name} نزل `}${tName(o.t)}${says ? ' وقال «قفلة!» 🔒' : ''}${!blocked && hand(seat).length && Math.random() < .25 ? ' · «' + rpick(TALK) + '»' : ''}`);
   if (Math.random() < .5) speak(tName(o.t));
@@ -4406,11 +4999,11 @@ $('mapClose').onclick = () => { $('mapOv').hidden = true; };
 addEventListener('keydown', e => { if (e.code === 'KeyM' && state === 'play'){ if ($('mapOv').hidden) openMap(); else $('mapOv').hidden = true; } });
 
 // ---- 24-main-update.js ----
-// ================= main update =================
+﻿// ================= main update =================
 let chatterT = 3;
 function update(dt, t){
   tickCutscene(dt);
-  beatTick();
+  beatTick(); sfxUpdate(dt, t);
   const playing = state === 'play';
   if (playing){
     runTime += dt;
@@ -4482,7 +5075,7 @@ function update(dt, t){
   const hd = hero.d;
   if (hero.veh){
     const v = hero.veh;
-    if (v.type === 'moto'){ hd.root.visible = true; hd.P.legL.visible = hd.P.legR.visible = false; hd.root.position.set(v.pos.x - Math.sin(v.yaw)*.25, v.pos.y + .86 - hd.hipY, v.pos.z - Math.cos(v.yaw)*.25); animDoll(hd, 0, 0, dt, t); }
+    if (v.type === 'moto'){ hd.root.visible = true; hd.P.legL.visible = hd.P.legR.visible = false; hd.root.position.set(v.pos.x - Math.sin(v.yaw)*.25, v.pos.y + .86 - hd.hipY, v.pos.z - Math.cos(v.yaw)*.25); hd.faceYaw = v.yaw; animDoll(hd, 0, 0, dt, t); }
     else hd.root.visible = false;
   } else { hd.root.visible = !ST.kind; hd.P.legL.visible = hd.P.legR.visible = true; hd.root.position.copy(hero.pos); animDoll(hd, hero.vel.x, hero.vel.z, dt, t); cheerPose(dt); hd.doll.visible = !(hero.inv > 0 && Math.floor(hero.inv*12) % 2 === 1); }
   if (enemy.active && !CUT.idle.has(enemy.d)) animDoll(enemy.d, enemy.vel.x, enemy.vel.z, dt, t);
@@ -4512,4 +5105,4 @@ renderer.setAnimationLoop(() => { const raw = clock.getDelta(), dt = Math.min(ra
   if (state === 'play'){ fpsAcc += raw; fpsN++; if (fpsN >= 150){ const avg = fpsAcc/fpsN; if (avg > 1/30 && pxr > .8){ pxr = Math.max(.8, pxr - .2); renderer.setPixelRatio(pxr); renderer.setSize(innerWidth, innerHeight); } else if (avg > 1/24 && sun.castShadow){ sun.castShadow = false; } fpsAcc = 0; fpsN = 0; } } });
 renderModes();
 $('loadMsg').textContent = 'اختار مود وابدأ.'; introOnLoad();
-window.__game = { hero, enemy, wanted, vehicles, npcs, keys, get state(){ return state; }, get mode(){ return modeObj; }, startMode, action, punch, dbg: { playIntroSeq, endIntro, makePosterImage, introLayout, VOICE, playVoice, vHash, voiceLeft, heroCheer, cats, mesa, PROG_R: () => PROG.ramadan, nightVisuals, openGarage, applyGarage, GARAGE_POS, TW, openTawla, twRoll, twPlayerMove, twStartGame, closeTawla, sequences, TAWLA_SPOT, ACT, ACTS, actStart, actEnd, kameenSpawn, pigeons, RAMPS, parkCar, LOT, PEN, COOP, PROG, ACH, achCheck, openAch, openPhoto, closePhoto, takePhoto, PHOTO, goldGlasses, staticBlocked, blocked, obstacles, freeSpot, SPOT, STOPS, ST, AH, FL, DOM, ahwaTap, ahwaHold, foulTap, stationBtn, enterStation, exitStation, openDomino, playerPick, SA, SF, get SAVE(){ return SAVE; }, startJob, endJob, race, buyVehicle, MS, ST2, CUT, JOB, RHY, HOUSE, TOD, boss, pickups, checkpoints, idx, curM, finishMission, failMission, applyStoryWorld, playCut, dlgTap, applyTimeOfDay, enterHouse, exitHouse, houseAction, openTransit, ride, startPizzaJob, startTukJob, endJob2, playWedding, rhyHit, pizzaMoto, tukVeh, arabiMoto, heroMoto, storyAction, openShop, renderModes, thief, thiefStart, thiefCaught, islamD, CAM }, step(n=60){ for (let i=0;i<n;i++){ elapsed += 1/60; update(1/60, elapsed); } renderer.render(scene, camera); } };
+window.__game = { hero, enemy, wanted, vehicles, npcs, keys, get state(){ return state; }, get mode(){ return modeObj; }, startMode, action, punch, dbg: { SFX, spawnThugs, npcWear3D, playIntroSeq, endIntro, makePosterImage, introLayout, VOICE, playVoice, vHash, voiceLeft, heroCheer, cats, mesa, PROG_R: () => PROG.ramadan, nightVisuals, openGarage, applyGarage, GARAGE_POS, TW, openTawla, twRoll, twPlayerMove, twStartGame, closeTawla, sequences, TAWLA_SPOT, ACT, ACTS, actStart, actEnd, kameenSpawn, pigeons, RAMPS, parkCar, LOT, PEN, COOP, PROG, ACH, achCheck, openAch, openPhoto, closePhoto, takePhoto, PHOTO, goldGlasses, staticBlocked, blocked, obstacles, freeSpot, SPOT, STOPS, ST, AH, FL, DOM, ahwaTap, ahwaHold, foulTap, stationBtn, enterStation, exitStation, openDomino, playerPick, SA, SF, get SAVE(){ return SAVE; }, startJob, endJob, race, buyVehicle, MS, ST2, CUT, JOB, RHY, HOUSE, TOD, boss, pickups, checkpoints, idx, curM, finishMission, failMission, applyStoryWorld, playCut, dlgTap, applyTimeOfDay, enterHouse, exitHouse, houseAction, openTransit, ride, startPizzaJob, startTukJob, endJob2, playWedding, rhyHit, pizzaMoto, tukVeh, arabiMoto, heroMoto, storyAction, openShop, renderModes, thief, thiefStart, thiefCaught, islamD, CAM }, step(n=60){ for (let i=0;i<n;i++){ elapsed += 1/60; update(1/60, elapsed); } renderer.render(scene, camera); } };

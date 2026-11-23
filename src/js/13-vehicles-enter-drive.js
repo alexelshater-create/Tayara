@@ -4,7 +4,7 @@ function enterVehicle(v){
   if (modeObj.canDrive && !modeObj.canDrive(v)){ banner('دي مش بتاعتك', 'info', 1.5); return; }
   hero.veh = v; v.speed = 0; CAM.veh = 0; hero.d.blob.visible = false;
   banner(v.type === 'moto' ? 'ركبت الموتوسيكل 🏍️' : v.type === 'police' ? 'ركبت البوكس 🚓' : v.type === 'tuk' ? 'ركبت التوكتوك 🛺' : 'ركبت العربية 🚗', 'ok', 1.6);
-  tone(90, 140, .4, 'sawtooth', .12);
+  if (v.type !== 'moto') doorSfx(); engineStart(v.type);
 }
 function exitVehicle(force){
   const v = hero.veh; if (!v) return;
@@ -14,6 +14,7 @@ function exitVehicle(force){
   for (const [ox,oz] of opts){ const x = v.pos.x+ox, z = v.pos.z+oz; if (!staticBlocked(x,z) && !vehBlockedAt(x,z,PR,null)){ hero.pos.set(x, groundY(x,z), z); placed = true; break; } }
   if (!placed && !force) { banner('مفيش مكان تنزل فيه', 'info', 1.4); return; }
   if (!placed) hero.pos.set(v.pos.x + 2.5, 0, v.pos.z);
+  if (v.type !== 'moto') doorSfx(); else noise(.08, 900, .2);
   v.speed = 0; hero.veh = null; CAM.orbit = CAM.orbitSm = camYaw; CAM.veh = 0; hero.d.blob.visible = true; hero.d.doll.visible = true;
   hero.d.P.legL.visible = hero.d.P.legR.visible = true;
 }
@@ -47,5 +48,5 @@ function driveVehicle(v, dt, inX, inZ, brake){
   v.mesh.rotation.y = v.yaw;
   if (v.type === 'moto') v.mesh.rotation.z = -v.steer * .35 * clamp(Math.abs(v.speed)/10, 0, 1);
   // traffic bump
-  for (const c of traffic){ if (Math.hypot(c.position.x - v.pos.x, c.position.z - v.pos.z) < (v.type==='moto' ? 2.1 : 2.9)){ if (Math.abs(v.speed) > 3 || c.userData.speed > 3){ if (typeof onVehicleCrash === 'function') onVehicleCrash(v, Math.abs(v.speed) + 6); thwack(); shake = .5; heroDamage((v.type==='moto' ? 18 : 6) * DIFF.dmg, 'car'); v.speed = -v.speed*.3 - 2; c.userData.speed = 0; v.dmg = (v.dmg||0) + 12; } } }
+  for (const c of traffic){ if (Math.hypot(c.position.x - v.pos.x, c.position.z - v.pos.z) < (v.type==='moto' ? 2.1 : 2.9)){ if (Math.abs(v.speed) > 3 || c.userData.speed > 3){ if (typeof onVehicleCrash === 'function') onVehicleCrash(v, Math.abs(v.speed) + 6); if (SFX.crashT <= 0){ crashSfx(Math.abs(v.speed) + 6); SFX.crashT = .6; } else thwack(); shake = .5; heroDamage((v.type==='moto' ? 18 : 6) * DIFF.dmg, 'car'); v.speed = -v.speed*.3 - 2; c.userData.speed = 0; v.dmg = (v.dmg||0) + 12; } } }
 }

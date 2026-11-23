@@ -7,7 +7,7 @@ const HAIR = ['#14100c','#2a1d15','#3b2b20','#6e6e6e','#1b1410'];
 const matCache = {}; const M = c => matCache[c] ||= new THREE.MeshStandardMaterial({ color: c, roughness: .85 });
 const NG = { leg: new THREE.BoxGeometry(.15,.9,.17), arm: new THREE.BoxGeometry(.11,.6,.12), hand: new THREE.SphereGeometry(.06,8,6), torso: new THREE.BoxGeometry(.46,.62,.26), gala: new THREE.BoxGeometry(.5,1.22,.3), head: new THREE.SphereGeometry(.13,14,10), hair: new THREE.SphereGeometry(.137,12,8,0,Math.PI*2,0,Math.PI/2), mus: new THREE.BoxGeometry(.12,.025,.02) };
 const npcs = [];
-const NAMES = ['حمادة','كريم','عم سيد','الحاج محمود','زيزو','أبو علي','شيكو','مصطفى','عم رجب','بيبو','حسن','تامر'];
+const NAMES = ['حمادة','كريم','عم سعيد','الحاج محمود','زيزو','أبو علي','شيكو','مصطفى','عم رجب','بيبو','حسن','تامر'];
 function makeNPC(){
   const g = new THREE.Group(), body = new THREE.Group(); g.add(body);
   const gal = rng() < .3;
@@ -38,6 +38,18 @@ function npcHit(n, power=1){
   if (n.thug){ n.thugHits = (n.thugHits||0) + 1; n.fightT = 999; if (n.thugHits >= 3){ n.thugDone = true; n.downT = 999; n.fightT = 0; say(n, 'خلاص… خلاص!', 2, 'angry'); thwack(); return; } }
   say(n, rpick(['آه يا عم!','إيه ده يا جدع!','هبلغ عنك!','يا ساتر!','حرام عليك!']), 2, 'angry'); thwack();
 }
+// an NPC can wear a 3D model instead of the low-poly body (شمس's men use the thug / soldier models)
+function npcWear3D(n, model){
+  if (n.r3 || !MODELS3D[model]) return false;
+  n.r3 = cloneRig(MODELS3D[model]); n.g.add(n.r3.mesh); n.body.visible = false; return true;
+}
+function npcTakeOff3D(n){ if (!n.r3) return; n.g.remove(n.r3.mesh); n.r3 = null; n.body.visible = true; }
+function animNPC3D(n, moving, sitting, dt){
+  let move = sitting ? 'sit' : moving > 3 ? 'run' : moving > 0 ? 'walk' : 'idle', o = { f: clamp(moving * 1.55, 4.5, 11) };
+  if (n.punchT > 0){ n.punchT -= dt; move = 'punch'; o.k = Math.sin(clamp(1 - n.punchT / .3, 0, 1) * Math.PI); o.side = 1; }
+  if (n.state === 'down') move = 'idle';
+  poseRig(n.r3, move, dt, o);
+}
 function updateNPC(n, dt){
   if (n.state === 'hidden') return;
   let moving = 0;
@@ -58,7 +70,7 @@ function updateNPC(n, dt){
     n.fightT -= dt; const tp = hero.pos; const dx = tp.x - n.g.position.x, dz = tp.z - n.g.position.z, d = Math.hypot(dx, dz);
     if (n.fightT <= 0 || d > 25 || hero.veh){ const bp = perimPos(blocksInfo[n.block], n.t); n.state = 'goto'; n.tx = bp[0]; n.tz = bp[1]; n.onArrive = n2 => { n2.state = 'walk'; }; }
     else if (d > 1.1){ const s = 4*dt; moveWithSlide(n.g.position, dx/d*s, dz/d*s, .3); n.yaw = Math.atan2(dx, dz); moving = 4; }
-    else { n.yaw = Math.atan2(dx, dz); n.atkT = (n.atkT||0) - dt; if (n.atkT <= 0){ n.atkT = 1.2; n.arms[1].rotation.x = -1.6; setTimeout(() => { n.arms[1].rotation.x = 0; if (n.state === 'fight' && n.g.position.distanceTo(hero.pos) < 1.7) heroDamage(5, 'npc'); }, 150); } }
+    else { n.yaw = Math.atan2(dx, dz); n.atkT = (n.atkT||0) - dt; if (n.atkT <= 0){ n.atkT = 1.2; n.arms[1].rotation.x = -1.6; n.punchT = .3; setTimeout(() => { n.arms[1].rotation.x = 0; if (n.state === 'fight' && n.g.position.distanceTo(hero.pos) < 1.7) heroDamage(5, 'npc'); }, 150); } }
     n.g.position.y = groundY(n.g.position.x, n.g.position.z);
   }
   // animation
@@ -68,6 +80,10 @@ function updateNPC(n, dt){
   else if (sitting){ n.legs[0].rotation.x = n.legs[1].rotation.x = -1.45; n.arms[0].rotation.x = n.arms[1].rotation.x = -.5; n.body.position.y = -.43; }
   else { n.legs[0].rotation.x *= .8; n.legs[1].rotation.x *= .8; n.arms[0].rotation.x *= .8; n.arms[1].rotation.x *= .8; n.body.position.y *= .8; }
   if (n.gestT > 0){ n.gestT -= dt; n.arms[1].rotation.x = -1.15 + Math.sin(n.gestT*9)*.45; n.arms[1].rotation.z = .25; } else if (n.arms[1].rotation.z) n.arms[1].rotation.z *= .8;
+  if (n.r3) animNPC3D(n, moving, sitting, dt);
   n.g.rotation.y = lerpAngle(n.g.rotation.y, n.yaw, damp(10, dt));
   n.g.rotation.x = -n.fall * 1.5; n.g.position.y += 0;
 }
+
+// a few people in the street wear the 3D man in the galabeya (models/npc.glb)
+[2, 7, 12, 19].forEach(i => { if (npcs[i]) npcWear3D(npcs[i], 'npc'); });

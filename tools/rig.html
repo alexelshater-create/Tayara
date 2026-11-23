@@ -1,0 +1,95 @@
+﻿<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>حركات الموديل</title>
+<style>
+  html,body{margin:0;height:100%;background:#2a2a2e;color:#eee;font-family:system-ui,sans-serif;overflow:hidden}
+  .bar{position:fixed;left:50%;transform:translateX(-50%);display:flex;gap:6px;flex-wrap:wrap;justify-content:center;max-width:96vw}
+  #moves{bottom:10px} #opts{top:8px}
+  .bar button{background:#444;color:#fff;border:0;border-radius:8px;padding:7px 11px;cursor:pointer;font-size:13px}
+  .bar button.on{background:#e0a21a;color:#111}
+  #info{position:fixed;bottom:58px;right:8px;background:rgba(0,0,0,.6);padding:6px 10px;border-radius:8px;font-size:12px;white-space:pre}
+</style>
+</head>
+<body>
+<div id="info">بيحمّل…</div>
+<div class="bar" id="opts"></div>
+<div class="bar" id="moves"></div>
+<script type="importmap">{"imports":{"three":"../vendor/three/three.module.min.js","three/addons/":"../vendor/three/addons/"}}</script>
+<script type="module">
+// Preview page for the 3D characters. It runs the game's own rig code (tools/rig3d.js is built from src/js/05b-rig3d.js).
+// URL: ?m=tayara|arabi  &move=walk  &view=front|side|back|face|feet  &yaw=0.5  &acc  &bones  &auto (cycles all moves)
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/GLTFLoader.js';
+import { rigModel, poseRig, make3DAccessories } from './rig3d.js';
+const q = new URLSearchParams(location.search), name = q.get('m') || 'tayara';
+let move = q.get('move') || 'idle', yaw = +(q.get('yaw') || .5), view = q.get('view') || 'full', showBones = q.has('bones'), auto = q.has('auto');
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }); renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); renderer.setSize(innerWidth, innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.shadowMap.enabled = true; document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x2a2a2e);
+const camera = new THREE.PerspectiveCamera(32, innerWidth / innerHeight, .05, 50);
+scene.add(new THREE.HemisphereLight(0xfff4e0, 0x5a5048, 1.6)); const sun = new THREE.DirectionalLight(0xfff1d8, 2.2); sun.position.set(2, 4, 3); sun.castShadow = true; scene.add(sun);
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(10, 10), new THREE.MeshStandardMaterial({ color: 0x8a6a55 })); floor.rotation.x = -Math.PI/2; floor.receiveShadow = true; scene.add(floor);
+const chair = new THREE.Mesh(new THREE.BoxGeometry(.5, .45, .5), new THREE.MeshStandardMaterial({ color: 0x6b4a2a })); chair.position.set(0, .225, -.02); chair.visible = false; scene.add(chair);
+const MOVES = [['idle', 'واقف'], ['walk', 'ماشي'], ['run', 'بيجري'], ['punch', 'بوكس'], ['hit', 'اتضرب'], ['talk', 'بيتكلم'], ['sit', 'قاعد'], ['moto', 'موتوسيكل'], ['dance', 'بيرقص'], ['cheer', 'بيشجع'], ['wave', 'بيشاور'], ['fall', 'وقع']];
+const VIEWS = [['full', 'كله'], ['front', 'قدام'], ['side', 'جنب'], ['back', 'ضهر'], ['face', 'الوش'], ['feet', 'الرجلين']];
+document.getElementById('moves').innerHTML = MOVES.map(([k, t]) => `<button data-m="${k}">${t}</button>`).join('');
+document.getElementById('opts').innerHTML = ['tayara', 'arabi'].map(n => `<button data-n="${n}" class="${n === name ? 'on' : ''}">${n === 'tayara' ? 'طيارة' : 'العربي'}</button>`).join('') + VIEWS.map(([k, t]) => `<button data-v="${k}">${t}</button>`).join('') + '<button id="rot">↻</button><button id="acc">🕶️</button><button id="bn">🦴</button><button id="au">▶ كله</button>';
+let R, helper, accs = null, fallT = 0;
+const mark = () => { document.querySelectorAll('[data-m]').forEach(b => b.classList.toggle('on', b.dataset.m === move)); document.querySelectorAll('[data-v]').forEach(b => b.classList.toggle('on', b.dataset.v === view)); };
+document.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { move = b.dataset.m; auto = false; mark(); });
+document.querySelectorAll('[data-v]').forEach(b => b.onclick = () => { view = b.dataset.v; mark(); });
+document.querySelectorAll('[data-n]').forEach(b => b.onclick = () => { q.set('m', b.dataset.n); location.search = q; });
+document.getElementById('rot').onclick = () => { yaw += Math.PI / 4; };
+document.getElementById('acc').onclick = () => { if (!accs) return; const on = !accs.glasses.visible; for (const k in accs) accs[k].visible = on; };
+document.getElementById('bn').onclick = () => { showBones = !showBones; if (helper) helper.visible = showBones; };
+document.getElementById('au').onclick = () => { auto = true; };
+mark();
+new GLTFLoader().load(name.includes('/') ? name : `../assets/models/${name}.glb`, g => {
+  let src; g.scene.traverse(o => { if (o.isMesh && !src) src = o; });
+  const t0 = performance.now(); R = rigModel(src); const ms = Math.round(performance.now() - t0);
+  R.mesh.castShadow = true; scene.add(R.mesh); helper = new THREE.SkeletonHelper(R.mesh); helper.visible = showBones; scene.add(helper);
+  if (name === 'tayara'){ accs = make3DAccessories(R); for (const k in accs) accs[k].visible = q.has('acc'); }
+  document.getElementById('info').textContent = `${name} · عضم: ${Object.keys(R.bones).length} · التركيب: ${ms}ms`;
+  window.__rig = R;
+});
+const clock = new THREE.Clock(); let autoT = 0, autoI = 0;
+const SHEET = q.get('sheet') ? q.get('sheet').split(',') : null, PH = +(q.get('ph') || 1.2);
+function drawSheet(){
+  const cols = SHEET.length, W = innerWidth, H = innerHeight, cw = W / cols, ch = H / 2; renderer.setScissorTest(true);
+  camera.aspect = cw / ch; camera.updateProjectionMatrix();
+  SHEET.forEach((mv, i) => {
+    const o = { snap: true }; if (mv === 'punch') { o.k = 1; o.side = 1; } if (mv === 'hit') o.k = 1;
+    R.t = PH; R.phase = PH; poseRig(R, mv, 0, o); chair.visible = mv === 'sit';
+    for (let r = 0; r < 2; r++){
+      const a = r ? Math.PI/2 + .15 : .35; camera.position.set(Math.sin(a) * 4.4, 1.05, Math.cos(a) * 4.4); camera.lookAt(0, .9, 0);
+      renderer.setViewport(i * cw, (1 - r) * ch, cw, ch); renderer.setScissor(i * cw, (1 - r) * ch, cw, ch); renderer.render(scene, camera);
+    }
+  });
+  renderer.setScissorTest(false);
+}
+renderer.setAnimationLoop(() => {
+  const dt = Math.min(clock.getDelta(), .05);
+  if (SHEET){ if (R) drawSheet(); return; }
+  if (auto){ autoT += dt; if (autoT > 2.2){ autoT = 0; autoI = (autoI + 1) % MOVES.length; move = MOVES[autoI][0]; mark(); } }
+  if (R){
+    const o = {};
+    if (move === 'punch'){ const c = (R.t % .9) / .28; o.k = c < 1 ? Math.sin(c * Math.PI) : 0; o.side = Math.floor(R.t / .9) % 2 ? -1 : 1; }
+    if (move === 'hit') o.k = Math.max(0, 1 - (R.t % 1.2) / .45);
+    if (move === 'walk') o.f = 6.2; if (move === 'run') o.f = 10;
+    fallT += ((move === 'fall' ? 1 : 0) - fallT) * (1 - Math.exp(-(move === 'fall' ? 9 : 4) * dt));
+    poseRig(R, move === 'fall' ? 'idle' : move, dt, o);
+    R.mesh.rotation.x = -fallT * 1.45; R.mesh.position.y = fallT * .12;
+    chair.visible = move === 'sit';
+  }
+  const V = { full: [4.6, 1.0, .9], front: [3.4, 1.2, 1.0], side: [3.4, 1.1, .95], back: [3.4, 1.2, 1.0], face: [.9, 1.62, 1.6], feet: [1.8, .5, .4] }[view];
+  const a = view === 'side' ? yaw + Math.PI/2 : view === 'back' ? yaw + Math.PI : view === 'full' ? yaw : view === 'feet' ? yaw + .9 : yaw * .3;
+  camera.position.set(Math.sin(a) * V[0], V[1], Math.cos(a) * V[0]); camera.lookAt(0, V[2], 0);
+  renderer.render(scene, camera);
+});
+addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+</script>
+</body>
+</html>

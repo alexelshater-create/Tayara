@@ -46,7 +46,7 @@ function updateCats(dt, t){
 }
 // ---- hero cheering (arms up and a hop) ----
 function heroCheer(){ hero.cheerT = 1.3; }
-function cheerPose(dt){ if (!(hero.cheerT > 0) || hero.veh) return; hero.cheerT -= dt; const d = hero.d, k = Math.min(1, hero.cheerT*3), hop = Math.abs(Math.sin(hero.cheerT*8))*.25*k; d.P.armL.rotation.z = -2.6*k; d.P.armR.rotation.z = 2.6*k; d.doll.position.y += hop; }
+function cheerPose(dt){ if (!(hero.cheerT > 0) || hero.veh) return; hero.cheerT -= dt; if (hero.d.is3D){ hero.d.forceMove = 'cheer'; return; } const d = hero.d, k = Math.min(1, hero.cheerT*3), hop = Math.abs(Math.sin(hero.cheerT*8))*.25*k; d.P.armL.rotation.z = -2.6*k; d.P.armR.rotation.z = 2.6*k; d.doll.position.y += hop; }
 // ---- Ramadan night (فوانيس، زينة، مسحراتي) ----
 PROG.ramadan = !!PROG.ramadan;
 const ramadan = new THREE.Group(); ramadan.visible = false; scene.add(ramadan);

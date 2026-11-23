@@ -26,7 +26,8 @@ const race = { active: false, t: 0, goal: new THREE.Vector3(-48, 0, -96) };
 const ENEMY_WAIT = new THREE.Vector3(28, .15, 40.2);
 // accessories drawn on top of the hero photo
 const ACC = {};
-{
+if (hero.d.is3D) Object.assign(ACC, make3DAccessories(hero.d.R));
+else {
   const d = hero.d, S = d.S, c = d.c;
   const plane = (tex, cx, cy, w, h, key, order=13) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w*S, h*S), new THREE.MeshBasicMaterial({ map: tex, transparent: true, alphaTest: .05, side: THREE.DoubleSide, toneMapped: false })); m.renderOrder = order; const piv = key ? c.piv[key] : [c.FX, c.FY]; m.position.set((cx - piv[0])*S, (piv[1] - cy)*S, .035); (key ? d.P[key] : d.P.body).add(m); m.visible = false; return m; };
   const tx = (w,h,draw) => { const t = makeTex(w,h,draw); t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping; return t; };
@@ -109,7 +110,7 @@ const shamsMoto = makeMoto('#212121'); shamsMoto.visible = false;
 // شمس as a fighter for the final fight
 const boss = { active: false, pos: V(0,0,0), hp: 160, atk: 0, downs: 0, vx: 0, vz: 0 };
 function bossTarget(p){ if (!boss.active || wantedD.downT > 0) return null; const d = boss.pos.distanceTo(p); return d < 1.9 ? { boss: true, x: boss.pos.x, z: boss.pos.z } : null; }
-function bossHit(big){ boss.hp -= big ? 34 : 18; thwack(); say(wanted, rpick(['آه!','ماشي يا طيارة!','لسه بدري!']), 1, 'angry'); if (boss.hp <= 0){ boss.downs++; boss.hp = 160; wantedD.downT = 3.5; say(wanted, boss.downs >= 2 ? 'خلاص… خلاص!' : 'قوم يا شمس… قوم', 2, 'angry'); } }
+function bossHit(big){ boss.hp -= big ? 34 : 18; wantedD.hitT = .45; thwack(); say(wanted, rpick(['آه!','ماشي يا طيارة!','لسه بدري!']), 1, 'angry'); if (boss.hp <= 0){ boss.downs++; boss.hp = 160; wantedD.downT = 3.5; say(wanted, boss.downs >= 2 ? 'خلاص… خلاص!' : 'قوم يا شمس… قوم', 2, 'angry'); } }
 function updateBoss(dt, t){
   if (!boss.active) return;
   const p = boss.pos, tg = hero.pos, dx = tg.x - p.x, dz = tg.z - p.z, dist = Math.hypot(dx, dz); boss.vx = boss.vz = 0;
@@ -171,7 +172,7 @@ function ghostStart(d, moto, doll, path, speed){
   doll.root.visible = true; doll.P.legL.visible = doll.P.legR.visible = false; doll.blob.visible = false; doll.downT = 0;
   d.gh = { moto, mesh, doll, path, i: 1, speed, yaw: Math.atan2(path[1][0]-path[0][0], path[1][1]-path[0][1]) }; ghostPose(d.gh, 0);
 }
-function ghostPose(g, dt){ const p = g.mesh.position; g.mesh.rotation.set(0, g.yaw, 0); if (g.moto.mesh) g.moto.yaw = g.yaw; p.y = groundY(p.x, p.z); g.doll.root.position.set(p.x - Math.sin(g.yaw)*.25, p.y + .86 - g.doll.hipY, p.z - Math.cos(g.yaw)*.25); animDoll(g.doll, 0, 0, dt, runTime); }
+function ghostPose(g, dt){ const p = g.mesh.position; g.mesh.rotation.set(0, g.yaw, 0); if (g.moto.mesh) g.moto.yaw = g.yaw; p.y = groundY(p.x, p.z); g.doll.root.position.set(p.x - Math.sin(g.yaw)*.25, p.y + .86 - g.doll.hipY, p.z - Math.cos(g.yaw)*.25); g.doll.faceYaw = g.yaw; animDoll(g.doll, 0, 0, dt, runTime); }
 function ghostStep(g, dt, sp){
   if (g.i < g.path.length){ const p = g.mesh.position, [tx, tz] = g.path[g.i], dx = tx - p.x, dz = tz - p.z, dd = Math.hypot(dx, dz), s = sp*dt;
     if (dd <= s){ p.x = tx; p.z = tz; g.i++; } else { p.x += dx/dd*s; p.z += dz/dd*s; }
@@ -204,9 +205,10 @@ function parkArabiMoto(){
 // --- thugs (شمس's men) ---
 function spawnThugs(d){
   d.thugs = [36, 37, 38].map(i => { const n = npcs[i]; const p = sidewalkNear(hero.pos, 9); n.role = 'thug'; n.thug = true; n.thugHits = 0; n.thugDone = false; n.g.visible = true; n.g.position.copy(p); n.state = 'fight'; n.fightT = 999; n.downT = 0; n.fall = 0; n.name = 'واحد من رجالة شمس'; return n; });
+  d.thugs.forEach((n, k) => npcWear3D(n, k === 1 ? 'soldier' : 'thug'));   // شمس's men in 3D when the models are there
   say(d.thugs[0], 'إنتوا بتعملوا إيه هنا؟!', 2.5, 'angry');
 }
-function clearThugs(d){ (d.thugs || []).forEach(n => { n.thug = false; n.thugDone = false; n.state = 'hidden'; n.g.visible = false; n.role = null; n.g.rotation.x = 0; }); d.thugs = null; }
+function clearThugs(d){ (d.thugs || []).forEach(n => { npcTakeOff3D(n); n.thug = false; n.thugDone = false; n.state = 'hidden'; n.g.visible = false; n.role = null; n.g.rotation.x = 0; }); d.thugs = null; }
 
 const MS = [
   // ===== prologue =====
@@ -270,7 +272,7 @@ const MS = [
     start: d => { arabiAppear(sidewalkNear(V(27, 0, 40.5), 3)); enemy.cd = 1.2; }, text: () => 'اهرب من العربي (ابعد عنه لحد ما يتوه) أو وقّعه في خناقة 👊', target: () => null,
     update: () => !enemy.active || enemy.d.downT > 0,
     outro: () => [ L('phone', '📱 إسلام: سمعت اللي حصل! العربي ده بيغلي من ساعة ما المعلم شغلك مكانه. خلي بالك منه… هيفضل وراك.') ] },
-  { id: 'domino', ch: 1, title: 'دومنو عم سيد', at: () => SPOT.domino, atR: 4, goText: 'عم سيد بيناديك على ترابيزة الدومنو (★)',
+  { id: 'domino', ch: 1, title: 'دومنو الحاج كامل', at: () => SPOT.domino, atR: 4, goText: 'الحاج كامل بيناديك على ترابيزة الدومنو (★)',
     intro: () => [ shot(SPOT.domino, -2.4, 1.1, 3),
       L('sayed', 'اقعد يا طيارة… سيبك من العربي. الدومنو بيعلّم الصبر.'),
       L('sayed', 'أول دور الدش يفتح. اللي يخلّص حجارته الأول ياخد نِمر اللي في إيد الباقيين، والماتش لـ ١٠١.'),
@@ -394,12 +396,12 @@ const MS = [
       L('tayara', 'شمس… الأسطى شمس بقى مطلوب؟! يعني اللي شفته في الورشة صح.') ],
     update: () => true },
   { id: 'sayed', ch: 4, title: 'حكاية شمس',
-    text: () => 'عم سيد عايزك على ترابيزة الدومنو (★)', target: () => SPOT.domino, update: reachU(() => SPOT.domino, 2.8),
+    text: () => 'الحاج كامل عايزك على ترابيزة الدومنو (★)', target: () => SPOT.domino, update: reachU(() => SPOT.domino, 2.8),
     outro: () => [ shot(SPOT.domino, -2.4, 1.1, 3),
       L('sayed', 'شمس ده كان زي ابني يا طيارة… صلّح موتوسيكلات الحتة ببلاش وقت الأزمة.'),
       L('sayed', 'استلف عشان يكبّر الورشة، والفلوس راحت، والديّانة على الباب كل يوم.'),
       L('sayed', 'اللي بيغرق بيتعلق في قشاية… وقشايته كانت حرام. لو لقيته، كلّمه الأول. جايز يرجع.'),
-      L('tayara', 'هحاول يا عم سيد… بس الأول لازم أعرف هو بيعمل إيه بالظبط.') ] },
+      L('tayara', 'هحاول يا حاج كامل… بس الأول لازم أعرف هو بيعمل إيه بالظبط.') ] },
   { id: 'clues', ch: 4, title: 'الأدلة',
     start: () => { addPickup(V(219, .15, -7.4)); addPickup(V(147, .15, -47.6)); addPickup(V(153, .15, 151.6)); },
     text: d => `دوّر على ٣ أدلة: عند الملعب، والسوق، والكورنيش (النقط الصفرا) ${nPick(d, 3)}`, target: () => nearestPick(), update: allPicked,
@@ -514,7 +516,7 @@ const MS = [
   { id: 'bossFight', ch: 7, title: 'على الكوبري', reward: 1000, koFail: true, spawn: V(96, 0, 199),
     intro: () => [ { do: () => { heroTo(96, 199); showActor(wantedD, 96, 210); copCar.pos.set(96, 0, 236); copCar.yaw = Math.PI; copCar.mesh.rotation.set(0, Math.PI, 0); } }, { cam: [101, 2.6, 196], look: [96, 1.4, 208], t: 1.4 },
       L('shams', 'خلاص يا طيارة؟ الكوبري مقفول… عايز المكافأة؟ تعالى خدها بإيدك.'),
-      L('tayara', 'مش عايز فلوس يا شمس… عايزك ترجع زي ما كنت. عم سيد لسه بيقول عليك ابنه.'),
+      L('tayara', 'مش عايز فلوس يا شمس… عايزك ترجع زي ما كنت. الحاج كامل لسه بيقول عليك ابنه.'),
       L('shams', 'اللي راح مبيرجعش!!') ],
     start: () => { heroTo(96, 199); boss.active = true; boss.hp = DIFF.dmg < 1 ? 120 : 160; boss.downs = 0; boss.atk = 1.2; boss.pos.set(96, 0, 209); wantedD.root.visible = true; wantedD.P.legL.visible = wantedD.P.legR.visible = true; wantedD.blob.visible = true; wantedD.downT = 0; },
     text: () => `وقّع شمس مرتين 👊 (${boss.downs}/2) · ${'❤️'.repeat(Math.ceil(boss.hp / 40))}`, target: () => null,
@@ -723,9 +725,9 @@ function resetWorld(){
   for (const d of [youssefD, enemyD, wantedD]){ d.root.visible = false; d.P.legL.visible = d.P.legR.visible = true; d.blob.visible = true; d.downT = 0; }
   islamD.P.legL.visible = islamD.P.legR.visible = false; islamD.blob.visible = false;
   vehicles.forEach(v => { v.pos.set(v.home.x, v.home.y||0, v.home.z); v.yaw = v.home.yaw; v.mesh.rotation.set(0, v.yaw, 0); v.speed = 0; v.dmg = 0; v.broke = false; });
-  seatIslam(false); thiefReset();
+  seatIslam(false); seatKamel(false); thiefReset();
   motoTag.visible = carTag.visible = false; missionMark.visible = false; race.active = false; enemy.boss = false; enemy.maxHp = 100; $('shop').hidden = true; $('storyEnd').hidden = true;
-  npcs.forEach(n => { n.state = 'hidden'; n.g.visible = false; n.role = null; n.onArrive = null; n.thug = false; n.thugDone = false; n.g.rotation.x = 0; });
+  npcs.forEach(n => { if (n.thug) npcTakeOff3D(n); n.state = 'hidden'; n.g.visible = false; n.role = null; n.onArrive = null; n.thug = false; n.thugDone = false; n.g.rotation.x = 0; });
   let i = 0;
   for (; i<WALKERS; i++) setWalker(npcs[i]);
   enemy.active = false; enemy.d.root.visible = false; wanted.active = false; wanted.d.root.visible = false;
@@ -741,7 +743,8 @@ function resetWorld(){
 function seatDeco(start){
   // domino friends + café regulars (decor in free modes)
   const a = npcs[start], b = npcs[start+1];
-  seatNPC(a, SPOT.domino.x-.85, SPOT.domino.z, Math.PI/2); a.state = 'domino'; a.name = 'عم سيد';
+  seatNPC(a, SPOT.domino.x-.85, SPOT.domino.z, Math.PI/2); a.state = 'domino'; a.name = 'الحاج كامل';
+  if (seatKamel(true)){ a.state = 'hidden'; a.g.visible = false; }   // the 3D الحاج كامل takes the seat
   seatNPC(b, SPOT.domino.x+.85, SPOT.domino.z, -Math.PI/2); b.state = 'hidden'; b.g.visible = false; seatIslam(true);
   let k = start+2; [0,3,5,8,10].forEach(si => { const s = SEATS[si]; seatNPC(npcs[k], s.x, s.z, s.ry); k++; });
   const v = npcs[k]; seatNPC(v, SPOT.cartHero.x, SPOT.cartHero.z, 0); v.state = 'idle'; v.g.position.y = .15; k++;
@@ -771,7 +774,8 @@ function startMode(id){
         onKO: () => endMode('العربيات بهدلتك 🚗', `${heroName} لم ${egp(modeObj.money)} قبل ما يقع.`) }; },
     story: () => {
       hero.money = SAVE.money; const a = npcs[free], b = npcs[free+1];
-      seatNPC(a, SPOT.domino.x-.85, SPOT.domino.z, Math.PI/2); a.state = 'domino'; a.name = 'عم سيد';
+      seatNPC(a, SPOT.domino.x-.85, SPOT.domino.z, Math.PI/2); a.state = 'domino'; a.name = 'الحاج كامل';
+      if (seatKamel(true)){ a.state = 'hidden'; a.g.visible = false; }
       seatNPC(b, SPOT.domino.x+.85, SPOT.domino.z, -Math.PI/2); b.state = 'hidden'; b.g.visible = false; seatIslam(true);
       decoGlasses.forEach(g => g.visible = false);
       setupNamed(); arabiHide(); enemy.boss = false; enemy.maxHp = 100; hero.pos.copy(SPOT.spawn);

@@ -117,7 +117,7 @@ function photoTick(dt, t){
   if (PHOTO.pose === 1){ if (d.punchT <= 0){ d.punchT = .28; d.punchSide = -d.punchSide || 1; } }
   if (PHOTO.pose === 3) d.downT = Math.max(d.downT, .5); else d.downT = 0;
   const dance = PHOTO.pose === 2 ? Math.sin(t*6) : 0;
-  animDoll(d, dance*2.5, 0, dt, t); if (PHOTO.pose === 2){ d.doll.rotation.z = dance*.12; d.doll.position.y += Math.abs(dance)*.08; }
+  if (d.is3D){ d.forceMove = PHOTO.pose === 2 ? 'dance' : null; animDoll(d, 0, 0, dt, t); } else animDoll(d, dance*2.5, 0, dt, t); if (PHOTO.pose === 2 && !d.is3D){ d.doll.rotation.z = dance*.12; d.doll.position.y += Math.abs(dance)*.08; }
   for (const x of [enemy, wanted]) if (x.active && x.d.root.visible) animDoll(x.d, 0, 0, 0, t);
   updateBubbles(dt);
 }

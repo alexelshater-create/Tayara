@@ -456,3 +456,15 @@ body.in-act #joy,body.in-act #joyHint,body.in-act #punchBtn,body.in-act #runBtn{
   #tawla .dmsg{font-size:13px;min-height:0}
 }
 #tawla .dpanel,#domino .dpanel{overflow-x:hidden}
+
+/* intro video (assets/intro/intro.mp4): the film plays full screen, name tags and the title go on top */
+.intro .ivideo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none;background:#000}
+.intro.video .ivideo{display:block}
+.intro.video .ibg,.intro.video .fp,.intro.video .icard,.intro.video .ikicker{display:none}
+.intro.video .ishade{background:linear-gradient(transparent 60%,rgba(0,0,0,.55))}
+.intro.video.final .ishade{background:linear-gradient(rgba(0,0,0,.55),transparent 32%,transparent 70%,rgba(0,0,0,.5))}
+.iname{position:absolute;right:5%;bottom:13%;max-width:60%;text-align:right;opacity:0;transform:translateX(50px);pointer-events:none;z-index:5}
+.iname.show{opacity:1;transform:none;transition:opacity .35s,transform .5s cubic-bezier(.2,.9,.3,1)}
+.iname.hide{opacity:0;transform:translateX(-20px);transition:opacity .4s,transform .4s}
+.iname b{display:block;font-size:clamp(30px,11vh,104px);line-height:1.05;font-weight:900;color:#fff;text-shadow:0 5px 0 var(--c),0 10px 28px rgba(0,0,0,.75)}
+.iname span{display:inline-block;margin-top:10px;font-size:clamp(13px,3.4vh,28px);font-weight:800;color:#1a1208;background:var(--c);padding:3px 12px;border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,.45)}

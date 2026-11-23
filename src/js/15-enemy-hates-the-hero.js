@@ -3,7 +3,7 @@ const enemy = { d: enemyD, pos: new THREE.Vector3(), vel: new THREE.Vector3(), h
 const ENEMY_LINES = ['انت تاني يا طيارة!','تعالى هنا!','مش طايقك!','النهارده يومك!','هتروح فين مني؟'];
 function spawnEnemy(){ enemy.active = true; enemy.d.root.visible = true; enemy.hp = 100; enemy.state = 'roam'; enemy.cd = 6; const p = randomSidewalkPoint(45, hero.pos); enemy.pos.copy(p); enemy.block = blocksInfo.findIndex(b => Math.abs(p.x-b.cx) < 20 && Math.abs(p.z-b.cz) < 20); if (enemy.block < 0) enemy.block = 0; enemy.t = R(0,4); enemy.d.downT = 0; }
 function hitEnemy(dmg, from){
-  enemy.hp -= dmg; thwack(); const dx = enemy.pos.x - from.x, dz = enemy.pos.z - from.z, d = Math.hypot(dx,dz)||1;
+  enemy.hp -= dmg; enemy.d.hitT = .45; thwack(); const dx = enemy.pos.x - from.x, dz = enemy.pos.z - from.z, d = Math.hypot(dx,dz)||1;
   moveWithSlide(enemy.pos, dx/d*1.2, dz/d*1.2);
   if (enemy.hp <= 0){ stat('arabiDown'); enemy.d.downT = 6; enemy.state = 'down'; enemy.cd = 12; enemy.hp = enemy.maxHp || 100; say(enemy, 'ماشي يا طيارة… هترجعلي', 3, 'angry'); if (modeObj.onEnemyDown) modeObj.onEnemyDown(); }
   else say(enemy, rpick(['آه!','ماشي!','بتضربني؟!']), 1.2, 'angry');

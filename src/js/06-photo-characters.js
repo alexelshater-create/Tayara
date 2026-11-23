@@ -17,7 +17,55 @@ function makeDoll(c, heightM){
   scene.add(root);
   return { S, c, root, doll, P, mats, blob, phase: 0, tilt: 0, punchT: 0, punchSide: 1, downT: 0, fall: 0, height: heightM, hipY: (c.FY - c.parts.body[1] - c.parts.body[3]) * S };
 }
+// a 3D character with the same fields as a photo doll, so the rest of the game can use either one.
+// P holds stand-ins (not in the scene): hiding the legs still means "seated" (moto), and photo-only extras attach harmlessly.
+function makeDoll3D(R, c, heightM){
+  const root = new THREE.Group(), doll = new THREE.Group(); root.add(doll);
+  const k = heightM / R.H; R.mesh.scale.setScalar(k); doll.add(R.mesh);
+  const P = { legL: new THREE.Object3D(), legR: new THREE.Object3D(), body: new THREE.Object3D(), armL: new THREE.Object3D(), armR: new THREE.Object3D() };
+  const blob = new THREE.Mesh(blobGeo, blobMat); blob.rotation.x = -Math.PI/2; blob.position.y = .03; blob.scale.set(.7, .9, 1); root.add(blob);
+  scene.add(root);
+  return { is3D: true, R, S: heightM / c.PH, c, root, doll, P, mats: [R.mesh.material], blob, phase: 0, tilt: 0, punchT: 0, punchSide: 1, downT: 0, fall: 0, height: heightM,
+    hipY: .5 * heightM - .02, yaw: 0, faceYaw: null, forceMove: null, seatMove: 'moto' };
+}
+// a thud when someone hits the ground
+function fallSfx(d){ if (d.fall > .6 && !d.thudded){ d.thudded = true; if (d.root.visible) thud(sfxVol(d.root.position.x, d.root.position.z)); } else if (d.fall < .2) d.thudded = false; }
+function makeCharacter(model, c, heightM){ return MODELS3D[model] ? makeDoll3D(MODELS3D[model], c, heightM) : makeDoll(c, heightM); }
+function anim3D(d, vx, vz, dt, t){
+  const sp = Math.hypot(vx, vz), seated = !d.P.legL.visible;
+  let move = seated ? d.seatMove : sp > 5.4 ? 'run' : sp > .35 ? 'walk' : 'idle', o = { f: clamp(sp * 1.55, 4.5, 11) };
+  if (d.forceMove){ move = d.forceMove; d.forceMove = null; }
+  if (d.punchT > 0 && !seated){ d.punchT -= dt; move = 'punch'; o.k = Math.sin(clamp(1 - d.punchT/.28, 0, 1) * Math.PI); o.side = d.punchSide; }
+  if (d.downT > 0) d.downT -= dt;
+  d.fall += ((d.downT > 0 ? 1 : 0) - d.fall) * damp(d.downT > 0 ? 9 : 4, dt);
+  if (d.fall > .05) move = 'idle';
+  fallSfx(d);
+  // taking a hit (set by the damage code), and talking with the hands while his line is on screen
+  if (d.hitT > 0){ d.hitT -= dt; if (!seated && d.fall < .05 && move !== 'punch'){ move = 'hit'; o.k = clamp(d.hitT / .45 * 1.6, 0, 1); } }
+  if (d.talkT > 0){ d.talkT -= dt; if (move === 'idle' && d.fall < .05) move = 'talk'; }
+  // facing: the bike's heading when seated, the way he moves when walking; standing still, the others turn to the hero
+  let want = null;
+  if (seated) want = d.faceYaw;
+  else if (sp > .35) want = Math.atan2(vx, vz);
+  else if (d !== hero.d){ const dx = hero.pos.x - d.root.position.x, dz = hero.pos.z - d.root.position.z, dd = Math.hypot(dx, dz); if (dd > .4 && dd < 25) want = Math.atan2(dx, dz); }
+  const yaw0 = d.yaw;
+  if (want != null) d.yaw = seated ? want : lerpAngle(d.yaw, want, damp(sp > .35 ? 12 : 4, dt));
+  d.root.rotation.y = d.yaw;
+  // lean into turns when running; standing still, the head turns toward the camera (cutscenes) or the hero
+  const turn = dt > 0 ? lerpAngle(0, d.yaw - yaw0, 1) / dt : 0;
+  d.lean = (d.lean || 0) + ((sp > 3 && !seated ? clamp(-turn * sp * .012, -.25, .25) : 0) - (d.lean || 0)) * damp(6, dt); o.lean = d.lean;
+  if (!seated && sp < .35 && d.fall < .05){
+    const tgt = CUT.on || d === hero.d ? camera.position : hero.pos, dx = tgt.x - d.root.position.x, dz = tgt.z - d.root.position.z;
+    const rel = lerpAngle(0, Math.atan2(dx, dz) - d.yaw, 1), want2 = Math.abs(rel) < 1.7 && Math.hypot(dx, dz) < 20 ? rel * .85 : 0;
+    d.look = (d.look || 0) + (want2 - (d.look || 0)) * damp(5, dt);
+  } else d.look = (d.look || 0) * (1 - damp(8, dt));
+  o.look = d.look;
+  d.blob.visible = d.blob.visible && !seated;
+  poseRig(d.R, move, dt, o);
+  d.doll.position.set(0, d.fall * .12, 0); d.doll.rotation.set(-d.fall * 1.45, 0, 0);
+}
 function animDoll(d, vx, vz, dt, t){
+  if (d.is3D) return anim3D(d, vx, vz, dt, t);
   const sp = Math.hypot(vx, vz);
   d.phase += dt * sp * 1.6;
   const amp = Math.min(sp/5, 1.35), s = Math.sin(d.phase);
@@ -38,6 +86,7 @@ function animDoll(d, vx, vz, dt, t){
   if (d.downT > 0) d.downT -= dt;
   d.fall += ((d.downT > 0 ? 1 : 0) - d.fall) * damp(d.downT > 0 ? 9 : 4, dt);
   d.doll.rotation.x = -d.fall * 1.45; d.doll.position.y += d.fall * .12;
+  fallSfx(d);
 }
-const hero = { d: makeDoll(CH.hero, 1.8), pos: new THREE.Vector3(), vel: new THREE.Vector3(), knock: new THREE.Vector3(), hp: 100, stamina: 1, tired: false, inv: 0, hurtT: 0, money: 50, veh: null, locked: false, lastDir: new THREE.Vector3(0,0,1) };
-const wantedD = makeDoll(CH.wanted, 1.78), enemyD = makeDoll(CH.enemy, 1.84);
+const hero = { d: makeCharacter('tayara', CH.hero, 1.8), pos: new THREE.Vector3(), vel: new THREE.Vector3(), knock: new THREE.Vector3(), hp: 100, stamina: 1, tired: false, inv: 0, hurtT: 0, money: 50, veh: null, locked: false, lastDir: new THREE.Vector3(0,0,1) };
+const wantedD = makeCharacter('shams', CH.wanted, 1.78), enemyD = makeCharacter('arabi', CH.enemy, 1.84);

@@ -17,7 +17,7 @@ const teamOf = s => s % 2;          // seat 0 (you) and 2 (partner) are team 0
 const isMe = s => s === 0;
 const NS = () => DOM.seats.length;
 const hand = s => DOM.hands[s];
-const teamName = tm => DOM.mode === '1v1' ? (tm === 0 ? heroName : 'عم سيد') : (tm === 0 ? 'إحنا' : 'هما');
+const teamName = tm => DOM.mode === '1v1' ? (tm === 0 ? heroName : 'الحاج كامل') : (tm === 0 ? 'إحنا' : 'هما');
 function openDomino(){
   hero.locked = true; $('domino').hidden = false; document.body.classList.add('in-domino');
   if (DOM.matchOver){ $('dPick').hidden = false; $('dGame').hidden = true; $('dScore').textContent = modeObj.domBet ? `الرهان ${Math.min(modeObj.domBet, Math.floor(hero.money))} جنيه` : ''; }
@@ -31,7 +31,7 @@ function newDominoMatch(mode){
   DOM.mode = mode; DOM.score = [0,0]; DOM.matchOver = false; DOM.lastWinner = null;
   DOM.target = mode === '1v1' ? 101 : 151;
   DOM.seats = mode === '1v1'
-    ? [{ name: heroName, face: CH.hero.img.face }, { name: 'عم سيد', face: null }]
+    ? [{ name: heroName, face: CH.hero.img.face }, { name: 'الحاج كامل', face: null }]
     : [{ name: heroName, face: CH.hero.img.face }, { name: 'شمس', face: CH.wanted.img.face }, { name: 'إسلام', face: CH.islam.img.face }, { name: 'العربي', face: CH.enemy.img.face }];
   $('dPick').hidden = true; $('dGame').hidden = false; document.querySelector('.seats').classList.toggle('four', mode === '2v2');
   newDominoRound();
@@ -182,7 +182,7 @@ function commitPlayer(i, side, cheat=false){
   const t = hand(0)[i], prev = { L: DOM.L, R: DOM.R };
   const s = placeTile(t, side, cheat); if (!s) return;
   hand(0).splice(i,1); DOM.sel = null; DOM.selCheat = false; DOM.lastSide = s; DOM.cheats = []; DOM.accused = false;
-  tone(700,500,.06,'triangle',.15); buzz(10);
+  tileClack(); buzz(10);
   if (cheat){
     if (Math.random() < .6){ unplace(s, prev); hand(0).splice(i, 0, t); DOM.score[1] += 50; tone(300,150,.4,'sawtooth',.1); buzz(60); dMsg(`🚨 اتمسكت بتغش! +٥٠ لـ ${teamName(1)}`); speak('بتغش؟'); renderDomino(); checkMatch(); return; }
     dMsg(`نزّلت ${tName(t)} غش… محدش خد باله 🤫`);
@@ -240,13 +240,13 @@ function aiTurn(){
   const seat = DOM.turn, p = DOM.seats[seat], opp = teamOf(seat) === 1;
   let opts = aiLegal(seat);
   if (DOM.board.length && opp && opts.length && Math.random() < .05){ DOM.cheats.push({ seat, type: 'pass' }); dMsg(`${p.name}: «فوّت»`); return nextTurn(); }
-  if (DOM.board.length && opp && Math.random() < .03 && hand(seat).length > 1){ const bad = hand(seat).find(t => !touches(t, DOM.L) && !touches(t, DOM.R)); if (bad){ const prev = { L: DOM.L, R: DOM.R }, side = Math.random() < .5 ? 'L' : 'R'; placeTile(bad, side, true); hand(seat).splice(hand(seat).indexOf(bad), 1); DOM.lastSide = side; DOM.cheats.push({ seat, type: 'tile', t: bad, side, prev }); dMsg(`${p.name} نزل ${tName(bad)}`); tone(600,420,.06,'triangle',.15); return afterPlay(seat, false); } }
+  if (DOM.board.length && opp && Math.random() < .03 && hand(seat).length > 1){ const bad = hand(seat).find(t => !touches(t, DOM.L) && !touches(t, DOM.R)); if (bad){ const prev = { L: DOM.L, R: DOM.R }, side = Math.random() < .5 ? 'L' : 'R'; placeTile(bad, side, true); hand(seat).splice(hand(seat).indexOf(bad), 1); DOM.lastSide = side; DOM.cheats.push({ seat, type: 'tile', t: bad, side, prev }); dMsg(`${p.name} نزل ${tName(bad)}`); tileClack(); return afterPlay(seat, false); } }
   let drew = 0;
   if (DOM.mode === '1v1') while (!opts.length && DOM.bone.length){ DOM.weak[seat] = [...new Set([...DOM.weak[seat], DOM.L, DOM.R])]; hand(seat).push(DOM.bone.pop()); drew++; opts = aiLegal(seat); }
   if (!opts.length){ DOM.weak[seat] = [...new Set([...DOM.weak[seat], DOM.L, DOM.R])]; dMsg(drew ? `${p.name} سحب ${drew} وفوّت` : `${p.name} فوّت`); return nextTurn(); }
   opts.sort((a,b) => aiScore(seat, b) - aiScore(seat, a));
   const o = opts[0]; placeTile(o.t, o.side); hand(seat).splice(hand(seat).indexOf(o.t), 1); DOM.lastSide = o.side;
-  tone(600,420,.06,'triangle',.15);
+  tileClack();
   const blocked = isBlocked(), says = blocked && Math.random() < .88;
   dMsg(`${drew ? `${p.name} سحب ${drew} ونزل ` : `${p.name} نزل `}${tName(o.t)}${says ? ' وقال «قفلة!» 🔒' : ''}${!blocked && hand(seat).length && Math.random() < .25 ? ' · «' + rpick(TALK) + '»' : ''}`);
   if (Math.random() < .5) speak(tName(o.t));

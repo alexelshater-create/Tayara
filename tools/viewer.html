@@ -1,0 +1,43 @@
+﻿<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>معاينة موديل</title>
+<style>
+  html,body{margin:0;height:100%;background:#2a2a2e;color:#eee;font-family:system-ui,sans-serif}
+  #info{position:fixed;top:8px;right:8px;background:rgba(0,0,0,.6);padding:6px 10px;border-radius:8px;font-size:13px;white-space:pre}
+  #views{position:fixed;top:8px;left:8px;display:flex;gap:6px}
+  #views button{background:#444;color:#fff;border:0;border-radius:6px;padding:6px 10px;cursor:pointer}
+</style>
+</head>
+<body>
+<div id="info">بيحمّل…</div>
+<div id="views"><button data-v="front">قدام</button><button data-v="side">جنب</button><button data-v="back">ضهر</button><button data-v="top">فوق</button></div>
+<script type="importmap">{"imports":{"three":"../vendor/three/three.module.min.js","three/addons/":"../vendor/three/addons/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/GLTFLoader.js';
+const q = new URLSearchParams(location.search), file = q.get('m') || 'models/test.glb';
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); renderer.setSize(innerWidth, innerHeight); renderer.outputColorSpace = THREE.SRGBColorSpace; document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x2a2a2e);
+const camera = new THREE.PerspectiveCamera(30, innerWidth / innerHeight, .01, 100);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x555555, 1.6)); const d = new THREE.DirectionalLight(0xffffff, 1.6); d.position.set(1, 2, 3); scene.add(d);
+const grid = new THREE.GridHelper(4, 20, 0x666666, 0x3a3a3a); scene.add(grid);
+let box, center = new THREE.Vector3(), size = new THREE.Vector3(), view = q.get('v') || 'front', model;
+function place(){ const h = q.has('fit') ? Math.max(size.x, size.y, size.z) : size.y, dist = h * 2.1; camera.near = h / 200; camera.far = h * 30; camera.updateProjectionMatrix(); if (view === 'face'){ const c = center.clone(); c.y = box.max.y - h * .09; camera.position.set(c.x + h * .08, c.y, c.z + h * .55 * (q.has('rev') ? -1 : 1)); camera.lookAt(c); renderer.render(scene, camera); return; } const p = { front: [0, 0, dist], side: [dist, 0, 0], back: [0, 0, -dist], top: [0, dist * .9, dist * .5], q3: [dist * .6, dist * .3, dist * .75], q3b: [-dist * .6, dist * .3, -dist * .75] }[view]; camera.position.set(center.x + p[0], center.y + p[1] + h * .05, center.z + p[2]); camera.lookAt(center); renderer.render(scene, camera); }
+document.querySelectorAll('[data-v]').forEach(b => b.onclick = () => { view = b.dataset.v; place(); });
+new GLTFLoader().load(file, g => {
+  model = g.scene; scene.add(model); model.updateMatrixWorld(true);
+  if (q.has('noplane')) model.traverse(o => { if (o.isMesh){ o.geometry.computeBoundingBox(); const s = o.geometry.boundingBox.getSize(new THREE.Vector3()).applyMatrix4(new THREE.Matrix4().extractRotation(o.matrixWorld)); const e = o.geometry.boundingBox.clone().applyMatrix4(o.matrixWorld).getSize(new THREE.Vector3()); if (Math.min(e.x, e.y, e.z) < 0.02 && Math.max(e.x, e.z) > 20) o.visible = false; } });
+  box = new THREE.Box3(); model.traverse(o => { if (!o.isMesh || !o.visible) return; if (o.isSkinnedMesh){ o.skeleton.update(); o.computeBoundingBox(); box.union(o.boundingBox.clone().applyMatrix4(o.matrixWorld)); } else box.union(new THREE.Box3().setFromObject(o)); }); box.getCenter(center); box.getSize(size);
+  grid.position.y = box.min.y;
+  let tris = 0; model.traverse(o => { if (o.isMesh) tris += (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3; });
+  document.getElementById('info').textContent = `${file}\nمثلثات: ${Math.round(tris).toLocaleString()}\nالحجم: ${size.x.toFixed(2)} × ${size.y.toFixed(2)} × ${size.z.toFixed(2)}`;
+  window.__model = { model, size, center, tris }; place();
+}, undefined, e => { document.getElementById('info').textContent = 'خطأ: ' + e.message; });
+addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); place(); });
+</script>
+</body>
+</html>

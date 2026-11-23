@@ -68,7 +68,7 @@ function addVehicle(type, x, z, yaw, color){
     circles: type==='moto' ? [[0,.6]] : type==='tuk' ? [[.7,.85],[-.6,.85]] : [[1.25,1.05],[-1.25,1.05]], home: { x, z, yaw } };
   vehicles.push(v); return v;
 }
-const reserved = [[11,43.3],[19,43],[32,43]];
+const reserved = [[11,43.3],[19,43],[32,43],[26,43.2]];   // the last one is العربي's sports car (05c)
 const heroMoto = addVehicle('moto', 11, 43.3, Math.PI/2, '#b3121f');
 const heroCar = addVehicle('car', 19, 43, Math.PI/2, '#e8b21a');
 const copCar = addVehicle('police', 32, 43, Math.PI/2, '#f4f4f4');

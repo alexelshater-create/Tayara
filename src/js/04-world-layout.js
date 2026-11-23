@@ -427,8 +427,8 @@ const tableList = TABLES.map(([x,z]) => ({ x, z })).concat([{ x: SPOT.domino.x, 
   const top = new THREE.CylinderGeometry(.55,.55,.05,20); top.translate(0,.88,0);
   const leg = new THREE.CylinderGeometry(.05,.05,.72,8); leg.translate(0,.5,0);
   const foot = new THREE.CylinderGeometry(.3,.3,.04,14); foot.translate(0,.17,0);
-  instanced(mergeGeometries([top]), new THREE.MeshStandardMaterial({ color: 0xd9d4c7, roughness: .5, metalness: .2 }), tableList);
-  instanced(mergeGeometries([leg, foot]), new THREE.MeshStandardMaterial({ color: 0x4a4a4a, metalness: .6, roughness: .4 }), tableList);
+  const oldTop = instanced(mergeGeometries([top]), new THREE.MeshStandardMaterial({ color: 0xd9d4c7, roughness: .5, metalness: .2 }), tableList);
+  const oldBase = instanced(mergeGeometries([leg, foot]), new THREE.MeshStandardMaterial({ color: 0x4a4a4a, metalness: .6, roughness: .4 }), tableList);
   tableList.forEach(t => obstacles.push({ minX:t.x-.5, maxX:t.x+.5, minZ:t.z-.5, maxZ:t.z+.5 }));
   const chairParts = []; box(chairParts, .44,.05,.44, 0,.47,0, '#ffffff'); box(chairParts, .44,.48,.05, 0,.72,-.2, '#ffffff');
   for (const [a,b] of [[-.19,-.19],[.19,-.19],[-.19,.19],[.19,.19]]) box(chairParts, .04,.47,.04, a,.235,b, '#ffffff');
@@ -436,6 +436,16 @@ const tableList = TABLES.map(([x,z]) => ({ x, z })).concat([{ x: SPOT.domino.x, 
   const chairs = SEATS.map(s => ({ x:s.x, z:s.z, ry:s.ry, y:.15 })).concat([{ x:SPOT.domino.x-.85, z:SPOT.domino.z, ry:Math.PI/2, y:.15 }, { x:SPOT.domino.x+.85, z:SPOT.domino.z, ry:-Math.PI/2, y:.15 }]);
   const chairIM = instanced(chairGeo, new THREE.MeshStandardMaterial({ vertexColors: true, color: 0xffffff, roughness: .6 }), chairs);
   const cc = new THREE.Color(); chairs.forEach((c,i) => { cc.set(i%3===0 ? '#c9302c' : '#f2f0ea'); chairIM.setColorAt(i, cc); });
+  // the café's real furniture (assets/props/cafe-set.glb: green bistro chairs, marble tables on iron feet) replaces the simple shapes once it has loaded
+  (async () => { try {
+    const { GLTFLoader } = await import('three/addons/GLTFLoader.js');
+    const g = (await new GLTFLoader().loadAsync('assets/props/cafe-set.glb')).scene; g.updateMatrixWorld(true);
+    const part = n => { let m = null; g.traverse(o => { if (o.isMesh && (o.name === n || o.parent.name === n) && !m) m = o; }); if (!m) return null; const geo = m.geometry.clone(); geo.applyMatrix4(m.matrixWorld); return { geo, mat: m.material }; };
+    const ch = part('chair'), tt = part('table_top'), tb = part('table_base'); if (!ch || !tt || !tb) return;
+    const onFloor = list => list.map(t => ({ ...t, y: .15 }));
+    instanced(ch.geo, ch.mat, chairs); instanced(tt.geo, tt.mat, onFloor(tableList)); instanced(tb.geo, tb.mat, onFloor(tableList));
+    chairIM.visible = false; if (oldTop) oldTop.visible = false; if (oldBase) oldBase.visible = false;
+  } catch (e){ console.warn('café furniture model failed, keeping the simple one', e); } })();
   // dominoes on the domino table
   const dp = []; for (let i=0;i<9;i++) box(dp, .09,.025,.18, SPOT.domino.x - .36 + i*.095, 1.04, SPOT.domino.z + (i%2?.05:-.05), '#f4f0e6');
   for (let i=0;i<5;i++) box(dp, .09,.18,.025, SPOT.domino.x - .2 + i*.1, 1.11, SPOT.domino.z - .38, '#f4f0e6');
