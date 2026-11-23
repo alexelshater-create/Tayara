@@ -26,7 +26,7 @@ function newPassenger(){
   const n = npcs.find(x => x.state === 'hidden' && !x.role); if (!n){ JOB.pax = null; return; }
   const from = randomSidewalkPoint(35, hero.veh ? hero.veh.pos : hero.pos); n.role = 'pax'; n.g.visible = true; n.state = 'idle'; n.g.position.copy(from); n.yaw = 0;
   JOB.pax = { n, from, to: null, t: 0, total: 0, onboard: false, line: rpick(TUK_LINES) };
-  say(n, 'توكتوك! 🙋', 3);
+  say(n, JOB.kind === 'taxi' ? 'تاكسي! 🙋' : JOB.kind === 'micro' ? 'رايح الرمل؟ 🙋' : 'توكتوك! 🙋', 3);
 }
 function endJob2(silent){
   if (!JOB.kind) return; const k = JOB.kind;
@@ -50,8 +50,8 @@ function updateJobs(dt){
       JOB.order = null; JOB.nextT = 1.6;
     }
   } else if (JOB.kind === 'pizza'){ JOB.nextT -= dt; if (JOB.nextT <= 0){ newPizzaOrder(); banner(`🍕 طلب جديد في ${JOB.order.area}`, 'info', 2); } }
-  if (JOB.kind === 'tuk'){
-    const p = JOB.pax; if (!p){ JOB.nextT -= dt; if (JOB.nextT <= 0) newPassenger(); return; }
+  if (JOB.kind === 'tuk' || JOB.kind === 'taxi' || JOB.kind === 'micro'){
+    const tukVeh = JOB_VEH[JOB.kind], p = JOB.pax; if (!p){ JOB.nextT -= dt; if (JOB.nextT <= 0) newPassenger(); return; }
     if (!p.onboard){
       if (hero.veh === tukVeh && f.distanceTo(p.n.g.position) < 5 && Math.abs(tukVeh.speed) < 4){
         p.onboard = true; p.n.g.visible = false; p.to = randomSidewalkPoint(60, f); const d = p.to.distanceTo(f); p.total = p.t = (d / 7 + 20) * (DIFF.pat > 1 ? 1.3 : 1);
@@ -62,18 +62,18 @@ function updateJobs(dt){
       if (f.distanceTo(p.to) < 5.5 && Math.abs(tukVeh.speed) < 5){
         const n = p.n; n.g.visible = true; n.g.position.set(p.to.x + 1.6, .15, p.to.z); n.state = 'hidden'; say(n, rpick(['تسلم يا أسطى','الله يكرمك','أسرع توكتوك في مصر!']), 2);
         setTimeout(() => { n.g.visible = false; n.role = null; }, 2200);
-        payJob(10, clamp(p.t / p.total, 0, 1) * 8, '🛺 وصّلت الزبون'); JOB.pax = null; JOB.nextT = 2;
+        payJob(JOB.kind === 'taxi' ? 18 : JOB.kind === 'micro' ? 14 : 10, clamp(p.t / p.total, 0, 1) * 8, `${JOB_NAME[JOB.kind].split(' ')[0]} وصّلت الزبون`); JOB.pax = null; JOB.nextT = 2;
       }
     }
   }
 }
 function jobTarget(){
   if (JOB.kind === 'pizza' && JOB.order) return JOB.order.pos;
-  if (JOB.kind === 'tuk' && JOB.pax) return JOB.pax.onboard ? JOB.pax.to : JOB.pax.n.g.position;
+  if ((JOB.kind === 'tuk' || JOB.kind === 'taxi' || JOB.kind === 'micro') && JOB.pax) return JOB.pax.onboard ? JOB.pax.to : JOB.pax.n.g.position;
   return null;
 }
 function jobHud(){
   if (JOB.kind === 'pizza'){ if (!JOB.order) return '🍕 طلب جديد جاي…'; const o = JOB.order, h = clamp(o.t/o.total, 0, 1); return `🍕 وصّل البيتزا لـ ${o.area} (★)<br>حرارة البيتزا: ${'🔥'.repeat(Math.ceil(h*5)) || '🧊'} · العلبة: ${o.box}%<br>وصّلت ${JOB.count} · كسبت ${egp(JOB.earned)}`; }
-  if (JOB.kind === 'tuk'){ const p = JOB.pax; if (!p) return '🛺 مستني زبون…'; return p.onboard ? `🛺 وصّل الزبون (★) · فاضل ${Math.max(0, Math.ceil(p.t))} ثانية<br>وصّلت ${JOB.count} · كسبت ${egp(JOB.earned)}` : `🛺 روح خد الزبون من العلامة (★)${hero.veh === tukVeh ? '' : '<br>لازم تكون راكب التوكتوك'}`; }
+  if (JOB.kind === 'tuk' || JOB.kind === 'taxi' || JOB.kind === 'micro'){ const p = JOB.pax, [ic, nm] = JOB_NAME[JOB.kind].split(' '); if (!p) return `${ic} مستني زبون…`; return p.onboard ? `${ic} وصّل الزبون (★) · فاضل ${Math.max(0, Math.ceil(p.t))} ثانية<br>وصّلت ${JOB.count} · كسبت ${egp(JOB.earned)}` : `${ic} روح خد الزبون من العلامة (★)${hero.veh === JOB_VEH[JOB.kind] ? '' : '<br>لازم تكون راكب ' + nm}`; }
   return '';
 }

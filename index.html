@@ -35,11 +35,13 @@
         <button id="zoomBtn" aria-label="الكاميرا">🔍</button>
         <button id="photoBtn" aria-label="صوّر">📷</button>
         <button id="fsBtn" aria-label="ملء الشاشة">⛶</button>
+        <button id="phoneBtn" aria-label="الموبايل">📱</button>
         <button id="menuBtn" aria-label="القايمة">☰</button>
       </div>
     </div>
   </div>
   <div id="banner" class="banner"></div>
+  <div id="wantedBox" hidden></div>
   <div id="prompt" class="prompt"></div>
   <button id="jobEnd" class="jobend" hidden>✋ خلّص الشغل</button>
   <button id="actQuit" class="jobend" hidden>✕ خلاص</button>
@@ -47,7 +49,9 @@
   <div id="tray" class="tray" hidden></div>
   <div id="joy"><div id="knob"></div></div>
   <div id="joyHint">اسحب بصباعك<br>هنا عشان تمشي</div>
-  <div class="mbtns"><button id="actBtn" aria-label="تفاعل">✋</button><button id="punchBtn" aria-label="اضرب">👊</button><button id="runBtn" aria-label="جري">🏃</button></div>
+  <div class="mbtns"><button id="actBtn" aria-label="تفاعل">✋</button><button id="punchBtn" aria-label="اضرب">👊</button><button id="weapBtn" aria-label="غيّر السلاح">👊</button><button id="runBtn" aria-label="جري">🏃</button></div>
+  <div class="pedals"><button id="brakeBtn" aria-label="فرامل ورجوع"><b>🛑</b><small>فرامل</small></button><button id="gasBtn" aria-label="بنزين"><b>⛽</b><small>بنزين</small></button></div>
+  <div id="steerHint">⟵ اسحب يمين وشمال عشان تلف ⟶</div>
 </div>
 
 <div id="station" hidden>
@@ -63,8 +67,9 @@
     <div class="dtop"><b>🎲 دومنو قصر الملوك</b><span class="dscore" id="dScore"></span><button class="ghost dexit" id="dExit">قوم ✕</button></div>
     <div class="dpick" id="dPick">
       <p>تلعب إزاي؟</p>
-      <button class="dmode" data-dm="1v1"><b>1 ضد 1</b><span>انت ضد الحاج كامل · ٧ حجارة لكل واحد والباقي كومة · الماتش لـ ١٠١</span></button>
-      <button class="dmode" data-dm="2v2"><b>2 ضد 2</b><span>انت وإسلام ضد شمس والعربي · ٧ لكل واحد ومفيش كومة · الماتش لـ ١٥١</span></button>
+      <button class="dmode" data-dm="1v1"><b>1 ضد 1</b><span>انت ضد الحاج كامل · ٧ حجارة لكل واحد والباقي كومة · الماتش لـ ٢٥٠</span></button>
+      <button class="dmode" data-dm="2v2"><b>2 ضد 2</b><span>انت وإسلام ضد شمس والعربي · ٧ لكل واحد ومفيش كومة · الماتش لـ ٢٥٠</span></button>
+      <div class="dopts"><span>بيلعبوا</span><button data-dd="easy">😌 سهل</button><button data-dd="normal">🙂 عادي</button><button data-dd="hard">🧠 صعب</button><button id="dCheatMode"></button></div>
     </div>
     <div class="dgame" id="dGame" hidden>
       <div class="seats">
@@ -76,7 +81,7 @@
       <div class="dmsg" id="dMsg"></div>
       <div class="hand" id="dHand"></div>
       <div class="dact">
-        <button id="dQafla">🔒 قفلة</button>
+        <div class="dbab" id="dBab"></div>
         <button id="dDraw">اسحب من الكومة</button>
         <button id="dPass">⏭️ فوّت</button>
         <button id="dCheat" class="warn">🚨 غشاش!</button>
@@ -88,31 +93,78 @@
     </div>
   </div>
 </div>
-<div id="menu" class="mainmenu">
+<div id="menu" class="mainmenu loading">
   <div class="mm-bg"></div>
   <div class="mm-side">
     <div class="mm-logo"><b data-t="طيارة الجامد"><i>طيارة الجامد</i></b><span>الحتة كلها بتتكلم عليه</span></div>
-    <div class="mm-status" id="mmStatus"></div>
-    <button class="mm-play" id="mmPlay">▶ ابدأ القصة</button>
-    <div class="mm-row">
-      <button class="mm-card" data-mode="free"><span>🌆</span>لف في الحتة</button>
-      <button class="mm-card" data-mode="ahwa"><span>☕</span>وردية قهوجي</button>
-      <button class="mm-card" data-mode="domino"><span>🎲</span>دومنو</button>
+    <div class="mm-page" id="mmMain">
+      <div class="mm-status" id="mmStatus"></div>
+      <button class="mm-play" id="mmPlay">▶ ابدأ القصة</button>
+      <div class="mm-row">
+        <button class="mm-card" id="mmMissions"><span>📖</span>المهمات</button>
+        <button class="mm-card" data-mode="free"><span>🌆</span>لف في الحتة</button>
+        <button class="mm-card" id="mmGames"><span>🎲</span>ألعاب القهوة</button>
+      </div>
+      <div class="mm-icons">
+        <button id="mmAch"><span>🏆</span><small id="mmAchN">الإنجازات</small></button>
+        <button id="mmIntro"><span>🎬</span><small>المقدمة</small></button>
+        <button id="mmRec"><span>🎙️</span><small>الأصوات</small></button>
+        <button id="mmSet"><span>⚙️</span><small>الإعدادات</small></button>
+        <button id="mmCred"><span>💛</span><small>شكر</small></button>
+      </div>
     </div>
-    <div class="mm-icons">
-      <button id="mmAch"><span>🏆</span><small id="mmAchN">الإنجازات</small></button>
-      <button id="mmIntro"><span>🎬</span><small>المقدمة</small></button>
-      <button id="mmRec"><span>🎙️</span><small>الأصوات</small></button>
-      <button id="mmSet"><span>⚙️</span><small>الإعدادات</small></button>
+    <div class="mm-page" id="mmGamesPage" hidden>
+      <div class="mm-head"><button class="mm-back" data-back aria-label="رجوع">➜</button><b>🎲 ألعاب القهوة</b></div>
+      <div class="mm-grid">
+        <button class="mm-card" data-mode="domino"><span>🁫</span>دومنو<small>مع الحاج كامل</small></button>
+        <button class="mm-card" data-mode="tawla"><span>🎯</span>طاولة<small>مع عم رجب</small></button>
+        <button class="mm-card" data-mode="ahwa"><span>☕</span>وردية قهوجي<small>٤ دقايق</small></button>
+        <button class="mm-card" data-mode="foul"><span>🧆</span>عربية الفول<small>٣ دقايق ونص</small></button>
+      </div>
     </div>
-    <div class="mm-load" id="loadMsg">بيحمّل الحتة…</div>
+    <div class="mm-loading" id="mmLoading"><div class="mm-bar"><i id="loadFill"></i></div><div class="mm-load" id="loadMsg">بيحمّل الحتة…</div></div>
   </div>
 </div>
+<div id="missions" class="overlay" hidden><div class="panel misp">
+  <div class="maptop"><b>📖 المهمات</b><span class="mis-n" id="misN"></span><button class="ghost" id="misClose">قفل ✕</button></div>
+  <div class="mis-chaps" id="misChaps"></div>
+  <div class="mis-list" id="misList"></div>
+</div></div>
+<div id="pause" class="overlay soft" hidden><div class="panel pausep">
+  <h2>⏸️ استراحة</h2><p class="ps-sub" id="psSub"></p>
+  <button class="primary" id="psResume">▶ كمّل</button>
+  <div class="ps-grid">
+    <button id="psMap">🗺️ الخريطة</button>
+    <button id="psSet">⚙️ الإعدادات</button>
+    <button id="psSkip">⏭️ عدّي المهمة</button>
+    <button id="psHome">🏠 القايمة الرئيسية</button>
+  </div>
+</div></div>
+<div id="failAsk" class="overlay soft" hidden><div class="panel pausep">
+  <h2>المهمة دي صعبة؟ 😅</h2><p class="ps-sub" id="faSub"></p>
+  <button class="primary" id="faEasy">😌 سهّلها عليّا</button>
+  <div class="ps-grid"><button id="faSkip">⏭️ عدّيها خالص</button><button id="faRetry">💪 هحاول تاني</button></div>
+</div></div>
+<div id="credits" class="overlay" hidden><div class="panel credp">
+  <div class="maptop"><b>💛 شكر</b><button class="ghost" id="credClose">قفل ✕</button></div>
+  <div class="cred-list">
+    <section><h3>الشلة</h3><p>طيارة · العربي · إسلام · شمس · يوسف إبراهيم<br><small>وشوشهم الحقيقية هي اللي في اللعبة والمقدمة.</small></p></section>
+    <section><h3>موديلات 3D</h3><p><b>FERUL</b> و <b>mahgadx</b> على CGTrader<br><small>موديلات هايدي وشادية (مجانية، مع ذكر الاسم).</small></p></section>
+    <section><h3>المقدمة</h3><p>اتعملت بـ Google Flow من صور الشلة.</p></section>
+    <section><h3>المحرك والخط</h3><p>three.js · خط Cairo</p></section>
+    <section><h3>الحتة</h3><p>كل قهوة وعربية فول وتوكتوك في إسكندرية 🌊</p></section>
+  </div>
+</div></div>
+<div id="backToast" class="backtoast">دوس رجوع تاني عشان تخرج</div>
+<div id="phone" class="overlay soft" hidden><div class="phonef"><button id="phoneClose" class="ph-x" aria-label="اقفل الموبايل">✕</button><div id="phoneScr" class="ph-scr"></div></div></div>
+<div id="tut" hidden><div id="tutHl"></div><div id="tutBox"><p id="tutText"></p><div class="tut-row"><small id="tutN"></small><button id="tutSkip" class="ghost">تخطّي</button><button id="tutNext" class="primary">فهمت 👍</button></div></div></div>
 <div id="settings" class="overlay soft" hidden>
   <div class="panel setp">
     <div class="maptop"><b>⚙️ الإعدادات</b><button class="ghost" id="setClose">قفل ✕</button></div>
     <div class="setrow"><label for="nameIn">اسم البطل</label><input id="nameIn" maxlength="16" value="طيارة"></div>
     <div class="setrow"><span>الصعوبة</span><button class="diffbtn" id="diffBtn"></button></div>
+    <div class="setrow"><span>الجرافيكس</span><button class="diffbtn" id="gfxBtn"></button></div>
+    <div class="setrow"><span>عداد السرعة (FPS)</span><button class="diffbtn" id="fpsBtn"></button></div>
     <div class="setrow"><span>الجو</span><button class="diffbtn" id="ramBtn"></button></div>
     <div class="setrow"><span>القصة</span><button class="diffbtn danger" id="resetStory">↺ ابدأ من الأول</button></div>
     <ul class="keys desk"><li><b>WASD</b> حركة/سواقة</li><li><b>Shift</b> جري</li><li><b>E</b> اركب/اتكلم</li><li><b>F أو كليك</b> اضرب</li><li><b>H</b> كلاكس</li><li><b>Space</b> فرامل</li><li><b>M</b> الخريطة</li><li><b>Esc</b> القايمة</li></ul>
@@ -132,6 +184,7 @@
   <button id="introSkip" class="iskip">تخطّي ⏭</button>
 </div>
 <div id="introStart" class="overlay soft" hidden><div class="panel istart"><h2>طيارة الجامد</h2><p>علّي الصوت 🔊 وتعالى نتعرّف على الشلة</p><button class="primary" id="introStartBtn">▶ يلا بينا</button><button class="ghost" id="introStartSkip">تخطّى المقدمة</button></div></div>
+<div id="fpsBox" hidden></div>
 <div id="rotate"><div class="rot-phone"><i></i></div><b>لف الموبايل بالعرض</b><span>طيارة الجامد بتتلعب والموبايل نايم 📱↻</span></div>
 <div id="fade"></div>
 <div id="achToast" class="achtoast"></div>
@@ -144,7 +197,7 @@
 <div id="rhy" hidden><div class="rtop"><b>💃 رقصة الفرح</b><span id="rhyScore"></span></div><div class="rbar"><i id="rhyBar"></i></div><div id="rhyMsg" class="rhymsg"></div><div id="rhyNotes"></div><div class="rline"></div><div class="rlanes"><button class="rlane l0">D</button><button class="rlane l1">F</button><button class="rlane l2">J</button><button class="rlane l3">K</button></div></div>
 <div id="mapOv" class="overlay" hidden><div class="mappanel"><div class="maptop"><b>🗺️ خريطة الحتة</b><button class="ghost" id="mapClose">قفل ✕</button></div><canvas id="mapCanvas"></canvas><div class="maplegend"><span><i style="background:#fff"></i>انت</span><span>★ المهمة</span><span><i style="background:#1e66d0"></i>موقف</span><span><i style="background:#ff8a3d"></i>العربي</span></div></div></div>
 <div id="shop" class="overlay soft" hidden><div class="panel shopp"><h2 id="shopTitle" style="margin:0;color:var(--gold)"></h2><div class="dinfo" id="shopMoney"></div><div id="shopItems" class="shopitems"></div><div class="row"><button class="ghost" id="shopClose">خلاص</button></div></div></div>
-<div id="storyEnd" class="overlay" hidden><div class="panel endp"><div class="face" data-face></div><h2>طيارة الجامد 👑</h2><p>عملتها! من صبي قهوجي مفلس لشريك في قصر الملوك. العربي بقى أخوك، شمس سلّم نفسه، يوسف اتعدل، وإسلام اتجوز. الحتة كلها بقت عارفاك.</p><div class="row"><button class="primary" id="storyEndBtn">كمّل لف في الحتة</button></div></div></div>
+<div id="storyEnd" class="overlay" hidden><div class="panel endp"><div class="face" data-face></div><h2>طيارة الجامد 👑</h2><p>عملتها! من صبي قهوجي مفلس لشريك في قصر الملوك. العربي بقى أخوك، شمس اتقبض عليه، يوسف لاقى نفسه، وإسلام اتجوز هايدي. الحتة كلها بقت عارفاك.</p><div class="row"><button class="primary" id="storyEndBtn">كمّل لف في الحتة</button></div></div></div>
 <div id="end" class="overlay" hidden>
   <div class="panel endp">
     <div class="face" data-face></div>

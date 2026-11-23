@@ -8,19 +8,23 @@ const matCache = {}; const M = c => matCache[c] ||= new THREE.MeshStandardMateri
 const NG = { leg: new THREE.BoxGeometry(.15,.9,.17), arm: new THREE.BoxGeometry(.11,.6,.12), hand: new THREE.SphereGeometry(.06,8,6), torso: new THREE.BoxGeometry(.46,.62,.26), gala: new THREE.BoxGeometry(.5,1.22,.3), head: new THREE.SphereGeometry(.13,14,10), hair: new THREE.SphereGeometry(.137,12,8,0,Math.PI*2,0,Math.PI/2), mus: new THREE.BoxGeometry(.12,.025,.02) };
 const npcs = [];
 const NAMES = ['حمادة','كريم','عم سعيد','الحاج محمود','زيزو','أبو علي','شيكو','مصطفى','عم رجب','بيبو','حسن','تامر'];
+// every NPC piece shares one material and carries its colours per vertex; torso, head and hair are one piece,
+// each arm (sleeve + hand) is one piece: 5 pieces per person instead of 9 (phones draw fewer separate things)
+const npcMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .85 });
+const npcPart = (geo, color, x = 0, y = 0, z = 0) => { const p = geo.index ? geo.toNonIndexed() : geo.clone(); p.translate(x, y, z); return colored(p, color); };
 function makeNPC(){
   const g = new THREE.Group(), body = new THREE.Group(); g.add(body);
   const gal = rng() < .3;
-  const skin = M(pick(SKIN)), shirt = M(gal ? pick(GALA) : pick(SHIRTS)), pants = M(pick(PANTS));
+  const skin = pick(SKIN), shirt = gal ? pick(GALA) : pick(SHIRTS), pants = pick(PANTS);
   const legs = [], arms = [];
+  const legGeo = npcPart(NG.leg, gal ? '#4a3c30' : pants), armGeo = mergeGeometries([npcPart(NG.arm, shirt, 0, -.3, 0), npcPart(NG.hand, skin, 0, -.63, 0)]);
   for (const sx of [-1,1]){
-    const lg = new THREE.Group(); lg.position.set(sx*.1, .9, 0); const lm = new THREE.Mesh(NG.leg, gal ? M('#4a3c30') : pants); lm.position.y = -.45; lg.add(lm); body.add(lg); legs.push(lg);
-    const ar = new THREE.Group(); ar.position.set(sx*.3, 1.47, 0); const am = new THREE.Mesh(NG.arm, shirt); am.position.y = -.3; ar.add(am); const hd = new THREE.Mesh(NG.hand, skin); hd.position.y = -.63; ar.add(hd); body.add(ar); arms.push(ar);
+    const lg = new THREE.Group(); lg.position.set(sx*.1, .9, 0); const lm = new THREE.Mesh(legGeo, npcMat); lm.position.y = -.45; lg.add(lm); body.add(lg); legs.push(lg);
+    const ar = new THREE.Group(); ar.position.set(sx*.3, 1.47, 0); ar.add(new THREE.Mesh(armGeo, npcMat)); body.add(ar); arms.push(ar);
   }
-  const torso = new THREE.Mesh(gal ? NG.gala : NG.torso, shirt); torso.position.y = gal ? .93 : 1.2; torso.castShadow = true; body.add(torso);
-  const head = new THREE.Mesh(NG.head, skin); head.position.y = 1.66; body.add(head);
-  const hair = new THREE.Mesh(NG.hair, M(pick(HAIR))); hair.position.y = 1.69; body.add(hair);
-  if (rng() < .45){ const mu = new THREE.Mesh(NG.mus, M('#1b1410')); mu.position.set(0, 1.62, .125); body.add(mu); }
+  const parts = [npcPart(gal ? NG.gala : NG.torso, shirt, 0, gal ? .93 : 1.2, 0), npcPart(NG.head, skin, 0, 1.66, 0), npcPart(NG.hair, pick(HAIR), 0, 1.69, 0)];
+  if (rng() < .45) parts.push(npcPart(NG.mus, '#1b1410', 0, 1.62, .125));
+  const torso = new THREE.Mesh(mergeGeometries(parts), npcMat); torso.castShadow = true; body.add(torso);
   const sc = R(.93, 1.06); g.scale.setScalar(sc);
   scene.add(g);
   const n = { g, body, legs, arms, state: 'hidden', phase: R(0,6), speed: R(1.1,1.6), yaw: 0, t: 0, dir: 1, block: 0, downT: 0, fall: 0, fleeT: 0, name: pick(NAMES), role: null, head: 2.05*sc };

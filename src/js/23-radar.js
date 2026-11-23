@@ -6,7 +6,7 @@ const MX = x => x - MAP.x0, MZ = z => z - MAP.z0;
 {
   const g = mapBase.getContext('2d');
   g.fillStyle = '#3c5a2c'; g.fillRect(0, 0, mapBase.width, mapBase.height);
-  g.fillStyle = '#2f6470'; g.fillRect(0, MZ(NILE_Z), mapBase.width, FAR.z0 - NILE_Z);
+  g.fillStyle = '#1f6f8b'; g.fillRect(0, MZ(NILE_Z), mapBase.width, mapBase.height);   // the sea
   g.fillStyle = '#3d3a35'; g.fillRect(MX(X0-6), MZ(Z0-6), XMAX - X0 + 12, NILE_Z - Z0 + 6);
   g.fillRect(MX(BRIDGE.x - BRIDGE.w/2), MZ(NILE_Z - 2), BRIDGE.w, BRIDGE.z1 - NILE_Z + 4);
   g.fillStyle = '#8a8070'; g.fillRect(MX(FAR.x0), MZ(FAR.z0), FAR.x1 - FAR.x0, FAR.z1 - FAR.z0);
@@ -34,7 +34,9 @@ function drawRadar(t){
   const f = hero.veh ? hero.veh.pos : hero.pos; radarC = { x: f.x, z: f.z };
   rctx.fillStyle = '#1a1712'; rctx.fillRect(0, 0, RW, RW);
   rctx.drawImage(mapBase, MX(f.x - RANGE/2), MZ(f.z - RANGE/2), RANGE, RANGE, 0, 0, RW, RW);
+  if (GPS.on && GPS.path.length){ rctx.strokeStyle = '#4fc3ff'; rctx.lineWidth = 3.5; rctx.lineJoin = 'round'; rctx.beginPath(); GPS.path.forEach((q, i) => i ? rctx.lineTo(rx(q.x), rz(q.z)) : rctx.moveTo(rx(q.x), rz(q.z))); rctx.stroke(); }
   for (const k of radarMarks(t)){ if (k.star) star(k.x, k.z, t); else dot(k.x, k.z, k.r || 3, k.c); }
+  if (GPS.on) dot(GPS.to.x, GPS.to.z, 4.5, Math.floor(t * 3) % 2 ? '#4fc3ff' : '#ffffff');
   // player arrow pointing where the camera looks
   rctx.save(); rctx.translate(RW/2, RW/2); rctx.rotate(-camYaw + Math.PI); rctx.fillStyle = '#fff'; rctx.strokeStyle = '#000'; rctx.lineWidth = 1.5;
   rctx.beginPath(); rctx.moveTo(0, -7); rctx.lineTo(5, 5); rctx.lineTo(0, 2); rctx.lineTo(-5, 5); rctx.closePath(); rctx.fill(); rctx.stroke(); rctx.restore();
@@ -48,7 +50,7 @@ function openMap(){
 }
 function drawFullMap(){
   const cv = $('mapCanvas'), W = mapBase.width, H = mapBase.height, sc = Math.min((innerWidth - 40) / W, (innerHeight - (innerHeight < 520 ? 124 : 110)) / H, 2.2);
-  const SHORT = { works: 'الورش', food: 'المطاعم', corniche: 'الكورنيش', bridge: 'الكوبري', bank: 'البر التاني', market: 'السوق', stadium: 'الملعب', hara: 'الحتة' };
+  const SHORT = { works: 'الورش', food: 'المطاعم', corniche: 'الكورنيش', bridge: 'الكوبري', bank: 'القلعة', market: 'السوق', stadium: 'الملعب', hara: 'الحتة' };
   cv.width = Math.round(W*sc); cv.height = Math.round(H*sc); const g = cv.getContext('2d');
   g.drawImage(mapBase, 0, 0, cv.width, cv.height);
   const P = (x, z) => [MX(x)*sc, MZ(z)*sc];
@@ -58,6 +60,7 @@ function drawFullMap(){
   for (const s of STOPS){ const [px, pz] = P(s.pos.x, s.pos.z); g.fillStyle = '#1e66d0'; g.beginPath(); g.arc(px, pz, 6, 0, 7); g.fill(); g.fillStyle = '#fff'; g.font = '700 9px sans-serif'; g.fillText('🚌', px, pz); }
   const marks = radarMarks(performance.now()/1000);
   for (const k of marks){ const [px, pz] = P(k.x, k.z); if (k.star){ g.font = 'bold 22px sans-serif'; g.lineWidth = 4; g.strokeStyle = '#000'; g.strokeText('★', px, pz); g.fillStyle = '#ffc94a'; g.fillText('★', px, pz); } else { g.fillStyle = k.c; g.beginPath(); g.arc(px, pz, (k.r||3)+1, 0, 7); g.fill(); } }
+  if (GPS.on && GPS.path.length){ g.strokeStyle = '#4fc3ff'; g.lineWidth = 4; g.lineJoin = 'round'; g.beginPath(); GPS.path.forEach((q, i) => { const [px, pz] = P(q.x, q.z); i ? g.lineTo(px, pz) : g.moveTo(px, pz); }); g.stroke(); const [tx, tz] = P(GPS.to.x, GPS.to.z); g.fillStyle = '#4fc3ff'; g.beginPath(); g.arc(tx, tz, 7, 0, 7); g.fill(); }
   const f = hero.veh ? hero.veh.pos : hero.pos; const [hx, hz] = P(f.x, f.z);
   g.fillStyle = '#fff'; g.strokeStyle = '#000'; g.lineWidth = 2; g.beginPath(); g.arc(hx, hz, 7, 0, 7); g.fill(); g.stroke();
   g.fillStyle = '#000'; g.font = '900 9px Cairo, sans-serif'; g.fillText('انت', hx, hz);

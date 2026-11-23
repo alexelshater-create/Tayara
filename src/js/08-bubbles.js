@@ -11,11 +11,33 @@ function orderBubble(ent){ const el = document.createElement('div'); el.classNam
 function removeBubble(b){ const i = bubbles.indexOf(b); if (i >= 0) bubbles.splice(i,1); b.el.remove(); }
 function clearBubbles(){ while (bubbles.length) removeBubble(bubbles[0]); }
 const _p = new THREE.Vector3();
+// bubbles keep out of the HUD (the cards and buttons at the top, the action buttons at the bottom) and inside the screen
+let hudRects = [], hudRectT = 0;
+function readHudRects(){ hudRects = $('hud').hidden ? [] : [...document.querySelectorAll('#hud .top .card, #hud .top .col:last-child, #hud .mbtns, #hud .banner.show')].filter(e => e.offsetWidth).map(e => e.getBoundingClientRect()); }
+function placeBubble(b, x, y){
+  const txt = b.el.textContent; if (b.txt !== txt || !b.w){ b.txt = txt; b.w = b.el.offsetWidth; b.h = b.el.offsetHeight; }   // (0 while its layer is hidden: measure again later)
+  const w = b.w, h = b.h + 7;   // y is the tip of the bubble (it hangs above it)
+  x = clamp(x, w/2 + 6, innerWidth - w/2 - 6);
+  // if it lands on a HUD box: the nearest spot (one or two moves out of the boxes) that is free and on screen
+  const hits = (px, py) => hudRects.some(r => px - w/2 < r.right + 4 && px + w/2 > r.left - 4 && py - h < r.bottom + 4 && py > r.top - 4);
+  if (hits(x, y)){
+    const outs = (px, py) => hudRects.flatMap(r => [[px, r.bottom + h + 6], [px, r.top - 6], [r.left - w/2 - 6, py], [r.right + w/2 + 6, py]]);
+    const one = outs(x, y), cands = one.concat(one.flatMap(([px, py]) => outs(px, py)));
+    let best = null, bd = 1e9;
+    for (const [px, py] of cands){
+      if (px - w/2 < 2 || px + w/2 > innerWidth - 2 || py - h < 2 || py > innerHeight - 2) continue;
+      const d = Math.abs(px - x) + Math.abs(py - y); if (d < bd && !hits(px, py)){ bd = d; best = [px, py]; }
+    }
+    if (best){ x = best[0]; y = best[1]; }
+  }
+  b.el.style.left = x + 'px'; b.el.style.top = clamp(y, h + 4, innerHeight - 4) + 'px';
+}
 function updateBubbles(dt){
+  hudRectT -= dt; if (hudRectT <= 0){ hudRectT = .5; readHudRects(); }
   for (let i=bubbles.length-1;i>=0;i--){
     const b = bubbles[i]; if (!b.persist){ b.t -= dt; if (b.t <= 0){ removeBubble(b); continue; } }
     _p.copy(headOf(b.ent)); const dist = _p.distanceTo(camera.position); _p.project(camera);
     if (_p.z > 1 || dist > 40 || (b.ent.g && !b.ent.g.visible) || (b.ent.d && !b.ent.d.root.visible)){ b.el.style.display = 'none'; continue; }
-    b.el.style.display = ''; b.el.style.left = ((_p.x+1)/2*innerWidth) + 'px'; b.el.style.top = ((1-_p.y)/2*innerHeight) + 'px';
+    b.el.style.display = ''; placeBubble(b, (_p.x+1)/2*innerWidth, (1-_p.y)/2*innerHeight);
   }
 }

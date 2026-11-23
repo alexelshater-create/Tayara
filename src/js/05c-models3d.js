@@ -1,12 +1,16 @@
-﻿// ================= 3D characters: loading =================
+// ================= 3D characters: loading =================
 // load a model made by tools/shrink_model.py; null when it is missing or broken (the game then keeps the photo character)
+const RIG_MS = {};   // how long each rig took to build (for checking load time)
 async function loadModel3D(name){
   try {
     const { GLTFLoader } = await import('three/addons/GLTFLoader.js');
     const g = await new GLTFLoader().loadAsync(`assets/models/${name}.glb`);
     let src = null; g.scene.traverse(o => { if (o.isMesh && !src) src = o; });
     if (!src) return null;
-    const R = rigModel(src);
+    const pre = await fetch(`assets/models/${name}.rig.json`).then(r => r.ok ? r.json() : null).catch(() => null);
+    const t0 = performance.now(); let R;
+    try { R = rigModel(src, pre); } catch (e){ console.warn('saved rig unusable, rigging again:', name, e.message); R = rigModel(src); }
+    RIG_MS[name] = Math.round(performance.now() - t0) + (pre ? ' (saved)' : '');
     const m = R.mesh.material; m.side = THREE.FrontSide; if (m.map) m.map.anisotropy = 4;
     R.mesh.castShadow = !LOW;
     return R;
@@ -14,9 +18,11 @@ async function loadModel3D(name){
 }
 // which models exist is written by build.py; anyone without a model keeps the photo character.
 // Only the characters the game already places are loaded (shadia and haidy, islam's bride, join when their scenes are built).
-const MODELS_USED = ['tayara', 'arabi', 'islam', 'shams', 'youssef', 'kamel', 'thug', 'soldier', 'npc'];
+const MODELS_USED = ['tayara', 'arabi', 'islam', 'shams', 'youssef', 'kamel', 'thug', 'soldier', 'npc', 'shadia', 'haidy'];
 const MODEL_LIST = store.get('chars2d') === '1' ? [] : (await fetch('assets/models/index.json').then(r => r.json()).catch(() => [])).filter(n => MODELS_USED.includes(n));
-const MODELS3D = Object.fromEntries(await Promise.all(MODEL_LIST.map(async n => [n, await loadModel3D(n)])));
+let modelsDone = 0; loadStep(.3, 'بيحمّل الشخصيات…');
+const MODELS3D = Object.fromEntries(await Promise.all(MODEL_LIST.map(async n => { const r = await loadModel3D(n); modelsDone++; loadStep(.3 + .55 * modelsDone / MODEL_LIST.length, `بيحمّل الشخصيات (${modelsDone}/${MODEL_LIST.length})`); return [n, r]; })));
+loadStep(.88, 'بيركن العربيات…');
 
 // العربي's sports car (assets/props/arabi-car.glb): parked in front of the café. It is his, so in the story you
 // can't take it (jobOnly); in the free modes anyone can drive it, fast.

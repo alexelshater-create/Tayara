@@ -34,6 +34,9 @@ const FSTY = [
   {wall:'#cfa977', trim:'#ead9b6', sh:'#5d7a4a'}, {wall:'#d8c39d', trim:'#f1e6cf', sh:'#7a4b2a'},
   {wall:'#c38d76', trim:'#ebcdbd', sh:'#4c6670'}, {wall:'#dccd94', trim:'#f5ecd0', sh:'#6b4a33'},
   {wall:'#a4a19a', trim:'#d2cfc8', sh:'#3f5a45'}, {wall:'#9a5a3e', trim:'#b7b0a4', sh:'#55402e', brick:true},
+  // Alexandria: old pastel buildings, tall arched windows, green / blue / brown wooden shutters, salt-washed paint
+  {wall:'#e7cf86', trim:'#f7ecd2', sh:'#2f6b4f', arch:true}, {wall:'#a9c7d6', trim:'#eef2ee', sh:'#2e4f7a', arch:true},
+  {wall:'#e3b7a6', trim:'#f6e6dc', sh:'#6b4a33', arch:true}, {wall:'#cfdcc2', trim:'#f2f1e6', sh:'#355e3b', arch:true},
 ];
 const facadeTex = FSTY.map(S => makeTex(512,512,(g,w,h)=>{
   const bw=128, fh=128;
@@ -45,6 +48,19 @@ const facadeTex = FSTY.map(S => makeTex(512,512,(g,w,h)=>{
   }
   for (let fy=0;fy<4;fy++) for (let bx=0;bx<4;bx++){
     const x=bx*bw, y=fy*fh, wx=x+30, wy=y+26, ww=bw-60, wh=fh-48;
+    if (S.arch){
+      // a cornice under each floor, a tall window with a round top, shutters (often half open)
+      g.fillStyle=S.trim; g.fillRect(x, y+fh-10, bw, 7); g.fillStyle='rgba(0,0,0,.12)'; g.fillRect(x, y+fh-3, bw, 3);
+      const ax=x+34, aw=bw-68, ay=y+20, ah=fh-38, r=aw/2;
+      const arch = () => { g.beginPath(); g.moveTo(ax, ay+ah); g.lineTo(ax, ay+r); g.arc(ax+r, ay+r, r, Math.PI, 0); g.lineTo(ax+aw, ay+ah); g.closePath(); };
+      g.save(); g.translate(0,0); g.fillStyle=S.trim; g.beginPath(); g.moveTo(ax-6, ay+ah+5); g.lineTo(ax-6, ay+r); g.arc(ax+r, ay+r, r+6, Math.PI, 0); g.lineTo(ax+aw+6, ay+ah+5); g.closePath(); g.fill(); g.restore();
+      const rr = Math.random();
+      if (rr < .45){ arch(); g.fillStyle=S.sh; g.fill(); g.strokeStyle='rgba(0,0,0,.3)'; g.lineWidth=1.4; for (let k=ay+r;k<ay+ah;k+=5){ g.beginPath(); g.moveTo(ax+2,k); g.lineTo(ax+aw-2,k); g.stroke(); } g.fillStyle='rgba(0,0,0,.35)'; g.fillRect(ax+aw/2-1, ay+r*.3, 2, ah-r*.3); }
+      else { arch(); const gr=g.createLinearGradient(ax,ay,ax+aw,ay+ah); gr.addColorStop(0,'#6f8794'); gr.addColorStop(1,'#1c262e'); g.fillStyle=gr; g.fill(); g.fillStyle=S.sh; g.fillRect(ax-15, ay+r*.6, 12, ah-r*.6); g.fillRect(ax+aw+3, ay+r*.6, 12, ah-r*.6); if (Math.random()<.4){ g.fillStyle=`hsl(${Math.random()*360|0},45%,60%)`; g.fillRect(ax+4, ay+ah-26, aw-8, 20); } }
+      g.fillStyle='rgba(255,255,255,.07)'; for (let k=0;k<3;k++) g.fillRect(x+Math.random()*bw, y+Math.random()*fh, 20+Math.random()*30, 10+Math.random()*20);
+      const st2=g.createLinearGradient(0,ay+ah,0,ay+ah+34); st2.addColorStop(0,'rgba(60,50,30,.2)'); st2.addColorStop(1,'rgba(60,50,30,0)'); g.fillStyle=st2; g.fillRect(ax,ay+ah+4,aw,34);
+      continue;
+    }
     g.fillStyle=S.trim; g.fillRect(wx-6,wy-6,ww+12,wh+12);
     const r = Math.random();
     if (r < .42){ // closed wooden shutters (شيش)

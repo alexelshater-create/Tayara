@@ -25,7 +25,7 @@ function applyGarage(v){
   const color = s.color || v.base.color; if (v.paint !== color){ repaint(v, color); v.paint = color; v.neonMesh = null; }
   v.max = v.base.max * (1 + (s.eng || 0)*.12); v.accel = v.base.accel * (1 + (s.eng || 0)*.1); v.turn = v.base.turn + (s.turn || 0)*.18;
   if (s.neon && !v.neonMesh){ const m = new THREE.Mesh(new THREE.PlaneGeometry(v.type === 'moto' ? 1.4 : 3.2, v.type === 'moto' ? 2.2 : 5.4), new THREE.MeshBasicMaterial({ map: neonTex, color: new THREE.Color(color).offsetHSL(.5, 0, .1), transparent: true, opacity: .75, blending: THREE.AdditiveBlending, depthWrite: false })); m.rotation.x = -Math.PI/2; m.position.y = .06; m.userData.keep = true; v.mesh.add(m); v.neonMesh = m; }
-  if (s.gold && v.type !== 'moto') v.mesh.children.forEach(c => { if (c.material === hubMat) c.material = goldHub; });
+  if (s.gold && v.type !== 'moto' && !v.goldHubs){ v.goldHubs = new THREE.Mesh(carGeo.hubs, goldHub); v.goldHubs.scale.set(1.02, 1.02, 1.02); v.goldHubs.position.y = -.007; v.goldHubs.userData.keep = true; v.mesh.add(v.goldHubs); }
 }
 function openGarage(){
   const v = hero.veh; if (!v) return; const s = gSlot(v); v.speed = 0;

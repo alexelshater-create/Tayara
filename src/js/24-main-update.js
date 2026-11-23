@@ -1,9 +1,10 @@
-﻿// ================= main update =================
+// ================= main update =================
 let chatterT = 3;
 function update(dt, t){
   tickCutscene(dt);
   beatTick(); sfxUpdate(dt, t);
   const playing = state === 'play';
+  if (document.body.classList.contains('driving') !== !!hero.veh){ document.body.classList.toggle('driving', !!hero.veh); hideSteerHint(); for (const k in pedal) pedal[k] = false; }
   if (playing){
     runTime += dt;
     if (modeObj.time !== undefined){ modeObj.time -= dt; if (modeObj.time <= 0){ modeObj.time = 0; modeObj.onTime && modeObj.onTime(); } }
@@ -13,13 +14,14 @@ function update(dt, t){
     ix += joy.vx; iz += joy.vz; let mag = Math.hypot(ix, iz); if (mag > 1){ ix /= mag; iz /= mag; mag = 1; }
     if (hero.locked){ ix = iz = 0; mag = 0; }
     if (hero.veh){
-      driveVehicle(hero.veh, dt, ix, iz, keys.Space || runBtn);
+      const tz = clamp(iz + (pedal.brake ? 1 : 0) - (pedal.gas ? 1 : 0), -1, 1);
+      driveVehicle(hero.veh, dt, isTouch && joy.id !== null ? Math.sign(ix) * Math.pow(Math.abs(ix), 1.35) : ix, tz, keys.Space || runBtn);
       if (hero.veh) hero.pos.copy(hero.veh.pos);
       // run over NPCs
       if (hero.veh && Math.abs(hero.veh.speed) > 3) for (const n of npcs){ if (n.state === 'hidden' || n.state === 'down') continue; for (const c of vCircles(hero.veh)) if (Math.hypot(c.x-n.g.position.x, c.z-n.g.position.z) < c.r + .45){ npcHit(n, 2); break; } }
       if (hero.veh === copCar){ const on = Math.floor(t*7)%2 === 0; copCar.mesh.userData.red.emissiveIntensity = on ? 3 : .2; copCar.mesh.userData.blue.emissiveIntensity = on ? .2 : 3; if (sirenGain && !chaser.active) sirenGain.gain.value = .05; }
       else if (sirenGain && !chaser.active) sirenGain.gain.value = 0;
-    } else if (CUT.on){ hero.pos.y += (groundY(hero.pos.x, hero.pos.z) - hero.pos.y) * damp(18, dt); } else {
+    } else if (CUT.on){ if (!SCENE.lockY) hero.pos.y += (groundY(hero.pos.x, hero.pos.z) - hero.pos.y) * damp(18, dt); } else {
       if (sirenGain && !chaser.active) sirenGain.gain.value = 0;
       // walking: input relative to the camera direction
       const cy = Math.cos(camYaw), sy = Math.sin(camYaw);
@@ -55,15 +57,12 @@ function update(dt, t){
   }
   // traffic
   for (const c of traffic){
-    const u = c.userData; let target = u.base;
-    for (const o of traffic){ if (o === c) continue; const w = o.userData; if (w.axis !== u.axis || w.road !== u.road || w.dir !== u.dir) continue; const ahead = (w.s - u.s) * u.dir; if (ahead > 0 && ahead < 10) target = Math.min(target, ahead < 6 ? 0 : w.speed); }
-    if (hero.veh){ const L = carLocal(c, hero.veh.pos); if (L.along > 0 && L.along < 9 && Math.abs(L.lat) < 1.8) target = 0; }
-    u.speed += (target - u.speed) * damp(3, dt); u.s += u.speed * u.dir * dt;
-    const lo = u.axis === 'x' ? X0 - 30 : Z0 - 30, hi = u.axis === 'x' ? XMAX + 30 : BRIDGE.z1 + 45;
-    if (u.dir > 0 && u.s > hi) u.s = lo; else if (u.dir < 0 && u.s < lo) u.s = hi;
-    placeTraffic(c);
-    if (playing && Math.random() < dt*.02 && c.position.distanceTo(hero.pos) < 30) horn();
+    trafficStep(c, dt, t, playing);
+    if (playing && Math.random() < dt*.01 && c.position.distanceTo(hero.pos) < 30) horn();
   }
+  updateTram(dt, t, playing);
+  storyFxTick(dt, t); updateStage5(dt, t);
+  waterTex.offset.x += dt * .006; waterTex.offset.y = Math.sin(t * .35) * .03;   // the sea moves a little
   npcs.forEach(n => updateNPC(n, dt));
   if (playing && !CUT.on){ updateEnemy(dt); updateWanted(dt); updateThief(dt, t); }
   for (const f of feluccas){ f.g.position.x += f.sp*dt; if (f.g.position.x > 300) f.g.position.x = -90; else if (f.g.position.x < -90) f.g.position.x = 300; f.g.position.y = -1 + Math.sin(t*.8 + f.ph)*.06; f.g.rotation.z = Math.sin(t*.6 + f.ph)*.03; }
@@ -76,7 +75,7 @@ function update(dt, t){
     const v = hero.veh;
     if (v.type === 'moto'){ hd.root.visible = true; hd.P.legL.visible = hd.P.legR.visible = false; hd.root.position.set(v.pos.x - Math.sin(v.yaw)*.25, v.pos.y + .86 - hd.hipY, v.pos.z - Math.cos(v.yaw)*.25); hd.faceYaw = v.yaw; animDoll(hd, 0, 0, dt, t); }
     else hd.root.visible = false;
-  } else { hd.root.visible = !ST.kind; hd.P.legL.visible = hd.P.legR.visible = true; hd.root.position.copy(hero.pos); animDoll(hd, hero.vel.x, hero.vel.z, dt, t); cheerPose(dt); hd.doll.visible = !(hero.inv > 0 && Math.floor(hero.inv*12) % 2 === 1); }
+  } else { hd.root.visible = !ST.kind && !TRAMR.on && !SCENE.hideHero; hd.P.legL.visible = hd.P.legR.visible = true; hd.root.position.copy(hero.pos); animDoll(hd, hero.vel.x, hero.vel.z, dt, t); cheerPose(dt); hd.doll.visible = !(hero.inv > 0 && Math.floor(hero.inv*12) % 2 === 1); }
   if (enemy.active && !CUT.idle.has(enemy.d)) animDoll(enemy.d, enemy.vel.x, enemy.vel.z, dt, t);
   if (wanted.active && !CUT.idle.has(wanted.d)) animDoll(wanted.d, wanted.vx||0, wanted.vz||0, dt, t);
   if (trayGroup.visible){ trayGroup.position.set(hero.pos.x + Math.cos(camYaw)*.45, hero.pos.y + 1.2, hero.pos.z - Math.sin(camYaw)*.45); }
@@ -89,19 +88,32 @@ function update(dt, t){
     const pr = $('prompt'); if (nearAction){ pr.innerHTML = `<kbd>E</kbd>${nearAction.text}`; pr.classList.add('show'); } else pr.classList.remove('show');
     if (bannerT > 0){ bannerT -= dt; if (bannerT <= 0) $('banner').className = 'banner'; }
     if (chaser.active && bannerT <= 0) banner('🚨 البوليس وراك!', 'police', 1.5);
-    hudT -= dt; if (hudT <= 0){ hudT = .2; updateHud(); if (ACT.kind && ACTS[ACT.kind].hud){ $('objText').innerHTML = ACTS[ACT.kind].hud(ACT.d); $('objTitle').textContent = '🎮 نشاط'; } else { if (modeObj.hud) $('objText').innerHTML = modeObj.hud(); if (modeObj.hudTitle) $('objTitle').textContent = modeObj.hudTitle(); } }
+    hudT -= dt; if (hudT <= 0){ hudT = .2; updateHud(); if (ACT.kind && ACTS[ACT.kind].hud){ $('objText').innerHTML = ACTS[ACT.kind].hud(ACT.d); $('objTitle').textContent = '🎮 نشاط'; } else if (JOB.kind && modeId !== 'story'){ $('objText').innerHTML = jobHud(); $('objTitle').textContent = JOB_NAME[JOB.kind] || '🍕 ديليفري'; } else { if (modeObj.hud) $('objText').innerHTML = modeObj.hud(); if (modeObj.hudTitle) $('objTitle').textContent = modeObj.hudTitle(); } }
     drawRadar(t);
   }
 }
 let hudT = 0;
 
-addEventListener('resize', () => { camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+addEventListener('resize', () => { camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });   // pixel ratio is kept by applyGfx()
 hero.pos.copy(SPOT.spawn); resetWorld(); seatDeco(WALKERS); applyTimeOfDay(15); setNoEntryShown(1); setPostersShown(true);
 camera.position.set(SPOT.spawn.x + 6, 5, SPOT.spawn.z + 9); lookAt.copy(SPOT.spawn);
 const clock = new THREE.Clock(); let elapsed = 0;
 let fpsAcc = 0, fpsN = 0, pxr = renderer.getPixelRatio();
-renderer.setAnimationLoop(() => { const raw = clock.getDelta(), dt = Math.min(raw, .05); elapsed += dt; if (PHOTO.on) photoTick(dt, elapsed); else update(dt, elapsed); renderer.render(scene, camera);
+// graphics + FPS settings
+const GFX_NAME = { low: '🔋 خفيف', mid: '⚖️ عادي', high: '✨ عالي' };
+let showFps = store.get('ty_fps') === '1'; const fpsT = { n: 0, t: 0 };
+function renderGfxBtns(){ $('gfxBtn').textContent = GFX_NAME[GFX]; $('fpsBtn').textContent = showFps ? '👁️ ظاهر' : 'مخفي'; $('fpsBox').hidden = !showFps; }
+$('gfxBtn').onclick = () => { GFX = GFX === 'low' ? 'mid' : GFX === 'mid' ? 'high' : 'low'; store.set('ty_gfx', GFX); applyGfx(); gfxWorld(); renderGfxBtns(); banner('عدد الناس والعربيات في الشارع بيتغير لما تفتح اللعبة تاني', 'info', 2.5); };
+$('fpsBtn').onclick = () => { showFps = !showFps; store.set('ty_fps', showFps ? '1' : '0'); renderGfxBtns(); };
+// the parts of the graphics level that touch the world (after it is built)
+function gfxWorld(){
+  BUILD_CULL2 = (scene.fog.far + 15) ** 2;
+  for (const b of buildings) b.grp.children.forEach(m => { m.castShadow = GFX === 'high'; });   // buildings cast shadows on high only; people and cars always do
+}
+gfxWorld();
+renderGfxBtns();
+renderer.setAnimationLoop(() => { const raw = clock.getDelta(), dt = Math.min(raw, .05); if (showFps){ fpsT.n++; fpsT.t += raw; if (fpsT.t >= .5){ $('fpsBox').textContent = `${Math.round(fpsT.n / fpsT.t)} FPS · ${GFX_NAME[GFX]}`; fpsT.n = 0; fpsT.t = 0; } } elapsed += dt; if (PHOTO.on) photoTick(dt, elapsed); else update(dt, elapsed); renderer.render(scene, camera);
   if (state === 'play'){ fpsAcc += raw; fpsN++; if (fpsN >= 150){ const avg = fpsAcc/fpsN; if (avg > 1/30 && pxr > .8){ pxr = Math.max(.8, pxr - .2); renderer.setPixelRatio(pxr); renderer.setSize(innerWidth, innerHeight); } else if (avg > 1/24 && sun.castShadow){ sun.castShadow = false; } fpsAcc = 0; fpsN = 0; } } });
 renderModes();
-$('loadMsg').textContent = 'اختار مود وابدأ.'; introOnLoad();
-window.__game = { hero, enemy, wanted, vehicles, npcs, keys, get state(){ return state; }, get mode(){ return modeObj; }, startMode, action, punch, dbg: { SFX, spawnThugs, npcWear3D, playIntroSeq, endIntro, makePosterImage, introLayout, VOICE, playVoice, vHash, voiceLeft, heroCheer, cats, mesa, PROG_R: () => PROG.ramadan, nightVisuals, openGarage, applyGarage, GARAGE_POS, TW, openTawla, twRoll, twPlayerMove, twStartGame, closeTawla, sequences, TAWLA_SPOT, ACT, ACTS, actStart, actEnd, kameenSpawn, pigeons, RAMPS, parkCar, LOT, PEN, COOP, PROG, ACH, achCheck, openAch, openPhoto, closePhoto, takePhoto, PHOTO, goldGlasses, staticBlocked, blocked, obstacles, freeSpot, SPOT, STOPS, ST, AH, FL, DOM, ahwaTap, ahwaHold, foulTap, stationBtn, enterStation, exitStation, openDomino, playerPick, SA, SF, get SAVE(){ return SAVE; }, startJob, endJob, race, buyVehicle, MS, ST2, CUT, JOB, RHY, HOUSE, TOD, boss, pickups, checkpoints, idx, curM, finishMission, failMission, applyStoryWorld, playCut, dlgTap, applyTimeOfDay, enterHouse, exitHouse, houseAction, openTransit, ride, startPizzaJob, startTukJob, endJob2, playWedding, rhyHit, pizzaMoto, tukVeh, arabiMoto, heroMoto, storyAction, openShop, renderModes, thief, thiefStart, thiefCaught, islamD, CAM }, step(n=60){ for (let i=0;i<n;i++){ elapsed += 1/60; update(1/60, elapsed); } renderer.render(scene, camera); } };
+loadDone(); introOnLoad();
+window.__game = { hero, enemy, wanted, vehicles, npcs, keys, get state(){ return state; }, get mode(){ return modeObj; }, startMode, action, punch, dbg: { WEAP, setWeapon, POL, GPS, gpsSet, gpsPlaces, openPhone, closePhone, PHONE, ACTS, actStart, TUTS, inSea, vCircles, CUT, MS, curM, NARR, setRain, giveStick, launches, arabiCar, setCam: (d, tl) => { camTarget = camDist = d; CAM.tilt = tl; }, tram, TRAMR, SHOPS, enterShop, exitShop, FORT, VILLA, traffic, vehicles, heroCar, copCar, enterVehicle, CAM, pedal, joy, dom: { DOM, round10, newDominoMatch, newDominoRound, commitPlayer, aiLegal, aiEval, unseenBy, DOM_AI, aiTurn, babCounts, isBlocked, hand: s => DOM.hands[s] }, say, failMission, skipMission, uiBack, startReplay, ST2, REPLAY, EASY, get SAVE(){ return SAVE; }, get DIFF(){ return DIFF; }, RIG_MS, renderer, scene, camera, SFX, spawnThugs, npcWear3D, playIntroSeq, endIntro, makePosterImage, introLayout, VOICE, playVoice, vHash, voiceLeft, heroCheer, cats, mesa, PROG_R: () => PROG.ramadan, nightVisuals, openGarage, applyGarage, GARAGE_POS, TW, openTawla, twRoll, twPlayerMove, twStartGame, closeTawla, sequences, TAWLA_SPOT, ACT, ACTS, actStart, actEnd, kameenSpawn, pigeons, RAMPS, parkCar, LOT, PEN, COOP, PROG, ACH, achCheck, openAch, openPhoto, closePhoto, takePhoto, PHOTO, goldGlasses, staticBlocked, blocked, obstacles, freeSpot, SPOT, STOPS, ST, AH, FL, DOM, ahwaTap, ahwaHold, foulTap, stationBtn, enterStation, exitStation, openDomino, playerPick, SA, SF, get SAVE(){ return SAVE; }, startJob, endJob, race, buyVehicle, MS, ST2, CUT, JOB, RHY, HOUSE, TOD, boss, pickups, checkpoints, idx, curM, finishMission, failMission, applyStoryWorld, playCut, dlgTap, applyTimeOfDay, enterHouse, exitHouse, houseAction, openTransit, ride, startPizzaJob, startTukJob, endJob2, playWedding, rhyHit, pizzaMoto, tukVeh, arabiMoto, heroMoto, storyAction, openShop, renderModes, thief, thiefStart, thiefCaught, islamD, CAM }, step(n=60){ for (let i=0;i<n;i++){ elapsed += 1/60; update(1/60, elapsed); } renderer.render(scene, camera); } };

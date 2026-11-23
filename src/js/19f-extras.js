@@ -12,7 +12,7 @@ const ACH = [
   { id: 'foul30', icon: '🧆', name: 'ملك الفول', desc: 'بيع ٣٠ طلب فول', ok: () => stS('foul') >= 30, prog: () => [stS('foul'), 30] },
   { id: 'dom', icon: '🎲', name: 'إيد خفيفة', desc: 'اكسب ماتش دومنو', ok: () => stS('domWin') >= 1 },
   { id: 'dom2', icon: '🤝', name: 'شركاء', desc: 'اكسب ماتش ٢ ضد ٢ مع إسلام', ok: () => stS('domWin2') >= 1 },
-  { id: 'qafla', icon: '🔒', name: 'قفلة!', desc: 'اقفل الدور وانت قايل «قفلة»', ok: () => stS('qafla') >= 1 },
+  { id: 'qafla', icon: '🔒', name: 'قفلة!', desc: 'اقفل الدور وانت أقل في النقط', ok: () => stS('qafla') >= 1 },
   { id: 'tawla', icon: '🎯', name: 'عم الطاولة', desc: 'اكسب عشرة طاولة', ok: () => stS('tawlaWin') >= 1 },
   { id: 'g1', icon: '🏆', name: 'أول كوباية دهب', desc: 'لاقي كوباية شاي دهب', ok: () => PROG.glasses.length >= 1 },
   { id: 'g10', icon: '✨', name: 'نص الطقم', desc: 'لاقي ١٠ كوبايات دهب', ok: () => PROG.glasses.length >= 10, prog: () => [PROG.glasses.length, 10] },

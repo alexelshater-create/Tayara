@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head><meta charset="utf-8"><title>تجهيز العضم</title>
+<style>body{font:14px system-ui;background:#222;color:#eee;padding:16px;white-space:pre}</style></head>
+<body><div id="log">بيجهّز…
+</div>
+<script type="importmap">{"imports":{"three":"../vendor/three/three.module.min.js","three/addons/":"../vendor/three/addons/"}}</script>
+<script type="module">
+// Rigs every model in assets/models once and keeps the result (joints, bone numbers, weights) in window.__rigs,
+// so tools/bake_rigs.mjs can save them as assets/models/<name>.rig.json and the game skips this slow step.
+import { GLTFLoader } from 'three/addons/GLTFLoader.js';
+import { rigModel, rigData } from './rig3d.js';
+const log = t => { document.getElementById('log').textContent += t + '\n'; };
+window.__rigs = {};
+const names = await fetch('../assets/models/index.json').then(r => r.json());
+for (const name of names){
+  try {
+    const g = await new GLTFLoader().loadAsync(`../assets/models/${name}.glb`);
+    let src = null; g.scene.traverse(o => { if (o.isMesh && !src) src = o; });
+    const t0 = performance.now(), R = rigModel(src), ms = Math.round(performance.now() - t0);
+    window.__rigs[name] = JSON.stringify(rigData(R)); log(`${name}: ${ms} ms, ${R.skirt ? 'فستان' : 'بنطلون'}`);
+  } catch (e){ log(`${name}: خطأ ${e.message}`); }
+}
+window.__done = true; log('خلص');
+</script>
+</body>
+</html>

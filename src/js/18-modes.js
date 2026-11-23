@@ -3,10 +3,10 @@ let state = 'menu', modeId = 'free', modeObj = {}, heroName = 'طيارة', shak
 function renderModes(){
   const has = SAVE.started || SAVE.m > 0, M = curM();
   $('mmPlay').textContent = !has ? '▶ ابدأ القصة' : SAVE.ended ? '▶ لف في الحتة (بعد القصة)' : '▶ كمّل القصة';
-  $('mmStatus').innerHTML = !has ? 'صبي قهوجي مفلس… ومطلوب اسمه شمس. <b>قصة في ٧ فصول</b>'
+  $('mmStatus').innerHTML = !has ? 'صبي قهوجي مفلس… ومطلوب اسمه شمس. <b>قصة في ٨ فصول وأكتر من ٦٠ مهمة</b>'
     : M ? `<b>${CHAPS[M.ch][0]}: ${CHAPS[M.ch][1]}</b> · ${M.title}<br>💰 ${egp(SAVE.money)} · المهمة ${SAVE.m + 1} من ${MS.length}` : `<b>خلّصت القصة 👑</b> · 💰 ${egp(SAVE.money)}`;
   $('mmAchN').textContent = `${ACH.filter(a => PROG.ach[a.id]).length}/${ACH.length}`;
-  const rs = $('resetStory'); rs.hidden = !has; rs.dataset.armed = ''; rs.textContent = '↺ ابدأ من الأول';
+  const rs = $('resetStory'); rs.parentElement.hidden = !has; rs.dataset.armed = ''; rs.textContent = '↺ ابدأ من الأول';
 }
 $('mmPlay').onclick = () => startMode('story');
 document.querySelectorAll('.mm-card[data-mode]').forEach(b => b.onclick = () => startMode(b.dataset.mode));

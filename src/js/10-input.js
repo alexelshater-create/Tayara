@@ -7,15 +7,14 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyE') action();
   if (e.code === 'KeyF') punch();
   if (e.code === 'KeyH') { if (hero.veh) horn(); }
-  if (e.code === 'Escape'){ if (!$('shop').hidden){ $('shop').hidden = true; hero.locked = false; } else if (ST.kind && modeId !== 'foul') exitStation(); else if (!$('domino').hidden) closeDomino(); else openMenu(); }
 });
 addEventListener('keyup', e => { keys[e.code] = false; });
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
 canvas.addEventListener('mousedown', e => { if (e.button === 0 && state === 'play' && !isTouch && !ST.kind && $('domino').hidden) punch(); });
 const ZOOMS = [5, 7.5, 11]; let zoomIdx = 0, camDist = 5, camTarget = 5;
 addEventListener('wheel', e => { camTarget = clamp(camTarget + Math.sign(e.deltaY)*1.2, 4, 15); }, { passive: true });
-$('zoomBtn').onclick = () => { zoomIdx = (zoomIdx+1) % ZOOMS.length; camTarget = ZOOMS[zoomIdx]; };
-$('menuBtn').onclick = () => openMenu();
+$('zoomBtn').onclick = () => { if (hero.veh){ CAM.vmode = (CAM.vmode + 1) % 3; store.set('ty_vcam', String(CAM.vmode)); banner(['📷 كاميرا ورا العربية', '📷 كاميرا بعيدة', '📷 من جوه العربية'][CAM.vmode], 'info', 1.2); return; } zoomIdx = (zoomIdx+1) % ZOOMS.length; camTarget = ZOOMS[zoomIdx]; };
+$('menuBtn').onclick = () => openPause();
 const lockLandscape = () => { try { const o = screen.orientation; if (o && o.lock) o.lock('landscape').catch(() => {}); } catch(e){} };
 const goFull = () => { const d = document.documentElement; if (document.fullscreenElement){ lockLandscape(); return; } try { const r = (d.requestFullscreen || d.webkitRequestFullscreen).call(d, { navigationUI: 'hide' }); if (r && r.then) r.then(lockLandscape, () => {}); else lockLandscape(); } catch(e){} };
 $('fsBtn').onclick = () => { if (document.fullscreenElement) { try { document.exitFullscreen(); } catch(e){} } else goFull(); };
@@ -24,7 +23,7 @@ let joyHintOn = store.get('ty_joy') !== '1'; const hideJoyHint = () => { if (joy
 if (joyHintOn) $('joyHint').classList.add('show');
 const joy = { id: null, x0: 0, y0: 0, vx: 0, vz: 0, mag: 0 }; const joyEl = $('joy'), knob = $('knob');
 // camera orbit: drag on the right side of the screen (touch) or with the right mouse button
-const CAM = { orbit: 0, orbitSm: 0, tilt: .44, veh: 0, lastDrag: -9, drag: null };
+const CAM = { orbit: 0, orbitSm: 0, tilt: .44, veh: 0, lastDrag: -9, drag: null, vmode: +(store.get('ty_vcam') || 0) % 3, cy: 0 };   // vmode: 0 behind, 1 far, 2 inside
 canvas.addEventListener('pointerdown', e => {
   if (ST.kind || state !== 'play') return;
   const camSide = e.pointerType === 'mouse' ? (e.button === 2 || e.button === 1) : e.clientX > innerWidth * .45;
@@ -39,10 +38,17 @@ addEventListener('pointermove', e => {
     if (hero.veh) CAM.veh = clamp(CAM.veh - dx*k, -Math.PI, Math.PI); else CAM.orbit -= dx*k;
     CAM.tilt = clamp(CAM.tilt + dy*k*.6, .12, 1.2); CAM.lastDrag = performance.now(); return;
   }
-  if (e.pointerId !== joy.id) return; let dx = e.clientX - joy.x0, dy = e.clientY - joy.y0; const m = Math.hypot(dx,dy), max = 55; if (m > max){ dx *= max/m; dy *= max/m; } joy.vx = dx/max; joy.vz = dy/max; joy.mag = Math.min(1, m/max); knob.style.transform = `translate(${dx}px,${dy}px)`;
+  if (e.pointerId !== joy.id) return; let dx = e.clientX - joy.x0, dy = e.clientY - joy.y0; const m = Math.hypot(dx,dy), max = 55; if (m > max){ dx *= max/m; dy *= max/m; } if (hero.veh){ dy = 0; dx = clamp(dx * 55 / 75, -55, 55); } joy.vx = dx/max; joy.vz = dy/max; joy.mag = Math.min(1, m/max); knob.style.transform = `translate(${dx}px,${dy}px)`;
 });
 const endJoy = e => { if (CAM.drag && e.pointerId === CAM.drag.id){ CAM.drag = null; return; } if (e.pointerId !== joy.id) return; joy.id = null; joy.vx = joy.vz = joy.mag = 0; joyEl.style.display = 'none'; };
 addEventListener('pointerup', endJoy); addEventListener('pointercancel', endJoy);
+const pedal = { gas: false, brake: false };
+for (const [id, k] of [['gasBtn', 'gas'], ['brakeBtn', 'brake']]){
+  const b = $(id);
+  b.addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); pedal[k] = true; b.classList.add('on'); try { b.setPointerCapture(e.pointerId); } catch(err){} if (k === 'gas') hideSteerHint(); });
+  ['pointerup','pointercancel','lostpointercapture'].forEach(ev => b.addEventListener(ev, () => { pedal[k] = false; b.classList.remove('on'); }));
+}
+let steerHintOn = store.get('ty_steer') !== '1'; function hideSteerHint(){ if (steerHintOn && joy.id !== null){ steerHintOn = false; store.set('ty_steer', '1'); } $('steerHint').classList.toggle('show', steerHintOn); }
 let runBtn = false; const rb = $('runBtn');
 rb.addEventListener('pointerdown', e => { e.stopPropagation(); runBtn = true; rb.classList.add('on'); });
 ['pointerup','pointerleave','pointercancel'].forEach(ev => rb.addEventListener(ev, () => { runBtn = false; rb.classList.remove('on'); }));

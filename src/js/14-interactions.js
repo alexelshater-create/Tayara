@@ -2,16 +2,18 @@
 let nearAction = null;
 function computeAction(){
   nearAction = null; if (state !== 'play') return;
+  if (TRAMR.on){ nearAction = tramRideAction(); return; }
   if (ACT.kind && ACTS[ACT.kind].action){ nearAction = ACTS[ACT.kind].action(ACT.d); if (nearAction || hero.locked) return; }
   if (hero.locked) return;
   const p = hero.pos;
-  if (HOUSE.inside){ nearAction = houseAction(); return; }
+  if (HOUSE.inside){ nearAction = HOUSE.shop ? shopAction() : houseAction(); return; }
   if (hero.veh){ const ga = garageAction(); if (ga){ nearAction = ga; return; } const va = modeObj.vehAction && modeObj.vehAction(); nearAction = va || { text: 'انزل', fn: () => exitVehicle(false) }; return; }
   if (thief.active && !thief.caught && thief.pos.distanceTo(p) < 2){ nearAction = { text: 'امسك يوسف!', fn: thiefCaught }; return; }
   const ma = modeObj.action && modeObj.action(); if (ma){ nearAction = ma; return; }
   { const aa = actionNearActivity(p); if (aa){ nearAction = aa; return; } }
+  if (modeObj.vehicles){ const sd = nearShopDoor(p); if (sd){ nearAction = { text: `ادخل ${sd.name} ${sd.icon}`, fn: () => enterShop(sd) }; return; } const ta = tramAction(p); if (ta){ nearAction = ta; return; } }
   if (modeObj.vehicles){ const st = nearestStop(p); if (st){ nearAction = { text: '🚏 اركب مواصلة', fn: () => openTransit(st) }; return; } }
-  if (modeObj.vehicles){ let best = null, bd = 3.2; for (const v of vehicles){ if (modeObj.canDrive && !modeObj.canDrive(v)) continue; const d = Math.hypot(v.pos.x-p.x, v.pos.z-p.z); if (d < bd){ bd = d; best = v; } } if (best){ nearAction = { text: best.type==='moto' ? 'اركب الموتوسيكل' : best.type==='police' ? 'اركب البوكس' : best.type==='tuk' ? 'اركب التوكتوك' : 'اركب العربية', fn: () => enterVehicle(best) }; return; } }
+  if (modeObj.vehicles){ let best = null, bd = 3.2; for (const v of vehicles){ if (modeObj.canDrive && !modeObj.canDrive(v)) continue; const d = Math.hypot(v.pos.x-p.x, v.pos.z-p.z); if (d < bd){ bd = d; best = v; } } if (best){ nearAction = { text: best.type==='boat' ? 'اركب اللانش ⚓' : best.type==='moto' ? 'اركب الموتوسيكل' : best.type==='police' ? 'اركب البوكس' : best.type==='tuk' ? 'اركب التوكتوك' : 'اركب العربية', fn: () => enterVehicle(best) }; return; } }
   if (modeObj.cafe){
     if (p.distanceTo(SPOT.domino) < 2.4) { nearAction = { text: 'العب دومنو مع الحاج كامل', fn: () => openDomino() }; return; }
     if (Math.hypot(p.x - TAWLA_SPOT.x, p.z - TAWLA_SPOT.z) < 1.9) { nearAction = { text: 'العب طاولة مع عم رجب 🎯', fn: openTawla }; return; }
@@ -21,9 +23,10 @@ function computeAction(){
 }
 function action(){ if (nearAction) nearAction.fn(); }
 function punch(){
+  if (WEAP.cur === 'pistol' && !hero.veh && !hero.locked){ shootPistol(); return; }
   if (hero.veh || hero.locked || hero.d.punchT > 0) return;
   // pick the closest target
-  const p = hero.pos; let best = null, bd = 1.9;
+  const p = hero.pos; let best = null, bd = weaponRange();
   const camRightX = Math.cos(camYaw), camRightZ = -Math.sin(camYaw);
   for (const n of npcs){ if (n.state === 'hidden' || n.state === 'down') continue; const d = Math.hypot(n.g.position.x-p.x, n.g.position.z-p.z); if (d < bd){ bd = d; best = { n, x:n.g.position.x, z:n.g.position.z }; } }
   if (enemy.active && !enemy.ally && enemy.d.downT <= 0){ const d = enemy.pos.distanceTo(p); if (d < Math.max(bd, 1.9)){ bd = d; best = { enemy: true, x: enemy.pos.x, z: enemy.pos.z }; } }
@@ -37,10 +40,11 @@ function punch(){
   if (!best) return;
   setTimeout(() => {
     if (big){ shake = .3; noise(.25, 600, .5); buzz(30); }
-    if (best.n){ npcHit(best.n, big ? 2 : 0); if (modeObj.onPunchNPC) modeObj.onPunchNPC(best.n); }
-    else if (best.enemy){ hitEnemy(big ? 35 : 18, p); if (big) say(enemy, '💥', .8, 'angry'); }
+    const mult = weaponHit(best.n ? best.n : best.enemy ? enemy : null);
+    if (best.n){ npcHit(best.n, (big ? 2 : 0) + (mult > 1.4 ? 1 : 0)); if (mult >= 1.5 && best.n.thug && !best.n.thugDone){ best.n.thugHits++; if (best.n.thugHits >= 3){ best.n.thugDone = true; best.n.downT = 999; best.n.fightT = 0; } } if (modeObj.onPunchNPC) modeObj.onPunchNPC(best.n); }
+    else if (best.enemy){ hitEnemy((big ? 35 : 18) * mult, p); if (big) say(enemy, '💥', .8, 'angry'); }
     else if (best.wanted) arrestWanted();
     else if (best.thief) thiefCaught();
-    else if (best.boss) bossHit(big);
+    else if (best.boss) bossHit(big || mult >= 2);
   }, 120);
 }

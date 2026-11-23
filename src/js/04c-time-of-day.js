@@ -21,7 +21,7 @@ function applyTimeOfDay(h){
   scene.fog.color.copy(DAYC.fogDay).lerp(DAYC.fogDusk, d*.6).lerp(DAYC.fogNight, n);
   lampHeadMat.emissiveIntensity = .35 + n*2.8; lampPoolMat.opacity = n*.75;
   for (const s of glowSigns){ if (!glowBase.has(s)) glowBase.set(s, s.material.emissiveIntensity); s.material.emissiveIntensity = glowBase.get(s) + n*1.1; }
-  headMat.emissiveIntensity = .7 + n*2.4; tailMat.emissiveIntensity = .7 + n*1.4;
+  headMat.emissiveIntensity = .7 + n*2.4; tailMat.emissiveIntensity = .7 + n*1.4; carLightMat.emissiveIntensity = .7 + n*2;
   for (const st of STOPS) st.g.userData.sign.material.emissiveIntensity = .2 + n*1.2;
 }
 function clockText(h=TOD.h){ const hh = Math.floor(h), mm = Math.floor((h - hh)*60/10)*10, ap = hh < 12 ? 'ص' : 'م', h12 = ((hh + 11) % 12) + 1; return `${h12}:${String(mm).padStart(2,'0')} ${ap}`; }

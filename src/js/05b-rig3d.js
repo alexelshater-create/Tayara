@@ -26,9 +26,11 @@ function findJoints(pos, H){
     pelvis: RV(0, hipY, cz), spine: RV(0, .6*H, cz), chest: RV(0, .7*H, cz), neck: RV(0, .82*H, cz), head: RV(0, .87*H, cz), top: RV(0, 1.0*H, cz) };
 }
 
-function rigModel(srcMesh){
+// pre: the saved result of an earlier rig of the same model (assets/models/<name>.rig.json, made by tools/bake_rigs.mjs);
+// with it the slow part (joints from the shape, skin weights) is skipped, which matters on phones
+function rigModel(srcMesh, pre){
   const geo = srcMesh.geometry.clone(), pos = geo.attributes.position; geo.computeBoundingBox();
-  const H = geo.boundingBox.max.y - geo.boundingBox.min.y, J = findJoints(pos, H);
+  const H = geo.boundingBox.max.y - geo.boundingBox.min.y, J = pre ? rigJointsFrom(pre.J) : findJoints(pos, H);
   const bones = {}, list = [];
   const mk = (name, at, parent) => { const b = new THREE.Bone(); b.name = name; const pw = parent ? parent.userData.w : RV(0, 0, 0); b.position.copy(at).sub(pw); b.userData.w = at.clone(); if (parent) parent.add(b); bones[name] = b; list.push(b); return b; };
   const root = mk('root', RV(0, 0, J.cz), null);
@@ -37,6 +39,9 @@ function rigModel(srcMesh){
     const ua = mk('upperArm' + s, A.sh, chest), la = mk('lowerArm' + s, A.el, ua); mk('hand' + s, A.wr, la);
     const ul = mk('upperLeg' + s, Lg.hip, pelvis), ll = mk('lowerLeg' + s, Lg.knee, ul); mk('foot' + s, Lg.ankle, ll);
   }
+  let si, sw, skirt;
+  if (pre){ ({ si, sw } = rigUnpack(pre, pos.count)); skirt = !!pre.skirt; }
+  else {
   const segs = [
     ['pelvis', J.pelvis, J.spine, 0], ['spine', J.spine, J.chest, 0], ['chest', J.chest, J.neck, 0], ['neck', J.neck, J.head, 0], ['head', J.head, J.top, 0],
     ['upperArmL', J.armL.sh, J.armL.el, 1], ['lowerArmL', J.armL.el, J.armL.wr, 1], ['handL', J.armL.wr, J.armL.tip, 1],
@@ -48,7 +53,7 @@ function rigModel(srcMesh){
     upperArmL: ['chest', 'lowerArmL'], lowerArmL: ['upperArmL', 'handL'], handL: ['lowerArmL'], upperArmR: ['chest', 'lowerArmR'], lowerArmR: ['upperArmR', 'handR'], handR: ['lowerArmR'],
     upperLegL: ['pelvis', 'lowerLegL'], lowerLegL: ['upperLegL', 'footL'], footL: ['lowerLegL'], upperLegR: ['pelvis', 'lowerLegR'], lowerLegR: ['upperLegR', 'footR'], footR: ['lowerLegR'] };
   const idx = {}; for (const [name] of segs) idx[name] = list.indexOf(bones[name]);
-  const n = pos.count, si = new Uint16Array(n*4), sw = new Float32Array(n*4), p = RV(0, 0, 0), d = segs.map(s => [s[0], 0]);
+  const n = pos.count, p = RV(0, 0, 0), d = segs.map(s => [s[0], 0]); si = new Uint16Array(n*4); sw = new Float32Array(n*4);
   for (let i = 0; i < n; i++){
     p.set(pos.getX(i), pos.getY(i), pos.getZ(i));
     const side = Math.abs(p.x) < .015*H ? 0 : Math.sign(p.x);
@@ -66,7 +71,7 @@ function rigModel(srcMesh){
   let kn = 0, mid = 0, zs = 0, zMax = -1e9, zMin = 1e9, mMax = -1e9, mMin = 1e9;
   for (let i = 0; i < n; i++){ const y = pos.getY(i); if (y > .2*H && y < .3*H){ const z = pos.getZ(i); kn++; zs += z; zMax = Math.max(zMax, z); zMin = Math.min(zMin, z); if (Math.abs(pos.getX(i)) < .015*H){ mid++; mMax = Math.max(mMax, z); mMin = Math.min(mMin, z); } } }
   const zc = kn ? zs / kn : 0;
-  const skirt = kn > 0 && mid / kn > .04 && (mMax - zc) > .8 * (zMax - zc) && (zc - mMin) > .8 * (zc - zMin);
+  skirt = kn > 0 && mid / kn > .04 && (mMax - zc) > .8 * (zMax - zc) && (zc - mMin) > .8 * (zc - zMin);
   if (skirt){
     const arms = new Set(['upperArmL', 'lowerArmL', 'handL', 'upperArmR', 'lowerArmR', 'handR'].map(nm => idx[nm]));
     const top = J.pelvis.y - .02*H, bot = .02*H, sm = x => x * x * (3 - 2 * x);
@@ -87,13 +92,31 @@ function rigModel(srcMesh){
       }
     }
   }
+  }
   geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4));
   geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(sw, 4));
   const mesh = new THREE.SkinnedMesh(geo, srcMesh.material);
   mesh.add(root); mesh.bind(new THREE.Skeleton(list));
-  mesh.frustumCulled = false;
+  mesh.computeBoundingSphere(); mesh.boundingSphere.radius *= 1.45;   // generous, so no pose pokes out of it
   const armAng = s => { const A = s > 0 ? J.armL : J.armR; const v = A.wr.clone().sub(A.sh); return Math.atan2(Math.abs(v.x), -v.y); };
-  return { mesh, bones, J, H, skirt, head: measureHead(pos, H, J), armDown: { L: armAng(1), R: armAng(-1) }, t: 0, phase: 0 };
+  return { mesh, bones, J, H, skirt, head: pre && pre.head ? pre.head : measureHead(pos, H, J), armDown: { L: armAng(1), R: armAng(-1) }, t: 0, phase: 0 };
+}
+// ---- saving a rig: joints as arrays, bone numbers and weights as bytes in base64 ----
+function rigJointsTo(o){ if (o && o.isVector3) return [+o.x.toFixed(5), +o.y.toFixed(5), +o.z.toFixed(5)]; if (o && typeof o === 'object'){ const r = {}; for (const k in o) r[k] = rigJointsTo(o[k]); return r; } return o; }
+function rigJointsFrom(o){ if (Array.isArray(o) && o.length === 3 && typeof o[0] === 'number') return RV(o[0], o[1], o[2]); if (o && typeof o === 'object'){ const r = {}; for (const k in o) r[k] = rigJointsFrom(o[k]); return r; } return o; }
+function b64(bytes){ let s = ''; for (let i = 0; i < bytes.length; i += 8192) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192)); return btoa(s); }
+function unb64(s){ const b = atob(s), a = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) a[i] = b.charCodeAt(i); return a; }
+function rigData(R){
+  const g = R.mesh.geometry, si = g.attributes.skinIndex.array, sw = g.attributes.skinWeight.array;
+  const qi = new Uint8Array(si.length), qw = new Uint8Array(sw.length);
+  for (let i = 0; i < si.length; i++){ qi[i] = si[i]; qw[i] = Math.round(sw[i] * 255); }
+  return { v: 1, count: g.attributes.position.count, J: rigJointsTo(R.J), skirt: R.skirt, head: R.head, si: b64(qi), sw: b64(qw) };
+}
+function rigUnpack(pre, count){
+  const qi = unb64(pre.si), qw = unb64(pre.sw); if (qi.length !== count * 4) throw new Error('saved rig does not match the model');
+  const si = new Uint16Array(qi), sw = new Float32Array(qw.length);
+  for (let i = 0; i < count; i++){ let t = 0; for (let k = 0; k < 4; k++) t += qw[i*4+k]; for (let k = 0; k < 4; k++) sw[i*4+k] = t ? qw[i*4+k] / t : (k ? 0 : 1); }
+  return { si, sw };
 }
 // face landmarks from the shape (for the glasses, cap and chain)
 function measureHead(pos, H, J){
@@ -331,7 +354,8 @@ function cloneRig(R){
   const root = R.bones.root.clone(true), bones = {};
   root.traverse(b => { if (b.isBone) bones[b.name] = b; });
   const list = R.mesh.skeleton.bones.map(b => bones[b.name]);
-  const mesh = new THREE.SkinnedMesh(R.mesh.geometry, R.mesh.material); mesh.castShadow = R.mesh.castShadow; mesh.frustumCulled = false;
+  const mesh = new THREE.SkinnedMesh(R.mesh.geometry, R.mesh.material); mesh.castShadow = R.mesh.castShadow;
   mesh.add(root); mesh.bind(new THREE.Skeleton(list, R.mesh.skeleton.boneInverses.map(m => m.clone())), new THREE.Matrix4());
+  mesh.boundingSphere = R.mesh.boundingSphere.clone();
   return { ...R, mesh, bones, t: Math.random() * 10, phase: Math.random() * 6, prev: null, move: null, since: 0 };
 }
