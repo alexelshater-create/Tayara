@@ -1,0 +1,21 @@
+{
+"punch": 15,
+"fall": 5,
+"block": 5,
+"wood": 5,
+"glass": 5,
+"metal": 5,
+"metalm": 5,
+"metall": 5,
+"plate": 5,
+"step": 5,
+"stepw": 5,
+"reload-pistol": 1,
+"reload-rifle": 1,
+"pump": 1,
+"shell-in": 1,
+"dry": 1,
+"crash": 1,
+"siren": 1,
+"engine": 1
+}

@@ -136,13 +136,13 @@ function twRoll(){
   TW.seqs = sequences(twState(), TW.turn, TW.dice);
   const who = TW.turn === 1 ? heroName : 'عم رجب'; const nm = rollName(a, b);
   if (!TW.seqs.length){ twMsg(`${who}: ${nm}… مفيش لعب`); drawTawla(); TW.busy = true; setTimeout(() => { TW.busy = false; twEndTurn(); }, 1300); return; }
-  twMsg(TW.turn === 1 ? `🎲 ${nm}! اختار حجر وحرّكه (الحجارة اللي ليها لعب عليها دايرة خضرا)` : `عم رجب: «${nm}!»`); if (Math.random() < .5) speak(nm);
+  twMsg(TW.turn === 1 ? `${nm}! اختار حجر وحرّكه (الحجارة اللي ليها لعب عليها دايرة خضرا)` : `عم رجب: «${nm}!»`); if (Math.random() < .5) speak(nm);
   drawTawla(); twButtons();
   if (TW.turn === -1) twAi();
 }
 function twPlayerMove(m){
   const st = applyMove(twState(), 1, m); twSet(st); tone(500, 380, .05, 'triangle', .12);
-  if (m.hit){ twMsg('ضربت حجر عم رجب! 💥'); thwack(); }
+  if (m.hit){ twMsg('ضربت حجر عم رجب!'); thwack(); }
   TW.seqs = TW.seqs.filter(s => String(s.seq[0].from) === String(m.from) && s.seq[0].to === m.to).map(s => ({ seq: s.seq.slice(1), end: s.end })).filter(s => s.seq.length);
   TW.dice.splice(TW.dice.indexOf(m.d), 1); TW.sel = null;
   if (TW.off[0] >= 15) return twWin(1);
@@ -154,25 +154,25 @@ function twAi(){
   const seq = best.seq.slice(); TW.busy = true;
   const step = () => { if (TW.over) return; const m = seq.shift(); if (!m){ TW.busy = false; if (TW.off[1] >= 15) return twWin(-1); return twEndTurn(); }
     twSet(applyMove(twState(), -1, m)); TW.dice.splice(TW.dice.indexOf(m.d), 1); tone(420, 300, .05, 'triangle', .1);
-    if (m.hit){ twMsg('عم رجب ضرب حجرك! «معلش يا ابني» 😏'); thwack(); }
+    if (m.hit){ twMsg('عم رجب ضرب حجرك! «معلش يا ابني»'); thwack(); }
     drawTawla(); if (TW.off[1] >= 15){ TW.busy = false; return twWin(-1); } setTimeout(step, 620); };
   setTimeout(step, 900);
 }
-function twEndTurn(){ TW.dice = []; TW.seqs = []; TW.sel = null; TW.turn = -TW.turn; drawTawla(); twButtons(); if (TW.turn === -1){ twMsg('دور عم رجب…'); setTimeout(twRoll, 700); } else twMsg('دورك… ارمي الزهر 🎲'); }
+function twEndTurn(){ TW.dice = []; TW.seqs = []; TW.sel = null; TW.turn = -TW.turn; drawTawla(); twButtons(); if (TW.turn === -1){ twMsg('دور عم رجب…'); setTimeout(twRoll, 700); } else twMsg('دورك… ارمي الزهر'); }
 function twWin(s){
   TW.over = true; const loserOff = TW.off[sideIdx(-s)], pts = loserOff === 0 ? 2 : 1; TW.score[sideIdx(s)] += pts;
   const mars = pts === 2 ? ' (مارس! نقطتين)' : '';
   if (TW.score[0] >= TW.target || TW.score[1] >= TW.target){ TW.matchOver = true; const w = TW.score[0] > TW.score[1];
     let bet = ''; if (modeObj.onDomino && modeId === 'story'){ const b = Math.min(modeObj.domBet || 20, Math.max(0, Math.floor(hero.money))); hero.money += w ? b : -b; bet = w ? ` · +${b} جنيه` : ` · -${b} جنيه`; saveStory(); }
     if (w){ stat('tawlaWin'); coin(); }
-    twMsg(`${w ? '🏆 كسبت العشرة' : '😅 عم رجب كسب العشرة'} ${TW.score[0]}–${TW.score[1]}${mars}${bet}`); speak(w ? 'ماشي يا ابني… إيدك خفيفة' : 'اتعلم يا ابني');
-  } else twMsg(`${s === 1 ? '🎉 كسبت الدور' : 'عم رجب كسب الدور'}${mars} · ${TW.score[0]}–${TW.score[1]}`);
+    twMsg(`${w ? 'كسبت العشرة' : 'عم رجب كسب العشرة'} ${TW.score[0]}–${TW.score[1]}${mars}${bet}`); speak(w ? 'ماشي يا ابني… إيدك خفيفة' : 'اتعلم يا ابني');
+  } else twMsg(`${s === 1 ? 'كسبت الدور' : 'عم رجب كسب الدور'}${mars} · ${TW.score[0]}–${TW.score[1]}`);
   drawTawla(); twButtons();
 }
 function twButtons(){
   $('twRoll').hidden = !(TW.turn === 1 && !TW.over && !TW.dice.length);
   $('twAgain').hidden = !TW.over; $('twAgain').textContent = TW.matchOver ? 'عشرة جديدة' : 'دور جديد';
-  $('twScore').textContent = `${heroName} ${TW.score[0]} · عم رجب ${TW.score[1]} (لـ ٣)`;
+  $('twScore').textContent = AR(`${heroName} ${TW.score[0]} · عم رجب ${TW.score[1]} (لـ ٣)`);
 }
 function openTawla(){
   hero.locked = true; $('tawla').hidden = false; document.body.classList.add('in-domino');

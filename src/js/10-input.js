@@ -5,15 +5,18 @@ addEventListener('keydown', e => {
   keys[e.code] = true; if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
   if (state !== 'play') return;
   if (e.code === 'KeyE') action();
-  if (e.code === 'KeyF') punch();
+  if (e.code === 'KeyF' && !e.repeat) attackPress();
+  if (e.code === 'KeyQ' && !e.repeat) blockPress();
+  if (e.code === 'KeyG' && !e.repeat) grabPress();
   if (e.code === 'KeyH') { if (hero.veh) horn(); }
 });
-addEventListener('keyup', e => { keys[e.code] = false; });
+addEventListener('keyup', e => { keys[e.code] = false; if (e.code === 'KeyF') attackRelease(); if (e.code === 'KeyQ') blockRelease(); });
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
-canvas.addEventListener('mousedown', e => { if (e.button === 0 && state === 'play' && !isTouch && !ST.kind && $('domino').hidden) punch(); });
+canvas.addEventListener('mousedown', e => { if (e.button === 0 && state === 'play' && !isTouch && !ST.kind && $('domino').hidden) attackPress(); });
+addEventListener('mouseup', e => { if (e.button === 0) attackRelease(); });
 const ZOOMS = [5, 7.5, 11]; let zoomIdx = 0, camDist = 5, camTarget = 5;
 addEventListener('wheel', e => { camTarget = clamp(camTarget + Math.sign(e.deltaY)*1.2, 4, 15); }, { passive: true });
-$('zoomBtn').onclick = () => { if (hero.veh){ CAM.vmode = (CAM.vmode + 1) % 3; store.set('ty_vcam', String(CAM.vmode)); banner(['📷 كاميرا ورا العربية', '📷 كاميرا بعيدة', '📷 من جوه العربية'][CAM.vmode], 'info', 1.2); return; } zoomIdx = (zoomIdx+1) % ZOOMS.length; camTarget = ZOOMS[zoomIdx]; };
+$('zoomBtn').onclick = () => { if (hero.veh){ CAM.vmode = (CAM.vmode + 1) % 3; store.set('ty_vcam', String(CAM.vmode)); banner(['كاميرا ورا العربية', 'كاميرا بعيدة', 'من جوه العربية'][CAM.vmode], 'info', 1.2); return; } zoomIdx = (zoomIdx+1) % ZOOMS.length; camTarget = ZOOMS[zoomIdx]; };
 $('menuBtn').onclick = () => openPause();
 const lockLandscape = () => { try { const o = screen.orientation; if (o && o.lock) o.lock('landscape').catch(() => {}); } catch(e){} };
 const goFull = () => { const d = document.documentElement; if (document.fullscreenElement){ lockLandscape(); return; } try { const r = (d.requestFullscreen || d.webkitRequestFullscreen).call(d, { navigationUI: 'hide' }); if (r && r.then) r.then(lockLandscape, () => {}); else lockLandscape(); } catch(e){} };
@@ -53,7 +56,17 @@ let runBtn = false; const rb = $('runBtn');
 rb.addEventListener('pointerdown', e => { e.stopPropagation(); runBtn = true; rb.classList.add('on'); });
 ['pointerup','pointerleave','pointercancel'].forEach(ev => rb.addEventListener(ev, () => { runBtn = false; rb.classList.remove('on'); }));
 $('actBtn').addEventListener('pointerdown', e => { e.stopPropagation(); if (state === 'play') action(); });
-$('punchBtn').addEventListener('pointerdown', e => { e.stopPropagation(); if (state === 'play'){ if (hero.veh) horn(); else punch(); } });
+$('jumpBtn').addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); if (state === 'play' && !hero.veh) wantJump(); });
+$('punchBtn').addEventListener('pointerdown', e => { e.stopPropagation(); if (state === 'play') attackPress(); });
+['pointerup', 'pointercancel', 'lostpointercapture'].forEach(ev => $('punchBtn').addEventListener(ev, () => attackRelease()));
+$('blockBtn').addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); blockPress(); });
+['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => $('blockBtn').addEventListener(ev, () => blockRelease()));
+$('grabBtn').addEventListener('pointerdown', e => { e.stopPropagation(); grabPress(); });
 
+// a second finger (one is on the joystick) gets no click from the browser: press the button ourselves
+const tapDown = {};
+addEventListener('pointerdown', e => { if (e.pointerType === 'touch' && !e.isPrimary) tapDown[e.pointerId] = e.target.closest && e.target.closest('button'); }, true);
+addEventListener('pointerup', e => { const b = tapDown[e.pointerId]; delete tapDown[e.pointerId]; if (!b || b.disabled || e.pointerType !== 'touch' || e.isPrimary) return; const up = document.elementFromPoint(e.clientX, e.clientY); if (up && b.contains(up)) b.click(); }, true);
+addEventListener('pointercancel', e => { delete tapDown[e.pointerId]; }, true);
 // on a phone, the first tap goes fullscreen and turns the game sideways
 if (isTouch) addEventListener('pointerdown', function first(){ goFull(); removeEventListener('pointerdown', first, true); }, true);

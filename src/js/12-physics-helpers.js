@@ -1,6 +1,26 @@
 // ================= physics helpers =================
 const PR = .35;
-function staticBlocked(x, z, pad=PR){ for (const o of obstacles) if (x > o.minX-pad && x < o.maxX+pad && z > o.minZ-pad && z < o.maxZ+pad) return true; return false; }
+// obstacles are looked up in a grid of 8 m cells (there are well over a thousand of them). The grid is rebuilt when
+// the list grows. An obstacle with a height h (a table, a bench, a drum) doesn't block someone whose feet are above it.
+const OG = { n: -1, cell: 8, map: new Map(), big: [] };
+function ogBuild(){
+  OG.map.clear(); OG.big.length = 0; const c = OG.cell;
+  for (const o of obstacles){
+    const x0 = Math.floor(o.minX / c), x1 = Math.floor(o.maxX / c), z0 = Math.floor(o.minZ / c), z1 = Math.floor(o.maxZ / c);
+    if ((x1 - x0 + 1) * (z1 - z0 + 1) > 300){ OG.big.push(o); continue; }
+    for (let gx = x0; gx <= x1; gx++) for (let gz = z0; gz <= z1; gz++){ const k = gx * 4096 + gz; let l = OG.map.get(k); if (!l) OG.map.set(k, l = []); l.push(o); }
+  }
+  OG.n = obstacles.length;
+}
+// calls fn(o) for each obstacle within pad of (x, z); stops early if fn returns true
+function ogQuery(x, z, pad, fn){
+  if (OG.n !== obstacles.length) ogBuild();
+  const c = OG.cell, x0 = Math.floor((x - pad) / c), x1 = Math.floor((x + pad) / c), z0 = Math.floor((z - pad) / c), z1 = Math.floor((z + pad) / c);
+  for (const o of OG.big) if (x > o.minX-pad && x < o.maxX+pad && z > o.minZ-pad && z < o.maxZ+pad && fn(o)) return true;
+  for (let gx = x0; gx <= x1; gx++) for (let gz = z0; gz <= z1; gz++){ const l = OG.map.get(gx * 4096 + gz); if (l) for (const o of l) if (x > o.minX-pad && x < o.maxX+pad && z > o.minZ-pad && z < o.maxZ+pad && fn(o)) return true; }
+  return false;
+}
+function staticBlocked(x, z, pad=PR, feet){ return ogQuery(x, z, pad, o => !(feet !== undefined && o.h !== undefined && feet >= o.h - .05)); }
 function vehBlockedAt(x, z, pad, skip){ for (const v of vehicles){ if (v === skip) continue; for (const c of vCircles(v)) if (Math.hypot(c.x-x, c.z-z) < c.r + pad) return true; } return false; }
 function blocked(x, z){ if (HOUSE.inside) return !HOUSE.inRoom(x, z) || staticBlocked(x, z); return !inWorld(x, z) || staticBlocked(x, z) || vehBlockedAt(x, z, PR, hero.veh) || tramBlocks(x, z); }
 function freeSpot(x, z){ if (!staticBlocked(x, z, .5) && inWorld(x, z)) return [x, z]; for (let r = .6; r < 6; r += .4) for (let a = 0; a < 6.28; a += .4){ const nx = x + Math.sin(a)*r, nz = z + Math.cos(a)*r; if (inWorld(nx, nz) && !staticBlocked(nx, nz, .5)) return [nx, nz]; } return [x, z]; }

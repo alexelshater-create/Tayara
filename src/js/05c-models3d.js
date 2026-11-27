@@ -1,4 +1,13 @@
 // ================= 3D characters: loading =================
+// a 2048 picture takes 22 MB of the phone's graphics memory, a 1024 one 5.5 MB: on عادي and خفيف the character
+// pictures are drawn smaller once when they load (on a phone screen the difference can't be seen)
+function shrinkMaps(mat, max){
+  for (const k of ['map', 'normalMap', 'emissiveMap', 'roughnessMap', 'metalnessMap', 'aoMap']){
+    const t = mat[k], im = t && t.image; if (!im || !(im.width > max || im.height > max)) continue;
+    const s = max / Math.max(im.width, im.height), c = document.createElement('canvas'); c.width = Math.round(im.width * s); c.height = Math.round(im.height * s);
+    c.getContext('2d').drawImage(im, 0, 0, c.width, c.height); t.image = c; t.needsUpdate = true;
+  }
+}
 // load a model made by tools/shrink_model.py; null when it is missing or broken (the game then keeps the photo character)
 const RIG_MS = {};   // how long each rig took to build (for checking load time)
 async function loadModel3D(name){
@@ -12,6 +21,7 @@ async function loadModel3D(name){
     try { R = rigModel(src, pre); } catch (e){ console.warn('saved rig unusable, rigging again:', name, e.message); R = rigModel(src); }
     RIG_MS[name] = Math.round(performance.now() - t0) + (pre ? ' (saved)' : '');
     const m = R.mesh.material; m.side = THREE.FrontSide; if (m.map) m.map.anisotropy = 4;
+    shrinkMaps(m, GFX === 'high' ? 2048 : 1024);
     R.mesh.castShadow = !LOW;
     return R;
   } catch (e){ console.warn('3D model failed, using the photo:', name, e); return null; }

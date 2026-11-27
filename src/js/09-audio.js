@@ -1,8 +1,11 @@
 // ================= audio =================
-let AC = null, master = null, sfx = null, musicGain = null, crowdGain = null, sirenGain = null;
+let AC = null, master = null, sfx = null, musicGain = null, crowdGain = null, sirenGain = null, sirenOsc = null;
 let muted = store.get('ty_mute') === '1', musicOn = store.get('ty_music') !== '0', voiceOn = store.get('ty_voice') !== '0';
 let musicEl = null, beatNext = 0, beatStep = 0;
-function setBtnStates(){ $('muteBtn').textContent = muted ? '🔇' : '🔊'; $('voiceBtn').classList.toggle('off', !voiceOn); }
+function setBtnStates(){ $('muteBtn').innerHTML = icon(muted ? 'volume-off' : 'volume'); $('voiceBtn').classList.toggle('off', !voiceOn);
+  const cm = $('cineMute'); if (cm) cm.innerHTML = icon(muted ? 'volume-off' : 'volume');
+  const sm = $('setMute'), sv = $('setVoice'); if (sm){ sm.textContent = muted ? 'مقفول' : 'شغال'; sm.classList.toggle('on', !muted); } if (sv){ sv.textContent = voiceOn ? 'شغال' : 'مقفول'; sv.classList.toggle('on', voiceOn); }
+  try { if (VOICE.cur) VOICE.cur.muted = muted; } catch(e){} }   // VOICE (19k) doesn't exist yet on the first call
 setBtnStates();
 function initAudio(){
   if (AC){ AC.resume(); return; }
@@ -18,7 +21,7 @@ function initAudio(){
     const bp = AC.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 420; bp.Q.value = .8;
     crowdGain = AC.createGain(); crowdGain.gain.value = 0; src.connect(bp); bp.connect(crowdGain); crowdGain.connect(master); src.start();
     // siren
-    const osc = AC.createOscillator(); osc.type = 'sawtooth'; osc.frequency.value = 760;
+    const osc = sirenOsc = AC.createOscillator(); osc.type = 'sawtooth'; osc.frequency.value = 760;
     const lfo = AC.createOscillator(); lfo.frequency.value = .7; const lg = AC.createGain(); lg.gain.value = 230; lfo.connect(lg); lg.connect(osc.frequency);
     const lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1700;
     sirenGain = AC.createGain(); sirenGain.gain.value = 0; osc.connect(lp); lp.connect(sirenGain); sirenGain.connect(master); osc.start(); lfo.start();
@@ -36,7 +39,7 @@ function noise(dur, freq, vol, delay=0, type='lowpass', out){
   if (!AC) return; if (!noiseBuf){ noiseBuf = AC.createBuffer(1, AC.sampleRate, AC.sampleRate); const d = noiseBuf.getChannelData(0); for (let i=0;i<d.length;i++) d[i] = Math.random()*2-1; }
   const t = AC.currentTime + delay, s = AC.createBufferSource(); s.buffer = noiseBuf; const f = AC.createBiquadFilter(); f.type = type; f.frequency.value = freq; const g = AC.createGain(); env(g, t, .002, dur, vol); s.connect(f); f.connect(g); g.connect(out || sfx); s.start(t); s.stop(t+dur+.05);
 }
-const thwack = () => { noise(.18, 900, .6); tone(160, 60, .15, 'sine', .4); };
+const thwack = () => { if (!playS('punch', .85)){ noise(.18, 900, .6); tone(160, 60, .15, 'sine', .4); } };   // a real punch (09c)
 const horn = () => { tone(415, 415, .16, 'square', .07); tone(523, 523, .16, 'square', .05); tone(415, 415, .22, 'square', .07, .22); tone(523, 523, .22, 'square', .05, .22); };
 const clink = () => { tone(2600, 2500, .25, 'sine', .08); tone(3400, 3300, .2, 'sine', .05, .05); };
 const coin = () => { tone(880,1320,.12,'square',.07); tone(1320,1760,.16,'square',.06,.08); };
@@ -64,4 +67,7 @@ try { speechSynthesis.onvoiceschanged = pickVoice; pickVoice(); } catch(e){}
 let lastSpeak = 0;
 function speak(text){ if (muted || !voiceOn || !arVoice || !AC) return; const now = performance.now(); if (now - lastSpeak < 2500) return; lastSpeak = now; try { const u = new SpeechSynthesisUtterance(text.replace(/[^؀-ۿ\s!؟?]/g,'')); u.voice = arVoice; u.lang = arVoice.lang; u.volume = .4; u.rate = 1.05; u.pitch = .85 + Math.random()*.35; speechSynthesis.cancel(); speechSynthesis.speak(u); } catch(e){} }
 $('muteBtn').onclick = () => { muted = !muted; store.set('ty_mute', muted?'1':'0'); if (master) master.gain.value = muted ? 0 : 1; if (musicEl){ muted || !musicOn ? musicEl.pause() : musicEl.play().catch(()=>{}); } if (muted) try { speechSynthesis.cancel(); } catch(e){} setBtnStates(); };
+$('setMute').onclick = () => $('muteBtn').click();
+$('cineMute').onclick = e => { e.stopPropagation(); $('muteBtn').click(); };
+$('setVoice').onclick = () => $('voiceBtn').click();
 $('voiceBtn').onclick = () => { voiceOn = !voiceOn; store.set('ty_voice', voiceOn?'1':'0'); setBtnStates(); if (voiceOn && !arVoice) banner('جهازك مفيهوش صوت عربي، الكلام هيظهر مكتوب بس', 'info', 3); };

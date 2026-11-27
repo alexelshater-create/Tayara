@@ -3,25 +3,25 @@
 // Walking through the door fades into the room; the shopkeeper sells a few things; the door inside takes you back out.
 const SHOP_DEFS = [
   { id: 'pharmacy', name: 'صيدلية الشفاء', icon: '💊', color: '#1e5aa8', block: [2, 1], keeper: 'دكتور مجدي', wall: '#eef3f5', floor: '#d9e2e6',
-    items: [{ label: '💊 مسكّن وفيتامين (الصحة كلها)', price: 30, hp: 100, say: 'ألف سلامة يا ابني' }, { label: '🩹 بلاستر وشاش', price: 6, hp: 20, say: 'خلي بالك من نفسك' }] },
+    items: [{ label: 'مسكّن وفيتامين (الصحة كلها)', price: 30, hp: 100, say: 'ألف سلامة يا ابني' }, { label: 'بلاستر وشاش', price: 6, hp: 20, say: 'خلي بالك من نفسك' }] },
   { id: 'barber', name: 'حلاق الجامد', icon: '💈', color: '#7a1f2b', block: [3, 2], keeper: 'الأسطى حمو', wall: '#f1e4d0', floor: '#cfc6b8',
-    items: [{ label: '✂️ حلاقة وتظبيط دقن', price: 25, say: 'نعيماً يا جامد… بقيت عريس', fx: 'cut' }, { label: '🧴 جيل وبرفان', price: 10, say: 'ريحتك بقت فل', fx: 'cut' }] },
+    items: [{ label: 'حلاقة وتظبيط دقن', price: 25, say: 'نعيماً يا جامد… بقيت عريس', fx: 'cut' }, { label: 'جيل وبرفان', price: 10, say: 'ريحتك بقت فل', fx: 'cut' }] },
   { id: 'juice', name: 'عصير قصب الحرية', icon: '🥤', color: '#2d7a1f', block: [3, 1], keeper: 'عم سيد العصّار', wall: '#e9f0d8', floor: '#bdb39d',
-    items: [{ label: '🥤 كوباية قصب', price: 5, hp: 25, run: true, say: 'قصب ساقع يرد الروح' }, { label: '🥭 مانجا فريش', price: 12, hp: 45, run: true, say: 'مانجا عويس على أصولها' }] },
+    items: [{ label: 'كوباية قصب', price: 5, hp: 25, run: true, say: 'قصب ساقع يرد الروح' }, { label: 'مانجا فريش', price: 12, hp: 45, run: true, say: 'مانجا عويس على أصولها' }] },
   { id: 'phones', name: 'موبايلات طيارة', icon: '📱', color: '#202a6e', block: [1, 2], keeper: 'ميدو', wall: '#e6e8f2', floor: '#d5d7de',
-    items: [{ label: '🔋 اشحن موبايلك', price: 0, say: 'اشحن براحتك يا معلم', fx: 'charge' }, { label: '📲 كارت شحن ٢٠', price: 20, say: 'الكارت أهو… كلّم الحبايب', fx: 'card' }] },
+    items: [{ label: 'اشحن موبايلك', price: 0, say: 'اشحن براحتك يا معلم', fx: 'charge' }, { label: 'كارت شحن ٢٠', price: 20, say: 'الكارت أهو… كلّم الحبايب', fx: 'card' }] },
   { id: 'market', name: 'سوبر ماركت الأمانة', icon: '🛒', color: '#1f6f43', block: [2, 3], keeper: 'الحاج رمضان', wall: '#f4f1e8', floor: '#e2ddd2',
-    items: [{ label: '🥫 ساندوتش جبنة وبيبسي', price: 8, hp: 30, say: 'بالهنا والشفا' }, { label: '💧 مية ساقعة', price: 3, hp: 10, run: true, say: 'اتفضل' }, { label: '🍫 شوكولاتة', price: 5, hp: 15, say: 'حلّي بقك' }] },
+    items: [{ label: 'ساندوتش جبنة وبيبسي', price: 8, hp: 30, say: 'بالهنا والشفا' }, { label: 'مية ساقعة', price: 3, hp: 10, run: true, say: 'اتفضل' }, { label: 'شوكولاتة', price: 5, hp: 15, say: 'حلّي بقك' }] },
   { id: 'koshari', name: 'كشري أبو طارق', icon: '🍲', color: '#a33a12', block: [5, 2], keeper: 'أبو طارق', wall: '#f3e0c4', floor: '#b9a48a',
-    items: [{ label: '🍲 طبق كشري وسط', price: 20, hp: 70, say: 'زوّد الدقة والشطة' }, { label: '🍮 أرز بلبن', price: 8, hp: 20, say: 'حلو الختام' }] },
+    items: [{ label: 'طبق كشري وسط', price: 20, hp: 70, say: 'زوّد الدقة والشطة' }, { label: 'أرز بلبن', price: 8, hp: 20, say: 'حلو الختام' }] },
   { id: 'bakery', name: 'مخبز العيش البلدي', icon: '🍞', color: '#8a5a12', block: [1, 1], keeper: 'الريّس عبده', wall: '#ead8b8', floor: '#9c8c74',
-    items: [{ label: '🍞 خمس أرغفة سخنة', price: 2, hp: 15, say: 'العيش لسه طالع من الفرن' }, { label: '🥐 فينو وجبنة', price: 6, hp: 25, say: 'بالهنا' }] },
+    items: [{ label: 'خمس أرغفة سخنة', price: 2, hp: 15, say: 'العيش لسه طالع من الفرن' }, { label: 'فينو وجبنة', price: 6, hp: 25, say: 'بالهنا' }] },
   { id: 'police', name: 'قسم شرطة الجمرك', icon: '🚓', color: '#0d3b66', block: [3, 3], keeper: 'الظابط حسام', wall: '#dde3e8', floor: '#b8bfc4',
-    items: [{ label: '🗣️ اسأل الظابط على حاجة', price: 0, say: 'الحتة أمان طول ما إحنا هنا… ولو شفت حاجة بلّغ', fx: 'talk' }] },
+    items: [{ label: 'اسأل الظابط على حاجة', price: 0, say: 'الحتة أمان طول ما إحنا هنا… ولو شفت حاجة بلّغ', fx: 'talk' }] },
   { id: 'cafe', name: 'قهوة قصر الملوك (جوه)', icon: '☕', color: '#5a3a1e', door: { x: 12.2, z: 21.66, face: 'pz' }, keeper: 'المعلم عبده', wall: '#d9b98a', floor: '#8a6a4a',
-    items: [{ label: '🍵 شاي كشري', price: 5, hp: 20, say: 'تقيل ومظبوط' }, { label: '☕ قهوة مظبوط', price: 8, hp: 25, say: 'على وشها' }, { label: '💨 حجر شيشة تفاح', price: 15, say: 'اشرب يا جامد', fx: 'shisha' }] },
+    items: [{ label: 'شاي كشري', price: 5, hp: 20, say: 'تقيل ومظبوط' }, { label: 'قهوة مظبوط', price: 8, hp: 25, say: 'على وشها' }, { label: 'حجر شيشة تفاح', price: 15, say: 'اشرب يا جامد', fx: 'shisha' }] },
   { id: 'azzouz', name: 'مطعم عزوز (جوه)', icon: '🍕', color: '#b3121f', door: { x: 125.4, z: 39.07, face: 'pz' }, keeper: 'عزوز', wall: '#f2d6b0', floor: '#a0705c',
-    items: [{ label: '🍕 بيتزا سوبر سوبريم', price: 40, hp: 100, say: 'أحسن بيتزا في إسكندرية' }, { label: '🍕 حتة مارجريتا', price: 12, hp: 35, say: 'بالهنا يا طيارة' }] },
+    items: [{ label: 'بيتزا سوبر سوبريم', price: 40, hp: 100, say: 'أحسن بيتزا في إسكندرية' }, { label: 'حتة مارجريتا', price: 12, hp: 35, say: 'بالهنا يا طيارة' }] },
 ];
 const SHOPS = [];
 const ROOM = { W: 10, D: 8, H: 3.4 };
@@ -31,9 +31,9 @@ const shopLight = new THREE.PointLight(0xffe8c8, 0, 14, 1.3); scene.add(shopLigh
   const used = new Set();
   const doorMat = new THREE.MeshStandardMaterial({ color: 0x2a3540, emissive: 0xffd9a0, emissiveIntensity: .35, roughness: .2, metalness: .3 });
   SHOP_DEFS.forEach((def, i) => {
-    let door = def.door ? { x: def.door.x, z: def.door.z, ry: def.door.face === 'pz' ? 0 : Math.PI } : null;
+    let door = def.door ? (([x, z]) => ({ x, z, ry: def.door.face === 'pz' ? 0 : Math.PI }))(RELOC(def.door.x, def.door.z)) : null;
     if (!door){
-      const [j, k] = def.block, cx = X0 + PITCH / 2 + j * PITCH, cz = Z0 + PITCH / 2 + k * PITCH;
+      const [j, k] = def.block, [cx, cz] = RELOC(X0 + PITCH / 2 + j * PITCH, Z0 + PITCH / 2 + k * PITCH);
       const b = buildings.filter(b => b.faces && Math.abs(b.cx - cx) < BW / 2 && Math.abs(b.cz - cz) < BW / 2 && b.w >= 6.5 && !used.has(b) && b.faces.some(f => f === 'pz' || f === 'nz')).sort((a, c) => c.w - a.w)[0];
       if (!b){ console.warn('no building for', def.id); return; }
       used.add(b); const f = b.faces.includes('pz') ? 'pz' : 'nz', s = f === 'pz' ? 1 : -1;
@@ -41,13 +41,13 @@ const shopLight = new THREE.PointLight(0xffe8c8, 0, 14, 1.3); scene.add(shopLigh
     }
     const out = Math.cos(door.ry) > 0 ? 1 : -1;
     const dm = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 2.4), doorMat); dm.position.set(door.x, 1.35, door.z + out * .01); dm.rotation.y = door.ry; scene.add(dm);
-    glowSigns.push(signBoard(bigSign(`${def.icon} ${def.name}`, def.color, '#fff8e0', 768, 140, 62), door.x, 3.15, door.z + out * .04, 3.9, .72, door.ry, .45));
-    const shop = { ...def, out: new THREE.Vector3(door.x, .15, door.z + out * 1.1), outYaw: door.ry, room: { x: -560 + i * 30, z: -560 }, keeperN: null };
+    glowSigns.push(signBoard(bigSign(`${def.name.replace(/\s*\(جوه\)/, '')}`, def.color, '#fff8e0', 768, 140, 62), door.x, 3.15, door.z + out * .04, 3.9, .72, door.ry, .45));
+    const shop = { ...def, out: new THREE.Vector3(door.x, .15, door.z + out * 1.1), outYaw: door.ry, room: { x: 5440 + i * 30, z: 5440 }   /* interiors live outside the city (stage 14) */, keeperN: null };
     SHOPS.push(shop);
     buildRoom(shop);
   });
 }
-function nearShopDoor(p){ return SHOPS.find(s => Math.hypot(s.out.x - p.x, s.out.z - p.z) < 1.5); }
+function nearShopDoor(p){ return SHOPS.find(s => !(s.closedT > 0) && Math.hypot(s.out.x - p.x, s.out.z - p.z) < 1.5); }
 // ---- rooms ----
 function buildRoom(s){
   const { W, D, H } = ROOM, ox = s.room.x, oz = s.room.z, p = [], glow = [];
@@ -97,7 +97,7 @@ function buildRoom(s){
   }
   const m = new THREE.Mesh(mergeGeometries(p), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .75 })); m.receiveShadow = true; scene.add(m);
   for (const [kind, c, x, y, z, w, h] of glow){ const g = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: kind === 'oven' ? 1.6 : 1 })); g.position.set(ox + x, y, oz + z); scene.add(g); }
-  const sign = signBoard(bigSign(`${s.icon} ${s.name}`, s.color, '#fff8e0', 768, 140, 62), ox, 2.95, oz - D / 2 + .09, 4.2, .77, 0, .4); void sign;
+  const sign = signBoard(bigSign(`${s.name.replace(/\s*\(جوه\)/, '')}`, s.color, '#fff8e0', 768, 140, 62), ox, 2.95, oz - D / 2 + .09, 4.2, .77, 0, .4); void sign;
   s.doorIn = new THREE.Vector3(ox, 0, oz + D / 2 - .6);
 }
 // ---- going in and out ----
@@ -112,7 +112,7 @@ function enterShop(s){
     shopLight.position.set(s.room.x, 2.9, s.room.z); shopLight.intensity = 4;
     if (!s.keeperN){ s.keeperN = makeNPC(); }
     const n = s.keeperN; n.role = 'keeper'; n.name = s.keeper; n.state = 'idle'; n.g.visible = true; n.g.position.copy(s.keeperAt); n.yaw = 0; n.g.rotation.set(0, 0, 0); n.downT = 0; n.fall = 0;
-    banner(`${s.icon} ${s.name}`, 'info', 1.8);
+    banner(s.name.replace(/\s*\(جوه\)/, ''), 'info', 1.8);
   }, .2).then(() => { if (SHOPIN.s === s && s.keeperN) say(s.keeperN, rpick(['أهلاً يا ' + heroName, 'نورت يا جامد', 'اتفضل يا معلم', 'أؤمر']), 2.2); });
 }
 function exitShop(){
@@ -126,18 +126,18 @@ function exitShop(){
 function shopAction(){
   const s = SHOPIN.s, p = hero.pos;
   if (Math.hypot(p.x - s.doorIn.x, p.z - s.doorIn.z) < 1.4) return { text: `اخرج من ${s.name}`, fn: exitShop };
-  if (Math.hypot(p.x - s.counter.x, p.z - s.counter.z) < 2.4) return { text: s.id === 'police' ? `كلّم ${s.keeper}` : `اشتري من ${s.keeper} ${s.icon}`, fn: () => openShopMenu(s) };
+  if (Math.hypot(p.x - s.counter.x, p.z - s.counter.z) < 2.4) return { text: s.id === 'police' ? `كلّم ${s.keeper}` : `اشتري من ${s.keeper}`, fn: () => openShopMenu(s) };
   return null;
 }
 function openShopMenu(s){
-  openPanel(`${s.icon} ${s.name}`, s.items.map(it => ({ label: it.label, btn: it.price ? `${it.price} ج` : 'يلا', dim: hero.money < it.price, fn: () => buyAt(s, it) })));
+  openPanel(s.name.replace(/\s*\(جوه\)/, ''), s.items.map(it => ({ label: it.label, btn: it.price ? `${it.price} ج` : 'يلا', dim: hero.money < it.price, fn: () => buyAt(s, it) })));
 }
 function buyAt(s, it){
   if (hero.money < it.price){ $('shopMoney').textContent = `محتاج ${egp(it.price - hero.money)} كمان`; buzz(40); return; }
   hero.money -= it.price; closePanel(); if (it.price) coin(); else clink();
   if (it.hp) hero.hp = Math.min(100, hero.hp + it.hp);
   if (it.run){ hero.stamina = 1; hero.tired = false; }
-  const fx = { cut: 'شكلك بقى جامد ✂️', charge: 'الموبايل اتشحن 🔋', card: 'الرصيد اتشحن 📲', shisha: 'دماغك رايقة 💨', talk: '' }[it.fx];
+  const fx = { cut: 'شكلك بقى جامد', charge: 'الموبايل اتشحن', card: 'الرصيد اتشحن', shisha: 'دماغك رايقة', talk: '' }[it.fx];
   banner(fx || (it.hp ? `${it.label.split(' ')[0]} +${it.hp} صحة` : 'تمام'), 'ok', 2.2);
   if (s.keeperN) say(s.keeperN, it.say, 2.6);
 }
@@ -159,7 +159,7 @@ const TRAMR = { on: false, from: null };
   const mesh = new THREE.Group();
   const body = new THREE.Mesh(mergeGeometries(p), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .45, metalness: .2 })); body.castShadow = true; mesh.add(body);
   for (const e of [-1, 1]){ const l = new THREE.Mesh(new THREE.PlaneGeometry(1.6, .3), new THREE.MeshStandardMaterial({ color: 0xfff4d0, emissive: 0xfff0c0, emissiveIntensity: .8 })); l.position.set(e * 10.23, 1.2, 0); l.rotation.y = e * Math.PI / 2; mesh.add(l); }
-  const sign = signBoard(bigSign('🚋 بحري ⇄ الرمل', '#2a1700', '#ffd34d', 512, 100, 52), 0, 0, 0, 3, .6, 0, .5); scene.remove(sign); sign.position.set(5.2, 2.95, 1.29); mesh.add(sign);
+  const sign = signBoard(bigSign('بحري ⇄ الرمل', '#2a1700', '#ffd34d', 512, 100, 52), 0, 0, 0, 3, .6, 0, .5); scene.remove(sign); sign.position.set(5.2, 2.95, 1.29); mesh.add(sign);
   mesh.position.set(tram.x, 0, TRAM.z); scene.add(mesh); tram.mesh = mesh;
 }
 const TRAM_HALF = 10.4;
@@ -185,24 +185,25 @@ function updateTram(dt, t, playing){
   }
   T.mesh.position.x = T.x; T.mesh.rotation.y = T.dir > 0 ? 0 : Math.PI;
   // riding: you stand inside; at a stop you can get off
-  if (TRAMR.on){ hero.pos.set(T.x - T.dir * 2, .15, TRAM.z); hero.vel.set(0, 0, 0); }
+  if (TRAMR.on && !TRAMR.city){ hero.pos.set(T.x - T.dir * 2, .15, TRAM.z); hero.vel.set(0, 0, 0); }
   // walking in front of it
   else if (playing && !hero.veh && hero.inv <= 0 && T.speed > 2 && tramBlocks(hero.pos.x, hero.pos.z, .1)){ heroDamage(30 * DIFF.dmg, 'car'); hero.inv = 1.6; hero.knock.set(T.dir * 6, 0, hero.pos.z < TRAM.z ? -9 : 9); tramBell(); }
 }
 function tramAction(p){
   if (hero.veh || TRAMR.on || tram.stopT <= .8) return null;
-  if (Math.abs(p.x - tram.x) < TRAM_HALF + 1 && Math.abs(p.z - TRAM.z) < 3.6) return { text: '🚋 اركب الترام (٢ جنيه)', fn: () => {
-    if (hero.money < 2) return banner('مفيش ٢ جنيه للتذكرة 😅', 'bad', 1.8);
-    hero.money -= 2; TRAMR.on = true; TRAMR.from = tram.at; TRAMR.cam = camTarget; camTarget = 11; CAM.tilt = .5; hero.locked = true; tramBell(); banner('ركبت الترام 🚋 · هتنزل في المحطة الجاية', 'ok', 2.4);
+  if (Math.abs(p.x - tram.x) < TRAM_HALF + 1 && Math.abs(p.z - TRAM.z) < 3.6) return { text: 'اركب الترام (٢ جنيه)', fn: () => {
+    if (hero.money < 2) return banner('مفيش ٢ جنيه للتذكرة', 'bad', 1.8);
+    hero.money -= 2; TRAMR.on = true; TRAMR.from = tram.at; TRAMR.cam = camTarget; camTarget = 11; CAM.tilt = .5; hero.locked = true; tramBell(); banner('ركبت الترام · هتنزل في المحطة الجاية', 'ok', 2.4);
   } };
   return null;
 }
 function tramRideAction(){
-  if (tram.stopT > .5 && tram.at !== null && tram.at !== TRAMR.from) return { text: 'انزل من الترام 🚋', fn: () => endTramRide() };
-  return { text: '🚋 الترام ماشي… استنى المحطة الجاية', fn: () => {} };
+  if (tram.stopT > .5 && tram.at !== null && tram.at !== TRAMR.from) return { text: 'انزل من الترام', fn: () => endTramRide() };
+  return { text: 'الترام ماشي… استنى المحطة الجاية', fn: () => {} };
 }
 // a new mode / the menu: out of any shop, off the tram
 function leavePlaces(){
+  if (HOUSE.shop === 'cave'){ HOUSE.shop = null; HOUSE.inside = false; if (HOUSE.homeRoom) HOUSE.room = HOUSE.homeRoom; if (typeof CAVE !== 'undefined' && CAVE.light) CAVE.light.intensity = 0; }
   if (TRAMR.on){ TRAMR.on = false; hero.locked = false; if (TRAMR.cam) camTarget = TRAMR.cam; }
   if (SHOPIN.s){ if (SHOPIN.s.keeperN){ SHOPIN.s.keeperN.state = 'hidden'; SHOPIN.s.keeperN.g.visible = false; } SHOPIN.s = null; HOUSE.shop = null; HOUSE.inside = false; shopLight.intensity = 0; }
   if (HOUSE.homeRoom) HOUSE.room = HOUSE.homeRoom;

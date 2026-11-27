@@ -7,7 +7,7 @@ const HAIR = ['#14100c','#2a1d15','#3b2b20','#6e6e6e','#1b1410'];
 const matCache = {}; const M = c => matCache[c] ||= new THREE.MeshStandardMaterial({ color: c, roughness: .85 });
 const NG = { leg: new THREE.BoxGeometry(.15,.9,.17), arm: new THREE.BoxGeometry(.11,.6,.12), hand: new THREE.SphereGeometry(.06,8,6), torso: new THREE.BoxGeometry(.46,.62,.26), gala: new THREE.BoxGeometry(.5,1.22,.3), head: new THREE.SphereGeometry(.13,14,10), hair: new THREE.SphereGeometry(.137,12,8,0,Math.PI*2,0,Math.PI/2), mus: new THREE.BoxGeometry(.12,.025,.02) };
 const npcs = [];
-const NAMES = ['حمادة','كريم','عم سعيد','الحاج محمود','زيزو','أبو علي','شيكو','مصطفى','عم رجب','بيبو','حسن','تامر'];
+const NAMES = ['سيد','كريم','عم سعيد','الحاج محمود','زيزو','أبو علي','شيكو','مصطفى','عم رجب','بيبو','حسن','تامر'];
 // every NPC piece shares one material and carries its colours per vertex; torso, head and hair are one piece,
 // each arm (sleeve + hand) is one piece: 5 pieces per person instead of 9 (phones draw fewer separate things)
 const npcMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .85 });
@@ -37,9 +37,10 @@ function setWalker(n){ n.state = 'walk'; n.role = 'walker'; n.block = pick(walkB
 function seatNPC(n, x, z, ry){ n.state = 'sit'; n.g.visible = true; n.g.position.set(x, .15, z); n.yaw = ry; n.g.rotation.set(0, ry, 0); n.fall = 0; n.downT = 0; }
 function npcHit(n, power=1){
   if (n.state === 'hidden') return;
+  if (!n.thug) crime('assault', n.g.position, 1, n);
   n.prevState = n.state === 'down' ? n.prevState : n.state; n.state = 'down'; n.downT = 2.6 + power; n.fleeT = 5;
   n.fightT = ((n.prevState === 'walk' || n.prevState === 'fight') && Math.random() < .35) ? 7 : 0;
-  if (n.thug){ n.thugHits = (n.thugHits||0) + 1; n.fightT = 999; if (n.thugHits >= 3){ n.thugDone = true; n.downT = 999; n.fightT = 0; say(n, 'خلاص… خلاص!', 2, 'angry'); thwack(); return; } }
+  if (n.thug){ n.thugHits = (n.thugHits||0) + 1; n.fightT = 999; if (n.thugHits >= (n.thugNeed || 3)){ n.thugDone = true; n.downT = 999; n.fightT = 0; say(n, 'خلاص… خلاص!', 2, 'angry'); thwack(); return; } }
   say(n, rpick(['آه يا عم!','إيه ده يا جدع!','هبلغ عنك!','يا ساتر!','حرام عليك!']), 2, 'angry'); thwack();
 }
 // an NPC can wear a 3D model instead of the low-poly body (شمس's men use the thug / soldier models)
@@ -49,8 +50,13 @@ function npcWear3D(n, model){
 }
 function npcTakeOff3D(n){ if (!n.r3) return; n.g.remove(n.r3.mesh); n.r3 = null; n.body.visible = true; }
 function animNPC3D(n, moving, sitting, dt){
-  let move = sitting ? 'sit' : moving > 3 ? 'run' : moving > 0 ? 'walk' : 'idle', o = { f: clamp(moving * 1.55, 4.5, 11) };
+  let move = sitting ? 'sit' : moving > 3 ? 'run' : moving > 0 ? 'walk' : 'idle', o = { f: clamp(moving * 1.55, 4.5, 11), sp: moving };
   if (n.punchT > 0){ n.punchT -= dt; move = 'punch'; o.k = Math.sin(clamp(1 - n.punchT / .3, 0, 1) * Math.PI); o.side = 1; }
+  if (n.state === 'fight' && !moving) move = 'fightIdle';
+  if (n.mstrike){ move = 'strike'; o.clip = n.mstrike.clip; o.ct = n.mstrike.t; }
+  if (n.blockT > 0){ move = 'strike'; o.clip = 'block'; o.ct = 1.05; }
+  if (n.state === 'stagger') move = 'hit';
+  if (n.state === 'held'){ move = 'strike'; o.clip = 'hit2'; o.ct = .45; }
   if (n.state === 'down') move = 'idle';
   poseRig(n.r3, move, dt, o);
 }
@@ -58,9 +64,9 @@ function updateNPC(n, dt){
   if (n.state === 'hidden') return;
   let moving = 0;
   if (n.state === 'walk'){
-    const b = blocksInfo[n.block]; const sp = n.speed * (n.fleeT > 0 ? 3.2 : 1);
+    const b = n.blk || blocksInfo[n.block] || blocksInfo[0]; const sp = n.speed * (n.fleeT > 0 ? 3.2 : 1);
     if (n.fleeT > 0) n.fleeT -= dt;
-    const old = perimPos(b, n.t); n.t += n.dir * sp * dt / 33.2; const p = perimPos(b, n.t);
+    const old = perimPos(b, n.t); n.t += n.dir * sp * dt / (b.L ? b.L / 4 : 33.2); const p = perimPos(b, n.t);
     n.g.position.set(p[0], .15, p[1]); const dx = p[0]-old[0], dz = p[1]-old[1];
     if (dx || dz) n.yaw = Math.atan2(dx, dz); moving = sp;
   } else if (n.state === 'goto'){
@@ -72,9 +78,8 @@ function updateNPC(n, dt){
     n.downT -= dt; if (n.downT <= 0){ if (n.fightT > 0){ n.state = 'fight'; say(n, rpick(['تعالى هنا!','انت فاكر نفسك مين؟','هوريك!']), 2, 'angry'); } else if (n.prevState === 'walk' || n.prevState === 'down' || n.prevState === 'fight' || !n.prevState) { n.state = 'walk'; } else n.state = n.prevState; }
   } else if (n.state === 'fight'){
     n.fightT -= dt; const tp = hero.pos; const dx = tp.x - n.g.position.x, dz = tp.z - n.g.position.z, d = Math.hypot(dx, dz);
-    if (n.fightT <= 0 || d > 25 || hero.veh){ const bp = perimPos(blocksInfo[n.block], n.t); n.state = 'goto'; n.tx = bp[0]; n.tz = bp[1]; n.onArrive = n2 => { n2.state = 'walk'; }; }
-    else if (d > 1.1){ const s = 4*dt; moveWithSlide(n.g.position, dx/d*s, dz/d*s, .3); n.yaw = Math.atan2(dx, dz); moving = 4; }
-    else { n.yaw = Math.atan2(dx, dz); n.atkT = (n.atkT||0) - dt; if (n.atkT <= 0){ n.atkT = 1.2; n.arms[1].rotation.x = -1.6; n.punchT = .3; setTimeout(() => { n.arms[1].rotation.x = 0; if (n.state === 'fight' && n.g.position.distanceTo(hero.pos) < 1.7) heroDamage(5, 'npc'); }, 150); } }
+    if (n.fightT <= 0 || d > 25 || hero.veh){ const bp = perimPos(n.blk || blocksInfo[n.block] || blocksInfo[0], n.t); n.state = 'goto'; n.tx = bp[0]; n.tz = bp[1]; n.onArrive = n2 => { n2.state = 'walk'; }; }
+    else moving = npcFight(n, dt, dx, dz, d);   // 19r-melee.js: taking turns, wind-up, styles
     n.g.position.y = groundY(n.g.position.x, n.g.position.z);
   }
   // animation

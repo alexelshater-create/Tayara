@@ -1,0 +1,4 @@
+Gunshots: "The Free Firearm Sound Library" (OpenGameArt), CC0 / no rights reserved.
+https://opengameart.org/content/the-free-firearm-sound-library
+pistol = Walther PPQ 9mm, ak = AK-47, shotgun = Benelli Nova; "-far" = mid-distance recording (police shots).
+Cut, mono, loudness-normalized, MP3 112k.

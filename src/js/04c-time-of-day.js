@@ -1,10 +1,10 @@
 // ================= time of day =================
 // Hours run from 0 to 24. In the story one game hour lasts 40 real seconds; the other modes stay at 3 pm.
-const HOUSE = { inside: false, room: { x0: -406.5, x1: -399.5, z0: -403, z1: -397 }, inRoom(x, z){ const r = this.room; return x > r.x0 + .35 && x < r.x1 - .35 && z > r.z0 + .35 && z < r.z1 - .35; } };
+const HOUSE = { inside: false, room: { x0: 5593.5, x1: 5600.5, z0: 5597, z1: 5603 }, inRoom(x, z){ const r = this.room; return x > r.x0 + .35 && x < r.x1 - .35 && z > r.z0 + .35 && z < r.z1 - .35; } };
 const TOD = { h: 15, last: -1 };
 const nightAmount = h => (h >= 7 && h <= 17) ? 0 : (h >= 20 || h <= 4.5) ? 1 : h > 17 ? (h - 17)/3 : 1 - (h - 4.5)/2.5;
 const duskAmount = h => Math.max(0, 1 - Math.abs(h - 18.2)/1.5, 1 - Math.abs(h - 6)/1.2);
-const DAYC = { sun: new THREE.Color(0xffe3bd), dusk: new THREE.Color(0xff9a5a), moon: new THREE.Color(0x9fb4ff), fogDay: new THREE.Color(0xd8cbb3), fogDusk: new THREE.Color(0xd99a78), fogNight: new THREE.Color(0x182033), hemiDay: new THREE.Color(0xd9e4f0), hemiNight: new THREE.Color(0x3a4a78) };
+const DAYC = { sun: new THREE.Color(0xffe3bd), dusk: new THREE.Color(0xff9a5a), moon: new THREE.Color(0x9fb4ff), fogDay: new THREE.Color(0xcdd6da), fogDusk: new THREE.Color(0xd8a58a), fogNight: new THREE.Color(0x182033), hemiDay: new THREE.Color(0xd9e4f0), hemiNight: new THREE.Color(0x3a4a78) };
 const glowBase = new Map();
 function applyTimeOfDay(h){
   TOD.h = ((h % 24) + 24) % 24; h = TOD.h;

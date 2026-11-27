@@ -12,9 +12,9 @@ const CAST = {
 };
 const CAST_DOLLS = { tayara: hero.d, arabi: enemyD, shams: wantedD, youssef: youssefD, islam: islamD };
 const CUT = { on: false, timers: [], cam: null, walkers: [], typing: null, waitTap: null, skip: false, idle: new Set() };
-function showActor(d, x, z, legs=true){ d.root.visible = true; d.root.position.set(x, groundY(x, z), z); d.P.legL.visible = d.P.legR.visible = legs; d.blob.visible = legs; d.downT = 0; if (d !== hero.d) CUT.idle.add(d); }
-function hideActor(d){ d.root.visible = false; CUT.idle.delete(d); }
-const cv3 = a => a instanceof THREE.Vector3 ? a.clone() : new THREE.Vector3(a[0], a[1], a[2]);
+function showActor(d, x, z, legs=true){ [x, z] = RELOC(x, z); d.holdMove = null; d.root.visible = true; d.root.position.set(x, groundY(x, z), z); d.P.legL.visible = d.P.legR.visible = legs; d.blob.visible = legs; d.downT = 0; if (d !== hero.d) CUT.idle.add(d); }
+function hideActor(d){ d.root.visible = false; d.holdMove = null; CUT.idle.delete(d); }
+const cv3 = a => { if (a instanceof THREE.Vector3) return a.clone(); const [x, z] = RELOC(a[0], a[2]); return new THREE.Vector3(x, a[1], z); };
 function cutWait(s){ return new Promise(res => CUT.timers.push({ t: s, res })); }
 function tickCutscene(dt){
   for (let i = CUT.timers.length - 1; i >= 0; i--){ const w = CUT.timers[i]; w.t -= dt; if (w.t <= 0 || CUT.skip){ CUT.timers.splice(i, 1); w.res(); } }
@@ -31,7 +31,7 @@ function tickCutscene(dt){
 }
 function dlgShow(who, text, narr){
   const c = CAST[who] || CAST.crowd; const face = c.face && c.face();
-  $('dlgFace').innerHTML = face ? `<img src="${face}" alt="">` : `<span>${c.emoji || '💬'}</span>`;
+  $('dlgFace').innerHTML = face ? `<img src="${face}" alt="">` : `<span>${icon('user')}</span>`;
   $('dlgName').textContent = c.name(); $('dlg').hidden = false; $('dlgText').textContent = ''; $('dlg').classList.toggle('narr', !!narr);
   CUT.typing = { full: text, i: 0 };
   const td = CAST_DOLLS[who]; if (td && td.is3D) td.talkT = clamp(text.length * .055, 1.2, 4.5);
@@ -48,7 +48,7 @@ $('cineSkip').addEventListener('pointerdown', e => { e.stopPropagation(); CUT.sk
 addEventListener('keydown', e => { if (CUT.on && (e.code === 'Space' || e.code === 'Enter' || e.code === 'KeyE')){ e.preventDefault(); dlgTap(); } if (CUT.on && e.code === 'Escape'){ CUT.skip = true; if (CUT.waitTap){ const r = CUT.waitTap; CUT.waitTap = null; r(); } } }, true);
 async function playCut(steps){
   if (CUT.on) return;
-  CUT.on = true; CUT.skip = false; hero.locked = true; document.body.classList.add('cutscene'); $('cine').hidden = false; hero.vel.set(0,0,0);
+  CUT.on = true; CUT.skip = false; hero.locked = true; if (steps.some(s => s && s.flash === true)) CUT.todBefore = TOD.h; document.body.classList.add('cutscene'); $('cine').hidden = false; hero.vel.set(0,0,0);
   if (innerHeight < 520) camera.setViewOffset(innerWidth, innerHeight, 0, innerHeight * .17, innerWidth, innerHeight);
   if (hero.veh) hero.veh.speed = 0;
   try {
@@ -57,7 +57,7 @@ async function playCut(steps){
       if (CUT.skip && !s.do) continue;
       if (s.cam){ await new Promise(res => { CUT.cam = { p0: camera.position.clone(), p1: cv3(s.cam), l0: lookAt.clone(), l1: cv3(s.look || s.cam), k: s.t === 0 ? 1 : 0, t: s.t ?? 1.4, res }; }); }
       if (s.walk){ const [d, x, z, sp] = s.walk; const pr = new Promise(res => CUT.walkers.push({ d, x, z, sp: sp || 2.2, res })); if (!s.noWait) await pr; }
-      if (s.flash !== undefined) setFlashback(s.flash);
+      if (s.flash !== undefined){ if (!s.flash && CUT.todBefore != null){ applyTimeOfDay(CUT.todBefore); CUT.todBefore = null; } setFlashback(s.flash); }
       if (s.rain !== undefined) setRain(s.rain);
       if (s.card !== undefined) chapterCardBig(s.card);
       if (s.narr && !NARR[s.narr] && !s.text) continue;
@@ -69,7 +69,7 @@ async function playCut(steps){
       if (s.fade) await fadeTo(s.fade === true ? null : s.fade);
     }
   } finally {
-    $('dlg').hidden = true; $('cine').hidden = true; document.body.classList.remove('cutscene'); stopVoice(); setFlashback(false); chapterCardBig(false); SCENE.hideHero = false; SCENE.lockY = false; if (!ST.kind) camera.clearViewOffset();
+    $('dlg').hidden = true; $('cine').hidden = true; document.body.classList.remove('cutscene'); stopVoice(); setFlashback(false); if (CUT.todBefore != null){ applyTimeOfDay(CUT.todBefore); CUT.todBefore = null; } chapterCardBig(false); SCENE.hideHero = false; SCENE.lockY = false; if (!ST.kind) camera.clearViewOffset();
     CUT.on = false; CUT.cam = null; CUT.walkers.length = 0; CUT.skip = false; hero.locked = false;
     CAM.orbit = CAM.orbitSm = camYaw;
   }

@@ -43,7 +43,7 @@ jobs:
           S=android/app/src/main/res/values/styles.xml
           sed -i 's|<style name="AppTheme.NoActionBar" parent="Theme.AppCompat.DayNight.NoActionBar">|&\n        <item name="android:windowFullscreen">true</item>|' $S
 
-      - name: App icon from طيارة's photo (made by resources/*.png)
+      - name: App icon from the Grand Thieves Alexandria logo (resources/*.png)
         continue-on-error: true
         run: npx --yes @capacitor/assets@3.0.5 generate --android --assetPath resources
 
@@ -51,19 +51,19 @@ jobs:
         run: |
           npx cap sync android
           cd android && ./gradlew assembleDebug --no-daemon
-          cp app/build/outputs/apk/debug/app-debug.apk ../tayara-elgamed.apk
+          cp app/build/outputs/apk/debug/app-debug.apk ../grand-thieves-alexandria.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: tayara-elgamed-apk
-          path: tayara-elgamed.apk
+          name: grand-thieves-alexandria-apk
+          path: grand-thieves-alexandria.apk
 
       - name: Publish as the latest download
         uses: softprops/action-gh-release@v2
         with:
           tag_name: apk-latest
-          name: طيارة الجامد · أحدث APK
-          body: نزّل الملف tayara-elgamed.apk على الموبايل وسطّبه (لازم تسمح بالتثبيت من مصادر غير معروفة).
+          name: Grand Thieves Alexandria · أحدث APK
+          body: نزّل الملف grand-thieves-alexandria.apk على الموبايل وسطّبه (لازم تسمح بالتثبيت من مصادر غير معروفة).
           prerelease: false
           make_latest: true
-          files: tayara-elgamed.apk
+          files: grand-thieves-alexandria.apk

@@ -1,0 +1,5 @@
+All CC0 (public domain):
+punch/fall/block/wood/glass/metal*/plate/step*: Kenney "Impact Sounds" (kenney.nl) + qubodup "Punch" (OpenGameArt)
+reload-pistol: "Handgun Reload Sound Effect" (OpenGameArt); reload-rifle, pump: "Gun reload sounds" (OpenGameArt)
+shell-in: "Gun Reload Sound Effects" (OpenGameArt); dry: "equipment clicks III" (OpenGameArt)
+crash: qubodup "Crash Collision" (OpenGameArt); siren: "Sirens and Alarm Noise" (OpenGameArt); engine: "racing car engine sound loops" (OpenGameArt)

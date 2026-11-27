@@ -1,7 +1,7 @@
 {
   "name": "tayara-elgamed",
   "private": true,
-  "description": "طيارة الجامد: Android build with Capacitor",
+  "description": "Grand Thieves Alexandria: Android build with Capacitor",
   "scripts": {
     "www": "node scripts/make-www.js",
     "android:sync": "npm run www && npx cap sync android"

@@ -99,9 +99,9 @@ const shamsLaunch = makeLaunch('#212121'); shamsLaunch.visible = false;
 // ---- end of a mission: what you earned, how long it took, stars ----
 function missionCard(M, secs, fails, reward){
   const par = M.par || 150, stars = fails ? (fails > 1 ? 1 : 2) : secs <= par ? 3 : secs <= par * 1.6 ? 2 : 1;
-  const quip = rpick(stars === 3 ? ['جامد يا طيارة 👑', 'إيدك تتلف في حرير', 'كده الشغل!'] : stars === 2 ? ['مش وحش… بس الحتة مستنية أحسن', 'كويس… شد حيلك شوية'] : ['المهم إنها خلصت 😅', 'الحاج كامل بيضحك عليك من القهوة 😂']);
-  const el = $('mEnd'); el.innerHTML = `<b>✅ ${M.title}</b><span class="st">${'⭐'.repeat(stars)}${'☆'.repeat(3 - stars)}</span><small>${reward ? `+${reward} جنيه · ` : ''}${fmtTime(secs)}</small><i>${quip}</i>`;
-  el.hidden = false; el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
+  const quip = rpick(stars === 3 ? ['جامد يا طيارة', 'إيدك تتلف في حرير', 'كده الشغل!'] : stars === 2 ? ['مش وحش… بس الحتة مستنية أحسن', 'كويس… شد حيلك شوية'] : ['المهم إنها خلصت', 'المرة الجاية تبقى أحسن']);
+  const el = $('mEnd'); el.innerHTML = `<b>${M.title}</b><span class="st">${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}</span><small>${reward ? `+${reward} جنيه · ` : ''}${fmtTime(secs)}</small><i>${quip}</i>`;
+  el.innerHTML = ARH(el.innerHTML); el.hidden = false; el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
   clearTimeout(missionCard.t); missionCard.t = setTimeout(() => { el.hidden = true; }, 3400);
   (SAVE.stars ||= {})[M.id] = Math.max(SAVE.stars[M.id] || 0, stars);
 }

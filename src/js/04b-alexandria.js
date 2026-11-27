@@ -24,7 +24,7 @@ function merlons(list, x0, z0, x1, z1, y, t = 1.2){ const L = Math.hypot(x1 - x0
 
 // ---- the fort (like Qaitbay): a spit of land at the end of the bridge, a curtain wall with round towers, the keep with its minaret ----
 const FORT = { cx: 96, gateZ: 266, x0: 62, x1: 130, z0: 266, z1: 306, keep: { x: 96, z: 291, s: 20, h: 13 } };
-{
+if (!CITY){   // stage 14: the real Qaitbay (assets/landmarks/qaitbay.glb) replaces this made-up fort
   const lt = stoneTex.clone(); lt.repeat.set((FAR.x1 - FAR.x0) / 4, (FAR.z1 - FAR.z0) / 4); lt.needsUpdate = true;
   const land = new THREE.Mesh(new THREE.BoxGeometry(FAR.x1 - FAR.x0, .15, FAR.z1 - FAR.z0), new THREE.MeshStandardMaterial({ map: lt, roughness: .95, color: 0xcab89a }));
   land.position.set((FAR.x0 + FAR.x1) / 2, .075, (FAR.z0 + FAR.z1) / 2); land.receiveShadow = true; scene.add(land);
@@ -52,11 +52,11 @@ const FORT = { cx: 96, gateZ: 266, x0: 62, x1: 130, z0: 266, z1: 306, keep: { x:
   // small windows on the keep (slits)
   const sl = []; for (const f of [-1, 1]) for (let i = -2; i <= 2; i++) for (const y of [6, 10]){ sl.push(bx(.5, 1.6, .1, K.x + i * 3.5, y, K.z + f * (hs + .03))); sl.push(bx(.1, 1.6, .5, K.x + f * (hs + .03), y, K.z + i * 3.5)); }
   scene.add(new THREE.Mesh(mergeGeometries(sl), dark));
-  glowSigns.push(signBoard(bigSign('🏰 القلعة', '#3a2a14', '#f4d35e', 512, 130, 70), FORT.cx, H + 3.4, z0 - 2.1, 4.2, 1.06, Math.PI, .25));
+  glowSigns.push(signBoard(bigSign('القلعة', '#3a2a14', '#f4d35e', 512, 130, 70), FORT.cx, H + 3.4, z0 - 2.1, 4.2, 1.06, Math.PI, .25));
 }
 
 // ---- Stanley-style towers at both ends of the bridge: square pavilions with arches and a little dome ----
-{
+if (!CITY){
   const tw = [], domes = [];
   for (const z of [NILE_Z + 1.5, BRIDGE.z1 - 1.5]) for (const s of [-1, 1]){
     const x = BRIDGE.x + s * (BRIDGE.w / 2 + 1.8);
@@ -75,13 +75,13 @@ const FORT = { cx: 96, gateZ: 266, x0: 62, x1: 130, z0: 266, z1: 306, keep: { x:
   const parts = []; for (const [x, y, z] of [[0, 1, 0], [.94, -.33, 0], [-.47, -.33, .82], [-.47, -.33, -.82]]){ const g = new THREE.CylinderGeometry(.18, .42, 1.3, 7); g.translate(0, .65, 0); const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(x, y, z).normalize()); g.applyQuaternion(q); parts.push(g); }
   const tetra = mergeGeometries(parts); tetra.computeVertexNormals();
   const list = [], step = GFX === 'low' ? 2.6 : 1.7;
-  for (let x = X0 - 8; x <= XMAX + 8; x += step){ if (Math.abs(x - BRIDGE.x) < BRIDGE.w / 2 + 3) continue; for (let r = 0; r < 2; r++) list.push({ x: x + R(-.5, .5) + r * step / 2, y: -1.25 + r * .35, z: NILE_Z + 1.6 + r * 1.3 + R(-.3, .3), rx: R(0, 3), ry: R(0, 6), s: R(.9, 1.15) }); }
+  for (let x = X0 - 8; x <= XMAX + 8; x += step){ if (Math.abs(x - BRIDGE.x) < BRIDGE.w / 2 + 3 || nearSeaStairs(x, 2.6)) continue; for (let r = 0; r < 2; r++) list.push({ x: x + R(-.5, .5) + r * step / 2, y: -1.25 + r * .35, z: NILE_Z + 1.6 + r * 1.3 + R(-.3, .3), rx: R(0, 3), ry: R(0, 6), s: R(.9, 1.15) }); }
   const im = instanced(tetra, new THREE.MeshStandardMaterial({ color: 0xbdb7ab, roughness: .95 }), list, false, t => ({ ...t, sx: t.s, sy: t.s, sz: t.s }));
   if (im) im.receiveShadow = true;
 }
 
 // ---- the tram line along the market road (z = -48): rails in the middle of the road, poles and wires, three stops ----
-const TRAM = { z: ROADS_Z[1], x0: X0 - 24, x1: XMAX + 24, stations: [-60, 72, 216] };
+const TRAM = { z: ROADS_Z[1], x0: X0 - 4, x1: XMAX + 4, stations: [-60, 30, 84] };   // the «حتة»'s own little tram line (Bahary had one)
 {
   const p = [];
   for (const s of [-1, 1]) box(p, TRAM.x1 - TRAM.x0, .06, .12, (TRAM.x0 + TRAM.x1) / 2, .04, TRAM.z + s * .72, '#9aa0a6');
@@ -94,13 +94,14 @@ const TRAM = { z: ROADS_Z[1], x0: X0 - 24, x1: XMAX + 24, stations: [-60, 72, 21
     box(p, 5, .12, 2, x, 2.7, sz, '#e0a21a'); for (const dx of [-2.3, 2.3]) box(p, .12, 2.6, .12, x + dx, 1.4, sz - .8, '#2b2f33'); box(p, 4.6, 1.8, .06, x, 1.5, sz - .9, '#cfe0ea');
     box(p, 3, .1, .5, x, .6, sz - .4, '#8a5a32'); for (const dx of [-1.2, 1.2]) box(p, .1, .45, .45, x + dx, .38, sz - .4, '#2b2f33');
     obstacles.push({ minX: x - 2.5, maxX: x + 2.5, minZ: sz - 1, maxZ: sz - .7 });
-    glowSigns.push(signBoard(bigSign('🚋 محطة الترام', '#e0a21a', '#2a1700', 512, 120, 60), x, 3.05, sz + .02, 3.6, .84, Math.PI, .3));
+    glowSigns.push(signBoard(bigSign('محطة الترام', '#e0a21a', '#2a1700', 512, 120, 60), x, 3.05, sz + .02, 3.6, .84, Math.PI, .3));
   }
   const m = new THREE.Mesh(mergeGeometries(p), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .6, metalness: .3 })); m.receiveShadow = true; m.castShadow = true; scene.add(m);
 }
 
 // ---- العربي's family villa: white walls round a garden, a pool, palms, a gate; the house itself modern and white ----
-const VILLA = { cx: X0 + PITCH / 2 + 7 * PITCH, cz: Z0 + PITCH / 2 };
+// stage 14: in real Smouha (CITY.anchors.villa)
+const VILLA = (() => { const [cx, cz] = RELOC(X0 + PITCH / 2 + 7 * PITCH, Z0 + PITCH / 2); return { cx, cz }; })();
 {
   const { cx, cz } = VILLA, p = [], wallC = '#f2efe8', gateZ = cz + 16.5;
   const lawn = new THREE.Mesh(new THREE.BoxGeometry(BW - 3, .05, BW - 3), new THREE.MeshStandardMaterial({ map: parkTex, roughness: 1 })); lawn.position.set(cx, .18, cz); lawn.receiveShadow = true; scene.add(lawn);
@@ -137,7 +138,8 @@ for (const h of Object.values(STORY_HOUSES)){
 }
 
 // ---- the harbour (الميناء) at the east end of the corniche: a warehouse you can walk into, containers, a pier with launches ----
-const PORT = { cx: X0 + PITCH / 2 + 7 * PITCH, cz: Z0 + PITCH / 2 + 4 * PITCH };
+// stage 14: the first block of the «حتة» corniche, its pier out into Anfoushi bay (fishing boats are there in real life too)
+const PORT = { cx: X0 + PITCH / 2, cz: Z0 + PITCH / 2 + 4 * PITCH };
 {
   const { cx, cz } = PORT, p = [], wx0 = cx - 15, wx1 = cx + 13, wz0 = cz - 15, wz1 = cz + 1, H = 8;
   PORT.shed = { x0: wx0, x1: wx1, z0: wz0, z1: wz1 }; PORT.door = new THREE.Vector3(cx - 1, .15, wz1 + 1.5); PORT.inside = new THREE.Vector3(cx - 1, .15, cz - 8);
@@ -156,12 +158,13 @@ const PORT = { cx: X0 + PITCH / 2 + 7 * PITCH, cz: Z0 + PITCH / 2 + 4 * PITCH };
   for (let z = PIER.z0 + 2; z < PIER.z1; z += 4) for (const x of [PIER.x0, PIER.x1]) box(p, .35, 2.2, .35, x, -.6, z, '#5a4030');
   for (const s2 of [-1, 1]) obstacles.push({ minX: (s2 < 0 ? PIER.x0 - .3 : PIER.x1 - .2), maxX: (s2 < 0 ? PIER.x0 + .2 : PIER.x1 + .3), minZ: NILE_Z + 1, maxZ: PIER.z1 });
   const m = new THREE.Mesh(mergeGeometries(p), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .7, metalness: .25 })); m.castShadow = true; m.receiveShadow = true; scene.add(m);
-  glowSigns.push(signBoard(bigSign('⚓ مخازن الميناء', '#20262c', '#ffb74d', 640, 120, 58), cx - 1, H - 1.2, wz1 + .25, 6, 1.1, 0, .3));
+  glowSigns.push(signBoard(bigSign('مخازن الميناء', '#20262c', '#ffb74d', 640, 120, 58), cx - 1, H - 1.2, wz1 + .25, 6, 1.1, 0, .3));
   const fl = new THREE.Mesh(new THREE.BoxGeometry(wx1 - wx0, .04, wz1 - wz0), new THREE.MeshStandardMaterial({ color: 0x5a5650, roughness: .9 })); fl.position.set((wx0 + wx1) / 2, .17, (wz0 + wz1) / 2); fl.receiveShadow = true; scene.add(fl);
 }
 
 // ---- الحاج العربي's car showroom (the story calls it «سموحة»): glass front, cars inside ----
-const SHOWROOM = { cx: X0 + PITCH / 2 + 6 * PITCH, cz: Z0 + PITCH / 2 };
+// stage 14: in real Smouha too (CITY.anchors.showroom)
+const SHOWROOM = (() => { const [cx, cz] = RELOC(X0 + PITCH / 2 + 6 * PITCH, Z0 + PITCH / 2); return { cx, cz }; })();
 {
   const { cx, cz } = SHOWROOM, p = [];
   box(p, 28, 6.5, 14, cx, 3.4, cz - 4, '#f2f2f0'); box(p, 29, .5, 15, cx, 6.9, cz - 4, '#20262c');

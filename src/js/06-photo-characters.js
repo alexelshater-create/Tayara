@@ -33,9 +33,12 @@ function fallSfx(d){ if (d.fall > .6 && !d.thudded){ d.thudded = true; if (d.roo
 function makeCharacter(model, c, heightM){ return MODELS3D[model] ? makeDoll3D(MODELS3D[model], c, heightM) : makeDoll(c, heightM); }
 function anim3D(d, vx, vz, dt, t){
   const sp = Math.hypot(vx, vz), seated = !d.P.legL.visible;
-  let move = seated ? d.seatMove : sp > 5.4 ? 'run' : sp > .35 ? 'walk' : 'idle', o = { f: clamp(sp * 1.55, 4.5, 11) };
-  if (d.forceMove){ move = d.forceMove; d.forceMove = null; }
+  let move = seated ? d.seatMove : sp > 5.4 ? 'run' : sp > .35 ? 'walk' : 'idle', o = { f: clamp(sp * 1.55, 3.2, 11), stride: clamp(sp / 4.2, .45, 1.15), sp };   // slow steps are short steps (no sliding feet)
+  if (d.gunSet && !seated && d.gunSet[move]) move = d.gunSet[move];   // 19s-weapons.js: holding a gun
+  if (d.forceMove){ move = d.forceMove; d.forceMove = null; } else if (d.holdMove) move = d.holdMove;
   if (d.punchT > 0 && !seated){ d.punchT -= dt; move = 'punch'; o.k = Math.sin(clamp(1 - d.punchT/.28, 0, 1) * Math.PI); o.side = d.punchSide; }
+  if (d.strike){ if (!seated){ move = 'strike'; o.clip = d.strike.clip; o.ct = d.strike.t; o.mirror = !!d.strike.mirror; } d.strike = null; }   // 19r-melee.js
+  else if (move === 'idle' && d.combatT > 0) move = 'fightIdle';
   if (d.downT > 0) d.downT -= dt;
   d.fall += ((d.downT > 0 ? 1 : 0) - d.fall) * damp(d.downT > 0 ? 9 : 4, dt);
   if (d.fall > .05) move = 'idle';
@@ -46,6 +49,7 @@ function anim3D(d, vx, vz, dt, t){
   // facing: the bike's heading when seated, the way he moves when walking; standing still, the others turn to the hero
   let want = null;
   if (seated) want = d.faceYaw;
+  else if (d.aimYaw != null) want = d.aimYaw;   // aiming (19s): face the crosshair while walking
   else if (sp > .35) want = Math.atan2(vx, vz);
   else if (d !== hero.d){ const dx = hero.pos.x - d.root.position.x, dz = hero.pos.z - d.root.position.z, dd = Math.hypot(dx, dz); if (dd > .4 && dd < 25) want = Math.atan2(dx, dz); }
   const yaw0 = d.yaw;
@@ -61,8 +65,8 @@ function anim3D(d, vx, vz, dt, t){
   } else d.look = (d.look || 0) * (1 - damp(8, dt));
   o.look = d.look;
   d.blob.visible = d.blob.visible && !seated;
-  poseRig(d.R, move, dt, o);
-  d.doll.position.set(0, d.fall * .12, 0); d.doll.rotation.set(-d.fall * 1.45, 0, 0);
+  poseRig(d.R, move, dt, o); applyRecoil(d);
+  d.doll.position.set(0, d.fall * .12, 0); d.doll.rotation.set(-d.fall * 1.45 + (d.pitch || 0), 0, d.roll || 0);   // pitch: lying forward to swim
 }
 function animDoll(d, vx, vz, dt, t){
   if (d.is3D) return anim3D(d, vx, vz, dt, t);

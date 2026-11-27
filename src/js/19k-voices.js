@@ -9,7 +9,7 @@ function vDb(){ return new Promise((res, rej) => { const rq = indexedDB.open('ta
 function vRefreshLocal(){ if (!window.indexedDB) return; vDb().then(db => { VOICE.db = db; const rq = db.transaction('lines').objectStore('lines').getAllKeys(); rq.onsuccess = () => { VOICE.local = new Set(rq.result); }; }).catch(() => {}); }
 vRefreshLocal(); addEventListener('focus', vRefreshLocal);
 function stopVoice(){ if (VOICE.cur){ try { VOICE.cur.pause(); } catch(e){} VOICE.cur = null; } }
-function startAudio(src, revoke){ const a = new Audio(src); VOICE.cur = a; a.play().catch(() => {}); a.onended = () => { if (revoke) URL.revokeObjectURL(src); }; return a; }
+function startAudio(src, revoke){ const a = new Audio(src); a.muted = muted; VOICE.cur = a; a.play().catch(() => {}); a.onended = () => { if (revoke) URL.revokeObjectURL(src); }; return a; }
 function playVoice(text){
   stopVoice(); const id = vHash(text);
   if (VOICE.db && VOICE.local.has(id)){ const rq = VOICE.db.transaction('lines').objectStore('lines').get(id); rq.onsuccess = () => { const v = rq.result; if (v && v.blob) startAudio(URL.createObjectURL(v.blob), true); }; VOICE.cur = { paused: false, duration: 3, currentTime: 0, pause(){} }; return true; }

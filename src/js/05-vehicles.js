@@ -100,14 +100,47 @@ function makeCar(color, kind='car'){
   }
   scene.add(g); return g;
 }
+const motoWheelGeo = (() => { const w = new THREE.CylinderGeometry(.33,.33,.12,18); w.rotateZ(Math.PI/2); const s = new THREE.CylinderGeometry(.18,.18,.13,8); s.rotateZ(Math.PI/2); return mergeGeometries([colored(w.toNonIndexed(),'#151515'), colored(s.toNonIndexed(),'#9a9a9a')]); })();
 function makeMoto(color){
   const g = new THREE.Group(); const p = [];
   box(p, .32,.42,1.3, 0,.62,0, color); box(p, .36,.3,.6, 0,.92,.25, color); box(p, .34,.12,.7, 0,.86,-.3, '#151515');
   box(p, .7,.05,.05, 0,1.2,.72, '#222'); box(p, .06,.55,.06, 0,.92,.68, '#666'); box(p, .22,.18,.12, 0,1.0,.85, '#eeeeee');
-  for (const z of [-.72,.72]){ const w = new THREE.CylinderGeometry(.33,.33,.12,18); w.rotateZ(Math.PI/2); w.translate(0,.33,z); p.push(colored(w,'#151515')); }
   box(p, .12,.1,.4, .18,.42,-.55, '#999');
-  const m = new THREE.Mesh(mergeGeometries(p), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .4, metalness: .3 })); m.castShadow = true; g.add(m);
+  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .4, metalness: .3 });
+  const m = new THREE.Mesh(mergeGeometries(p), mat); m.castShadow = true; g.add(m);
+  // the two wheels are separate so they can spin (and the front one steer)
+  for (const z of [.72, -.72]){ const pv = new THREE.Object3D(); pv.position.set(0, .33, z); pv.userData.wheelPivot = true; pv.userData.front = z > 0; const w = new THREE.Mesh(motoWheelGeo, mat); w.castShadow = true; pv.add(w); g.add(pv); }
   scene.add(g); return g;
+}
+// The car you drive gets wheels that spin and steer: the first time you get in, its tyres are cut out of the shared
+// street-car model (parked and passing cars keep one piece each; 4 more pieces for the 1 car you drive is cheap).
+const WHEEL_AXLES = { sedan: { x: .78, r: .335, y: .3, z: [1.43, -1.53] }, police: { x: .74, r: .335, y: .3, z: [1.48, -1.57] } };
+const wheelSets = {};
+function wheelSet(kind, geo){
+  if (wheelSets[kind]) return wheelSets[kind];
+  const A = WHEEL_AXLES[kind], P = geo.attributes.position, keep = [], parts = [[], [], [], []];
+  for (let t = 0; t < P.count; t += 3){
+    let w = -1;
+    for (let q = 0; q < 4 && w < 0; q++){
+      const sx = q < 2 ? 1 : -1, zc = A.z[q % 2]; let all = true;
+      for (let k = 0; k < 3 && all; k++){ const x = P.getX(t + k), y = P.getY(t + k), z = P.getZ(t + k); all = x * sx > A.x && Math.hypot(y - A.y, z - zc) < A.r; }
+      if (all) w = q;
+    }
+    (w < 0 ? keep : parts[w]).push(t);
+  }
+  const pick = (tris, c) => { const g = new THREE.BufferGeometry(); for (const name in geo.attributes){ const a = geo.attributes[name], s = a.itemSize, out = new a.array.constructor(tris.length * 3 * s); tris.forEach((t, i) => { for (let k = 0; k < 3 * s; k++) out[i * 3 * s + k] = a.array[t * s + k]; }); g.setAttribute(name, new THREE.BufferAttribute(out, s, a.normalized)); } if (c) g.translate(-c.x, -c.y, -c.z); return g; };
+  const wheels = parts.map((tris, q) => { let sx = 0; tris.forEach(t => { for (let k = 0; k < 3; k++) sx += P.getX(t + k); }); const c = { x: tris.length ? sx / (tris.length * 3) : (q < 2 ? 1 : -1) * .95, y: A.y, z: A.z[q % 2] }; return { geo: pick(tris, c), c, front: c.z > 0 }; });
+  return wheelSets[kind] = { rest: pick(keep), wheels };
+}
+function splitWheels(v){
+  if (!v.mesh) return;
+  if (v.type === 'moto'){ v.wheels = v.mesh.children.filter(c => c.userData.wheelPivot).map(pv => ({ pivot: pv, mesh: pv.children[0], front: pv.userData.front, r: .33 })); return; }
+  if (!AUTA || !['car', 'taxi', 'police'].includes(v.type)) return;
+  const have = v.mesh.children.filter(c => c.userData.wheelPivot); if (have.length){ v.wheels = have.map(pv => ({ pivot: pv, mesh: pv.children[0], front: pv.userData.front, r: .31 })); return; }
+  const kind = v.type === 'police' ? 'police' : 'sedan', geo = kind === 'police' ? AUTA.police_rest : carParts.rest;
+  const restMesh = v.mesh.children.find(c => c.geometry === geo); if (!restMesh) return;
+  const S = wheelSet(kind, geo); restMesh.geometry = S.rest;
+  v.wheels = S.wheels.map(w => { const pv = new THREE.Object3D(); pv.position.set(w.c.x, w.c.y, w.c.z); pv.userData.wheelPivot = true; pv.userData.front = w.front; const m = new THREE.Mesh(w.geo, restMesh.material); pv.add(m); v.mesh.add(pv); return { pivot: pv, mesh: m, front: w.front, r: .31 }; });
 }
 function makeTuktuk(color){
   const g = new THREE.Group(); const p = [];
@@ -126,14 +159,15 @@ function addVehicle(type, x, z, yaw, color){
   mesh.position.set(x, 0, z); mesh.rotation.y = yaw;
   const v = { type, mesh, pos: mesh.position, yaw, speed: 0, steer: 0,
     max: type==='moto' ? 26 : type==='police' ? 25 : type==='tuk' ? 15 : 22, accel: type==='moto' ? 12 : type==='tuk' ? 8 : 10, turn: type==='moto' ? 2.5 : type==='tuk' ? 2.3 : 1.9,
-    circles: type==='moto' ? [[0,.6]] : type==='tuk' ? [[.7,.85],[-.6,.85]] : [[1.25,1.05],[-1.25,1.05]], home: { x, z, yaw } };
+    circles: type==='moto' ? [[0,.6]] : type==='tuk' ? [[.7,.85],[-.6,.85]] : [[1.25,1.05],[-1.25,1.05]], home: { x, z, yaw }, col: color };
   vehicles.push(v); return v;
 }
-const reserved = [[11,43.3],[19,43],[32,43],[26,43.2]];   // the last one is العربي's sports car (05c)
-const heroMoto = addVehicle('moto', 11, 43.3, Math.PI/2, '#b3121f');
-const heroCar = addVehicle('car', 19, 43, Math.PI/2, '#e8b21a');
+const reserved = [[11,43.3],[19,53],[32,43],[26,43.2],[78,139],RELOC(114,-5)];   // 26,43.2: العربي's sports car (05c); 78,139 / 114,-5: the taxi and microbus jobs (19o)
+const heroMoto = addVehicle('moto', 11, 43.3, -Math.PI/2, '#b3121f');
+const heroCar = addVehicle('car', 19, 53, Math.PI/2, '#e8b21a');
 const copCar = addVehicle('police', 32, 43, Math.PI/2, '#f4f4f4');
-parkedSpots.forEach((p, pi) => { if (reserved.some(([x,z]) => Math.hypot(p.x-x, p.z-z) < 7)) return; if (GFX === 'low' && pi % 3 === 1) return; /* weak phones: a third fewer parked cars */ addVehicle(rng()<.3 ? 'taxi' : 'car', p.x, p.z, p.ry, rng()<.3 ? '#f2f2f2' : pick(COLORS)).mesh.position.y = p.y; });
+const parkedAt = [];
+parkedSpots.forEach((p, pi) => { if (reserved.some(([x,z]) => Math.hypot(p.x-x, p.z-z) < 7)) return; if (GFX === 'low' && pi % 3 === 1) return; /* weak phones: a third fewer parked cars */ if (parkedAt.some(([x, z]) => Math.hypot(p.x - x, p.z - z) < 5.6)) return; parkedAt.push([p.x, p.z]); const pv = addVehicle(rng()<.3 ? 'taxi' : 'car', p.x, p.z, p.ry, rng()<.3 ? '#f2f2f2' : pick(COLORS)); pv.mesh.position.y = p.y; FAR_CULL.push({ v: pv, mesh: pv.mesh }); });
 vehicles.forEach(v => v.home.y = v.mesh.position.y);
 function vCircles(v, x=v.pos.x, z=v.pos.z, yaw=v.yaw){ const fx=Math.sin(yaw), fz=Math.cos(yaw); return v.circles.map(([o,r]) => ({ x:x+fx*o, z:z+fz*o, r })); }
 
@@ -142,10 +176,10 @@ const traffic = [];
 const TRAFFIC_N = GFX === 'low' ? 18 : GFX === 'mid' ? 24 : 30;   // fewer moving cars on weak phones
 for (let i=0;i<TRAFFIC_N;i++){
   const kind = i%5===0 ? 'tuk' : i%3===0 ? 'taxi' : 'car';
-  const c = kind==='tuk' ? makeTuktuk(pick(['#b3121f','#1f4fa8','#e0a21a'])) : makeCar(kind==='taxi' ? '#f2f2f2' : pick(COLORS), kind);
+  const col = kind==='tuk' ? pick(['#b3121f','#1f4fa8','#e0a21a']) : kind==='taxi' ? '#f2f2f2' : pick(COLORS), c = kind==='tuk' ? makeTuktuk(col) : makeCar(col, kind);
   const ax = i%3 === 0 ? 'z' : 'x', road = ax === 'x' ? pick(ROADS_Z) : (i%6 === 0 ? BRIDGE.x : pick(ROADS_X));
-  c.userData = { kind, axis: ax, road, dir: rng()<.5 ? 1 : -1, s: ax === 'x' ? R(X0-15, XMAX+15) : road === BRIDGE.x ? R(Z0, BRIDGE.z1) : R(Z0+8, ZMAX-8), base: kind==='tuk' ? R(6,8) : R(8,12.5), speed: 9, len: kind==='tuk' ? 1.4 : 2.45, turn: null, next: null, waitT: 0, ghostT: 0, honkT: 0 };
-  traffic.push(c);
+  c.userData = { kind, col, axis: ax, road, dir: rng()<.5 ? 1 : -1, s: ax === 'x' ? R(X0-15, XMAX+15) : road === BRIDGE.x ? R(Z0, BRIDGE.z1) : R(Z0+8, ZMAX-8), base: kind==='tuk' ? R(6,8) : R(8,12.5), speed: 9, len: kind==='tuk' ? 1.4 : 2.45, turn: null, next: null, waitT: 0, ghostT: 0, honkT: 0 };
+  traffic.push(c); FAR_CULL.push({ mesh: c });
 }
 // traffic drives on the right of the road grid. At a crossing a car sometimes turns (a smooth curve); roads that end
 // (the north-south streets at the sea and at the south edge) always turn. The bridge road and the east-west roads run off the map and come back.
@@ -174,20 +208,29 @@ function startTurn(c, J){
 }
 const _tq = new THREE.Vector3(), _tq2 = new THREE.Vector3();
 function trafficStep(c, dt, t, playing){
-  const u = c.userData; let target = u.turn ? Math.min(u.base, 6.5) : u.base;
-  u.ghostT -= dt; u.honkT -= dt;
+  const u = c.userData; if (u.off || u.jackHold) return; let target = u.turn ? Math.min(u.base, 6.5) : u.base;
+  if (u.paradeT > 0) target = Math.min(target, 4.5);   // a match parade: slow, together, honking
+  u.ghostT -= dt; u.honkT -= dt; u.held = false; u.qheld = false;
+  if (u.rude === undefined) u.rude = rng() < .07;   // a few drivers don't stop at red
   if (u.ghostT <= 0){
     // whatever is just in front: another car, the player's car, the player on foot
-    for (const o of traffic){ if (o === c) continue; const L = carLocal(c, o.position); if (L.along > 0 && L.along < 8 && Math.abs(L.lat) < 1.7) target = Math.min(target, L.along < 5 ? 0 : o.userData.speed); }
+    for (const o of traffic){ if (o === c) continue; const L = carLocal(c, o.position); if (L.along > 0 && L.along < 8 && Math.abs(L.lat) < 1.7 && (o.userData.held || o.userData.qheld)) u.qheld = true; if (L.along > 0 && L.along < 8 && Math.abs(L.lat) < 1.7) target = Math.min(target, L.along < 5 ? 0 : o.userData.speed); }
     for (const tx of [tram.x - 9, tram.x, tram.x + 9]){ const L = carLocal(c, _tq2.set(tx, 0, TRAM.z)); if (L.along > 0 && L.along < 9 && Math.abs(L.lat) < 2.4){ target = 0; break; } }
-    if (hero.veh){ const L = carLocal(c, hero.veh.pos); if (L.along > 0 && L.along < 9 && Math.abs(L.lat) < 1.9) target = 0; }
-    else if (!HOUSE.inside){ const L = carLocal(c, hero.pos); if (L.along > 0 && L.along < 7.5 && Math.abs(L.lat) < 1.5){ target = 0; if (playing && u.honkT <= 0 && L.along < 6){ u.honkT = R(2.5, 5); if (c.position.distanceTo(hero.pos) < 25) horn(); } } }
+    if (hero.veh){ const L = carLocal(c, hero.veh.pos); if (L.along > 0 && L.along < 9 && Math.abs(L.lat) < 1.9){ target = 0; u.held = true; } }
+    else if (!HOUSE.inside){ const L = carLocal(c, hero.pos); if (L.along > 0 && L.along < 7.5 && Math.abs(L.lat) < 1.5){ target = 0; u.held = true; if (playing && u.honkT <= 0 && L.along < 6){ u.honkT = R(2.5, 5); if (c.position.distanceTo(hero.pos) < 25) horn(); } } }
+    // the light at the next crossing: stop at the line on red, and on yellow if there is still room to stop
+    if (!u.turn && u.next && !u.rude && typeof TL !== 'undefined'){ const ahead = (u.next.J - u.s) * u.dir; if (ahead > 6.5 && ahead < 30 && !(u.goJ === u.next.J && ahead < 10.5)){ const L = TL.map.get(u.axis === 'x' ? tlKey(u.next.J, u.road) : tlKey(u.road, u.next.J)); if (L){ const s = tlFor(L, u.axis);
+      if (s === 'g') u.goJ = null;
+      else if (s === 'y' && u.goJ === undefined || s === 'y' && u.goJ === null) u.goJ = ahead - 10.5 < u.speed * u.speed / 12 + 1 ? u.next.J : false;   // at the yellow: too close to stop = go through, else stop
+      if (s === 'r' || (s === 'y' && u.goJ !== u.next.J)){ target = Math.min(target, Math.max(0, (ahead - 10.5) * 1.3)); u.held = true; } } } }
+    // people crossing in front
+    if (typeof CROSSERS !== 'undefined') for (const n of CROSSERS){ const L = carLocal(c, n.g.position); if (L.along > 0 && L.along < 10 && Math.abs(L.lat) < 2.4){ target = 0; u.held = true; break; } }
     // wait while another car is in the middle of the crossing ahead
     if (!u.turn && u.next){ const ahead = (u.next.J - u.s) * u.dir; if (ahead > 0 && ahead < 11){ const cx = u.axis === 'x' ? u.next.J : u.road, cz = u.axis === 'x' ? u.road : u.next.J; for (const o of traffic){ if (o !== c && (o.userData.turn || o.userData.axis !== u.axis) && Math.abs(o.position.x - cx) < 6 && Math.abs(o.position.z - cz) < 6){ target = 0; break; } } } }
   }
   // stuck behind each other for a while (two cars waiting for one another): this one goes anyway
-  if (target === 0 && u.speed < .3){ u.waitT += dt; if (u.waitT > 3.5){ u.ghostT = 1.6; u.waitT = 0; } } else u.waitT = 0;
-  u.speed += (target - u.speed) * damp(3, dt);
+  if (target === 0 && u.speed < .3 && !u.held && !u.qheld){ u.waitT += dt; if (u.waitT > 3.5){ u.ghostT = 1.6; u.waitT = 0; } } else u.waitT = 0;
+  u.speed += (target - u.speed) * damp(target < u.speed - 1 ? 5.5 : 3, dt);   // brake harder than it speeds up
   if (u.turn){
     const T = u.turn; T.t = Math.min(1, T.t + u.speed * dt / T.len); const k = T.t, a = (1-k)*(1-k), b = 2*(1-k)*k, e = k*k;
     c.position.set(a*T.p0.x + b*T.p1.x + e*T.p2.x, 0, a*T.p0.z + b*T.p1.z + e*T.p2.z);
@@ -201,7 +244,8 @@ function trafficStep(c, dt, t, playing){
   const n = u.next;
   if (n && !n.decided && (n.J - u.s) * u.dir <= 6){ n.decided = true; if ((n.must || rng() < .3) && startTurn(c, n.J)) return; u.next = null; }
   if (n && (u.s - n.J) * u.dir > 1) u.next = null;
-  const lo = u.axis === 'x' ? X0 - 30 : Z0 - 30, hi = u.axis === 'x' ? XMAX + 30 : BRIDGE.z1 + 45;
+  const onBridge = u.axis === 'z' && Math.abs(u.road - BRIDGE.x) < 8;
+  const lo = u.axis === 'x' ? X0 - 30 : Z0 - 30, hi = u.axis === 'x' ? XMAX + 30 : onBridge ? BRIDGE.z1 - 12 : BRIDGE.z1 + 45;
   if (u.dir > 0 && u.s > hi){ u.s = lo; u.next = null; } else if (u.dir < 0 && u.s < lo){ u.s = hi; u.next = null; }
   placeTraffic(c);
 }

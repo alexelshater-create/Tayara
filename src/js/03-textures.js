@@ -119,7 +119,7 @@ const posterTex = new THREE.CanvasTexture(posterCanvas); posterTex.colorSpace = 
   g.fillStyle='#efe3c4'; g.fillRect(0,0,300,400); grain(g,300,400,4000,.12);
   g.strokeStyle='#5b3b17'; g.lineWidth=6; g.strokeRect(8,8,284,384);
   arText(g,'مطلوب',150,52,62,'#b3121f'); g.font='900 26px Georgia'; g.direction='ltr'; g.fillStyle='#3b2410'; g.textAlign='center'; g.fillText('WANTED',150,96);
-  arText(g,'مكافأة ٥٠٬٠٠٠ جنيه',150,360,30,'#3b2410');
+  arText(g,'مكافأة ١٬٠٠٠ جنيه',150,360,30,'#3b2410');
   const img = new Image(); img.onload = () => { g.fillStyle='#222'; g.fillRect(58,116,184,214); g.drawImage(img,60,118,180,210); g.fillStyle='rgba(120,80,30,.15)'; g.fillRect(60,118,180,210); posterTex.needsUpdate = true; }; img.src = CH.wanted.img.face;
 }
 const cafeSignTex = makeTex(1024,180,(g,w,h)=>{

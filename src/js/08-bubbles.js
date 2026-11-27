@@ -2,10 +2,14 @@
 const bubbleLayer = $('bubbles'); const bubbles = [];
 function headOf(ent){ if (ent.g) return _v.set(ent.g.position.x, ent.g.position.y + ent.head - (ent.state==='sit'||ent.state==='customer'||ent.state==='domino' ? .45 : 0), ent.g.position.z); if (ent.d) return _v.set(ent.d.root.position.x, ent.d.root.position.y + ent.d.height + .25, ent.d.root.position.z); return _v.set(0,0,0); }
 function say(ent, text, dur=2.6, cls=''){
-  let b = bubbles.find(b => b.ent === ent && !b.persist);
-  if (!b){ const el = document.createElement('div'); bubbleLayer.appendChild(el); b = { el, ent }; bubbles.push(b); }
-  b.el.className = 'bubble ' + cls; b.el.textContent = text; b.t = dur; if (ent.arms && text) ent.gestT = Math.min(dur || 2, 2.2);
+  if (!text) return;
+  if (ent.arms) ent.gestT = Math.min(dur || 2, 2.2);
   if (ent.g && Math.random() < .55) speak(text);
+  // who is talking: one of the story's people (name in colour) or someone in the street (only when you're close enough to hear)
+  const doll = ent.d || null, key = doll && typeof CAST_DOLLS !== 'undefined' ? Object.keys(CAST_DOLLS).find(k => CAST_DOLLS[k] === doll) : null;
+  const pos = ent.g ? ent.g.position : doll ? doll.root.position : null;
+  if (!key && pos && !CUT.on && pos.distanceTo(heroAt()) > 16) return;
+  subtitle(text, key ? CAST[key].name() : '', key ? 'main' : 'npc', Math.max(2, dur));
 }
 function orderBubble(ent){ const el = document.createElement('div'); el.className = 'bubble order'; bubbleLayer.appendChild(el); const b = { el, ent, persist: true, t: 1e9 }; bubbles.push(b); return b; }
 function removeBubble(b){ const i = bubbles.indexOf(b); if (i >= 0) bubbles.splice(i,1); b.el.remove(); }
@@ -33,6 +37,7 @@ function placeBubble(b, x, y){
   b.el.style.left = x + 'px'; b.el.style.top = clamp(y, h + 4, innerHeight - 4) + 'px';
 }
 function updateBubbles(dt){
+  updateSubs(dt);
   hudRectT -= dt; if (hudRectT <= 0){ hudRectT = .5; readHudRects(); }
   for (let i=bubbles.length-1;i>=0;i--){
     const b = bubbles[i]; if (!b.persist){ b.t -= dt; if (b.t <= 0){ removeBubble(b); continue; } }

@@ -2,19 +2,19 @@
 let state = 'menu', modeId = 'free', modeObj = {}, heroName = 'طيارة', shake = 0, runTime = 0;
 function renderModes(){
   const has = SAVE.started || SAVE.m > 0, M = curM();
-  $('mmPlay').textContent = !has ? '▶ ابدأ القصة' : SAVE.ended ? '▶ لف في الحتة (بعد القصة)' : '▶ كمّل القصة';
-  $('mmStatus').innerHTML = !has ? 'صبي قهوجي مفلس… ومطلوب اسمه شمس. <b>قصة في ٨ فصول وأكتر من ٦٠ مهمة</b>'
-    : M ? `<b>${CHAPS[M.ch][0]}: ${CHAPS[M.ch][1]}</b> · ${M.title}<br>💰 ${egp(SAVE.money)} · المهمة ${SAVE.m + 1} من ${MS.length}` : `<b>خلّصت القصة 👑</b> · 💰 ${egp(SAVE.money)}`;
-  $('mmAchN').textContent = `${ACH.filter(a => PROG.ach[a.id]).length}/${ACH.length}`;
+  $('mmPlay').textContent = !has ? 'ابدأ القصة' : SAVE.ended ? 'كمّل بعد القصة' : 'كمّل القصة';
+  $('mmStatus').innerHTML = !has ? 'قصة في ٨ فصول وأكتر من ٦٠ مهمة'
+    : M ? `<b>${CHAPS[M.ch][0]}: ${CHAPS[M.ch][1]}</b><br>${M.title} · <i>${egp(SAVE.money)}</i>` : `<b>خلّصت القصة</b> · <i>${egp(SAVE.money)}</i>`;
+  $('mmAchN').textContent = AR(`${ACH.filter(a => PROG.ach[a.id]).length}/${ACH.length}`);
   const rs = $('resetStory'); rs.parentElement.hidden = !has; rs.dataset.armed = ''; rs.textContent = '↺ ابدأ من الأول';
 }
 $('mmPlay').onclick = () => startMode('story');
 document.querySelectorAll('.mm-card[data-mode]').forEach(b => b.onclick = () => startMode(b.dataset.mode));
 $('mmAch').onclick = () => openAch();
 $('mmIntro').onclick = () => playIntroSeq();
-$('mmRec').onclick = () => { location.href = 'record.html'; };
+$('mmRec').onclick = () => { const b = $('mmRec'); if (!b.dataset.armed){ b.dataset.armed = '1'; b.dataset.label = b.innerHTML; b.textContent = 'هتخرج لصفحة التسجيل… دوس تاني'; setTimeout(() => { if (b.dataset.armed){ b.dataset.armed = ''; b.innerHTML = b.dataset.label; } }, 3000); return; } location.href = 'record.html'; };
 $('mmSet').onclick = () => { renderModes(); $('settings').hidden = false; };
-$('setClose').onclick = () => { $('settings').hidden = true; heroName = $('nameIn').value.trim() || 'طيارة'; store.set('ty_name', heroName); };
+$('setClose').onclick = () => { $('settings').hidden = true; heroName = $('nameIn').value.trim() || 'طيارة'; store.set('ty_name', heroName); $('hudName').textContent = heroName; };
 $('resetStory').onclick = () => { const b = $('resetStory'); if (!b.dataset.armed){ b.dataset.armed = '1'; b.textContent = 'متأكد؟ دوس تاني'; return; } SAVE = newStory(); store.set(STORY_KEY, JSON.stringify(SAVE)); applyAccessories(); renderModes(); b.textContent = '✓ اتمسحت'; };
 
 const cashSpots = [];
@@ -30,11 +30,11 @@ const cash = cashSpots.map(c => { const g = new THREE.Group(); const st = new TH
 
 // --- ahwa (coffee shop) data ---
 const DRINKS = ['شاي','قهوة','ينسون','حلبة'];
-const DRINK_ICON = { 'شاي':'🍵', 'قهوة':'☕', 'ينسون':'🌿', 'حلبة':'🥛' };
+const DRINK_ICON = { 'شاي':'', 'قهوة':'', 'ينسون':'', 'حلبة':'' };   // no emojis any more (kept so old calls still work)
 const SUGARS = ['سادة','مظبوط','زيادة'];
 const sugarSpoons = (drink, s) => drink === 'قهوة' ? { 'سادة':0, 'مظبوط':1, 'زيادة':2 }[s] : { 'سادة':0, 'مظبوط':2, 'زيادة':3 }[s];
 const sugarLabel = (drink, n) => SUGARS.find(s => sugarSpoons(drink, s) === n) || `${n} معلقة`;
-const orderLabel = o => `${o.reg ? '⭐ ' : ''}${DRINK_ICON[o.drink]} ${o.drink} ${o.sugar}`;
+const orderLabel = o => `${o.reg ? '★ ' : ''}${o.drink} ${o.sugar}`;
 const REGULARS = { 'الحاج محمود': { drink: 'شاي', sugar: 'زيادة' }, 'عم رجب': { drink: 'قهوة', sugar: 'سادة' }, 'زيزو': { drink: 'ينسون', sugar: 'مظبوط' }, 'أبو علي': { drink: 'شاي', sugar: 'سادة' }, 'مصطفى': { drink: 'قهوة', sugar: 'مظبوط' } };
 const buzz = ms => { if (!isTouch || !navigator.vibrate || (navigator.userActivation && !navigator.userActivation.hasBeenActive)) return; try { navigator.vibrate(ms); } catch(e){} };
 const trayGroup = new THREE.Group(); scene.add(trayGroup);
@@ -45,14 +45,14 @@ function refreshTray(){
   tr.forEach((d,i) => { const g = makeGlass(d.drink); g.scale.setScalar(1.3); g.position.set(-.13 + i*.13, .01, 0); trayGroup.add(g); });
   trayGroup.visible = tr.length > 0 && !ST.kind;
   $('tray').hidden = !tr.length || !!ST.kind;
-  $('tray').textContent = 'الصينية: ' + tr.map(d => `${DRINK_ICON[d.drink]} ${d.drink} ${sugarLabel(d.drink, d.spoons)}`).join(' · ');
+  $('tray').textContent = 'الصينية: ' + tr.map(d => `${d.drink} ${sugarLabel(d.drink, d.spoons)}`).join(' · ');
 }
 
 // --- foul data ---
 const FOUL_PRICE = { 'فول': 6, 'فلافل': 6, 'بطاطس': 8, 'بيض': 8 };
-const FOUL_ICON = { 'فول':'🥣', 'فلافل':'🧆', 'بطاطس':'🍟', 'بيض':'🥚' };
+const FOUL_ICON = { 'فول':'', 'فلافل':'', 'بطاطس':'', 'بيض':'' };
 const sandKey = s => `${s.base}|${s.tahina?1:0}|${s.salad?1:0}`;
-const sandLabel = s => `${FOUL_ICON[s.base]} ${s.base}${s.tahina ? ' + طحينة' : ''}${s.salad ? ' + سلطة' : ''}`;
+const sandLabel = s => `${s.base}${s.tahina ? ' + طحينة' : ''}${s.salad ? ' + سلطة' : ''}`;
 const sandPrice = s => FOUL_PRICE[s.base] + (s.tahina?1:0) + (s.salad?1:0);
 function updateFoul(dt){
   const m = modeObj; m.spawnT -= dt;
@@ -71,7 +71,7 @@ function updateFoul(dt){
     const sp = spots[Math.min(i, spots.length-1)];
     if (c.n.state === 'goto' || c.n.state === 'idle'){ c.n.tx = sp[0]; c.n.tz = sp[1]; if (Math.hypot(c.n.g.position.x - sp[0], c.n.g.position.z - sp[1]) > .2) c.n.state = 'goto'; else { c.n.state = 'idle'; c.n.yaw = Math.PI; } }
     if (i === 0 && c.n.state === 'idle' && !c.ready){ c.ready = true; say(c.n, c.order.length > 1 ? `عايز ${c.order.length} سندوتشات يا معلم` : 'سندوتش يا معلم!', 2.5); buzz(15); }
-    if (c.ready){ c.patience -= dt; if (c.patience <= 0){ m.angry++; finishFoulCustomer(c, false); if (m.angry >= 3){ if (m.onFail) m.onFail(); else endMode('الزباين زعلوا 😤', `${heroName} باع ${m.served} طلب بس ٣ زباين مشيوا زعلانين.`, bestScore('foul', m.earned)); } } }
+    if (c.ready){ c.patience -= dt; if (c.patience <= 0){ m.angry++; finishFoulCustomer(c, false); if (m.angry >= 3){ if (m.onFail) m.onFail(); else endMode('الزباين زعلوا', `${heroName} باع ${m.served} طلب بس ٣ زباين مشيوا زعلانين.`, bestScore('foul', m.earned)); } } }
   });
 }
 function finishFoulCustomer(c, happy){

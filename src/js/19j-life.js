@@ -22,9 +22,9 @@ const catMat = [0x2b2b2b, 0xd98c3a, 0xeeeeee, 0x7a6a5a].map(c => new THREE.MeshS
 const cats = [];
 { const body = new THREE.BoxGeometry(.2, .2, .5), head = new THREE.BoxGeometry(.18, .17, .17), leg = new THREE.BoxGeometry(.06, .2, .06), tail = new THREE.BoxGeometry(.04, .04, .35), ear = new THREE.ConeGeometry(.04, .08, 4);
   const hara = blocksInfo.filter(b => b.dist === 'hara' || b.dist === 'market' || b.dist === 'food');
+  const catStill = mergeGeometries([body.clone().translate(0, .3, 0), head.clone().translate(0, .42, .3), ear.clone().translate(-.06, .53, .3).toNonIndexed(), ear.clone().translate(.06, .53, .3).toNonIndexed()].map(x => x.index ? x.toNonIndexed() : x));
   for (let i = 0; i < 9; i++){ const g = new THREE.Group(), m = catMat[i % 4];
-    const b = new THREE.Mesh(body, m); b.position.y = .3; g.add(b); const h = new THREE.Mesh(head, m); h.position.set(0, .42, .3); g.add(h);
-    for (const s of [-1, 1]){ const e = new THREE.Mesh(ear, m); e.position.set(s*.06, .53, .3); g.add(e); }
+    g.add(new THREE.Mesh(catStill, m));   // body, head and ears never move on their own: one piece
     const legs = [[-.07, .18], [.07, .18], [-.07, -.18], [.07, -.18]].map(([x, z]) => { const l = new THREE.Mesh(leg, m); l.position.set(x, .1, z); g.add(l); return l; });
     const t = new THREE.Mesh(tail, m); t.position.set(0, .45, -.38); t.rotation.x = .7; g.add(t);
     scene.add(g); const blk = pick(hara);
@@ -33,7 +33,7 @@ function updateCats(dt, t){
   const f = hero.pos;
   for (const c of cats){
     const p = c.g.position, d = Math.hypot(p.x - f.x, p.z - f.z);
-    if (d > 120){ c.g.visible = false; continue; } c.g.visible = !HOUSE.inside;
+    if (d > 45){ c.g.visible = false; continue; } c.g.visible = !HOUSE.inside;   // a cat is too small to see further than 45 m
     if (d < 3.2 && !hero.veh && c.run <= 0){ c.run = 2.2; c.dir = -c.dir; if (Math.random() < .6) tone(900, 600, .18, 'sawtooth', .025); }
     let sp = 0;
     if (c.run > 0){ c.run -= dt; sp = 4.2; }
@@ -69,7 +69,7 @@ const RAM_STRINGS = [];
 }
 const mesa = makeNPC(); mesa.name = 'المسحراتي';
 { const drum = new THREE.Mesh(new THREE.CylinderGeometry(.22, .22, .16, 14), new THREE.MeshStandardMaterial({ color: 0xc69a5a, roughness: .7 })); drum.rotation.x = Math.PI/2; drum.position.set(-.28, 1.05, .2); mesa.body.add(drum); }
-const MESA_LINES = ['اصحى يا نايم… وحّد الدايم 🥁', 'سحور يا عباد الله 🌙', `قوم يا ${'طيارة'}… السحور!`, 'رمضان كريم يا حتة 🏮'];
+const MESA_LINES = ['اصحى يا نايم… وحّد الدايم', 'سحور يا عباد الله', `قوم يا ${'طيارة'}… السحور!`, 'رمضان كريم يا حتة'];
 function ramadanOn(){ return PROG.ramadan && (modeId === 'free' || modeId === 'story' || modeId === 'domino') && (modeId !== 'story' || isNight()); }
 function updateRamadan(dt, t){
   const on = ramadanOn(); ramadan.visible = on && !HOUSE.inside;
@@ -81,7 +81,7 @@ function updateRamadan(dt, t){
   RAM.time += dt; if (RAM.time > 20 && !RAM.counted){ RAM.counted = true; stat('ramadan'); }
 }
 const RAM = { time: 0, counted: false };
-function renderRamadanBtn(){ const b = $('ramBtn'); if (b){ b.textContent = PROG.ramadan ? '🌙 ليلة رمضان: شغالة' : '🌙 ليلة رمضان: مقفولة'; b.classList.toggle('on', PROG.ramadan); } }
+function renderRamadanBtn(){ const b = $('ramBtn'); if (b){ b.textContent = PROG.ramadan ? 'ليلة رمضان: شغالة' : 'ليلة رمضان: مقفولة'; b.classList.toggle('on', PROG.ramadan); } }
 $('ramBtn').onclick = () => { PROG.ramadan = !PROG.ramadan; saveProg(); renderRamadanBtn(); };
 renderRamadanBtn();
 // ---- per frame ----

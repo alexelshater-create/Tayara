@@ -1,0 +1,15 @@
+﻿<!doctype html><meta charset=utf-8><pre id=o></pre><script type=importmap>{"imports":{"three":"../vendor/three/three.module.min.js","three/addons/":"../vendor/three/addons/"}}</script><script type=module>const log=(...a)=>{document.getElementById('o').textContent+=a.join(' ')+'\n'}; window.onerror=(m)=>log('ERR',m); try{
+import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/RoundedBoxGeometry.js';
+import { mergeGeometries } from 'three/addons/BufferGeometryUtils.js';
+const _col = new THREE.Color();
+function colored(geo, color){ _col.set(color); const n = geo.attributes.position.count, a = new Float32Array(n*3); for (let i=0;i<n;i++){ a[i*3]=_col.r; a[i*3+1]=_col.g; a[i*3+2]=_col.b; } geo.setAttribute('color', new THREE.BufferAttribute(a,3)); return geo; }
+const ws = []; for (const x of [-.86,.86]) for (const z of [-1.38,1.38]){ const g = new THREE.CylinderGeometry(.36,.36,.26,12); g.rotateZ(Math.PI/2); g.translate(x,.36,z); ws.push(g); }
+const wheels = mergeGeometries(ws);
+const body = new RoundedBoxGeometry(1.9,.62,4.4,2,.16), roof = new RoundedBoxGeometry(1.5,.06,1.9,2,.03), cabin = new RoundedBoxGeometry(1.64,.56,2.3,2,.2);
+const head = mergeGeometries([new THREE.BoxGeometry(.42,.13,.06), new THREE.BoxGeometry(.42,.13,.06)]);
+for (const [n, g] of Object.entries({ body, roof, cabin, wheels, head })) log(n, 'indexed', !!g.index, Object.keys(g.attributes));
+log('paint', !!mergeGeometries([body, roof]));
+log('rest', !!mergeGeometries([colored(cabin.clone(), '#000'), colored(wheels.clone(), '#111')]));
+
+}catch(e){log('EX',e.message)} window.done=1;</script>

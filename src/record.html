@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0d0b09">
-<title>تسجيل أصوات طيارة الجامد</title>
+<title>تسجيل أصوات Grand Thieves Alexandria</title>
 <link rel="stylesheet" href="vendor/fonts/fonts.css">
 <style>
 :root{color-scheme:dark;--bg:#0d0b09;--ink:#f6efe2;--muted:#c2b7a3;--gold:#ffc94a;--line:rgba(255,236,200,.14);--rec:#ff4d5e;--ok:#7be07a}
@@ -42,7 +42,7 @@ main{max-width:760px;margin:0 auto;padding:12px 16px 80px}
 </head>
 <body>
 <header>
-  <h1>🎙️ تسجيل أصوات طيارة الجامد</h1>
+  <h1>🎙️ تسجيل أصوات Grand Thieves Alexandria</h1>
   <p class="sub">كل واحد يختار شخصيته ويسجّل سطوره. التسجيل بيتحفظ على الموبايل ده، واللعبة على نفس الموبايل بتشغّله على طول.</p>
   <div class="top"><a href="index.html">↩️ ارجع للعبة</a><button class="primary" id="zipBtn">⬇️ نزّل كل التسجيلات</button><span class="progress" id="prog"></span></div>
   <div class="chips" id="chips"></div>
@@ -116,7 +116,7 @@ $('zipBtn').onclick = async () => {
   files.push({ name: 'README.txt', data: new TextEncoder().encode(readme) });
   const blob = makeZip(files), name = `tayara-voices-${NAMES[who] || 'all'}-${new Date().toISOString().slice(0, 10)}.zip`;
   const file = new File([blob], name, { type: 'application/zip' });
-  if (navigator.canShare && navigator.canShare({ files: [file] })){ try { await navigator.share({ files: [file], title: 'أصوات طيارة الجامد' }); return; } catch(e){} }
+  if (navigator.canShare && navigator.canShare({ files: [file] })){ try { await navigator.share({ files: [file], title: 'أصوات Grand Thieves Alexandria' }); return; } catch(e){} }
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); toast(`نزّلت ${files.length - 1} تسجيل 📦`);
 };
 (async () => {

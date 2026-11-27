@@ -10,7 +10,7 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const maxAniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0xd8cbb3, 55, 205);
+scene.fog = new THREE.Fog(0xcdd6da, 55, 205);   // Alexandria's humid sea haze
 const camera = new THREE.PerspectiveCamera(46, innerWidth/innerHeight, 0.1, 900);
 const sky = new Sky(); sky.scale.setScalar(4000); scene.add(sky);
 const su = sky.material.uniforms;
@@ -31,8 +31,8 @@ scene.add(sun, sun.target);
 function applyGfx(){
   const q = GFX, dpr = window.devicePixelRatio || 1;
   renderer.setPixelRatio(Math.min(dpr, q === 'low' ? 1 : q === 'mid' ? 1.5 : 2));
-  const sh = q !== 'low';
-  if (renderer.shadowMap.enabled !== sh){ renderer.shadowMap.enabled = sh; scene.traverse(o => { if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { m.needsUpdate = true; }); }); }
+  const sh = q !== 'low', st = q === 'high' ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;   // the soft kind samples much more: عالي only
+  if (renderer.shadowMap.enabled !== sh || renderer.shadowMap.type !== st){ renderer.shadowMap.enabled = sh; renderer.shadowMap.type = st; scene.traverse(o => { if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { m.needsUpdate = true; }); }); }
   sun.castShadow = sh;
   const ms = q === 'high' ? 2048 : 1024, ext = q === 'high' ? 45 : 30;
   if (sun.shadow.mapSize.x !== ms){ sun.shadow.mapSize.set(ms, ms); if (sun.shadow.map){ sun.shadow.map.dispose(); sun.shadow.map = null; } }

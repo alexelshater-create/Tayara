@@ -251,6 +251,9 @@ function poseRig(R, move, dt, o = {}){
   if (move !== R.move){ R.move = move; R.since = 0; } R.since = (R.since || 0) + dt;
   for (const k in B){ if (k !== 'root') B[k].quaternion.identity(); }
   B.root.position.y = 0; B.pelvis.position.set(R.J.pelvis.x, R.J.pelvis.y, 0);
+  if (move === 'landHard' && !(CLIPS_READY && CLIPS.hardLand)) move = 'land';
+  // a Mixamo clip for this move (05d-anim-clips.js); otherwise the hand-made pose below
+  if (!clipPose(R, move, dt, o)){
   let swingL = 0, swingR = 0, elL = -.18, elR = -.18, outL = -.04, outR = -.04, twL = 0, twR = 0;
   if (move === 'idle'){
     // breathing, a slow weight shift from foot to foot, and now and then a look around
@@ -260,7 +263,7 @@ function poseRig(R, move, dt, o = {}){
     brot(B.upperLegL, 0, 0, -ws * .025); brot(B.upperLegR, 0, 0, -ws * .025); brot(B.lowerLegL, Math.max(0, -ws) * .08, 0, 0); brot(B.lowerLegR, Math.max(0, ws) * .08, 0, 0);
     swingL = .04 + br * .03; swingR = .04 - br * .03;
   } else if (move === 'walk' || move === 'run'){
-    const run = move === 'run', amp = run ? 1 : .62, f = o.f || (run ? 9.5 : 6.2); ph = R.phase += dt * f; const s = Math.sin(ph), c = Math.cos(ph);
+    const run = move === 'run', amp = (run ? 1 : .62) * (run ? 1 : o.stride || 1), f = o.f || (run ? 9.5 : 6.2); ph = R.phase += dt * f; const s = Math.sin(ph), c = Math.cos(ph);
     const la = R.skirt ? .6 : 1;   // in a long dress the steps are shorter
     brot(B.upperLegL, (-s * .55 * amp - (run ? .1 : 0)) * la, 0, 0); brot(B.upperLegR, (s * .55 * amp - (run ? .1 : 0)) * la, 0, 0);
     const knee = (run ? 1.45 : 1.1) * (R.skirt ? .55 : 1);
@@ -323,11 +326,45 @@ function poseRig(R, move, dt, o = {}){
   } else if (move === 'wave'){
     swingR = -.2; outR = 2.1; elR = -.2 - Math.abs(Math.sin(t * 6)) * .9; swingL = .05;
     brot(B.head, 0, -.15, 0);
+  } else if (move === 'jump'){
+    // knees tucked, arms up and out for balance
+    swingL = swingR = -1.05; outL = outR = .45; elL = elR = -.45;
+    brot(B.upperLegL, -.75, 0, .03); brot(B.lowerLegL, 1.15, 0, 0); brot(B.upperLegR, -.35, 0, -.03); brot(B.lowerLegR, .7, 0, 0);
+    brot(B.chest, .1, 0, 0); brot(B.head, -.1, 0, 0);
+  } else if (move === 'fall'){
+    // falling a long way: arms and legs flail
+    const a = Math.sin(t * 11), b = Math.sin(t * 8 + 1);
+    outL = 1.25 + a * .35; outR = 1.25 - a * .35; swingL = -.5 + b * .5; swingR = -.5 - b * .5; elL = elR = -.5;
+    brot(B.upperLegL, -.45 + b * .35, 0, .08); brot(B.lowerLegL, .7, 0, 0); brot(B.upperLegR, -.45 - b * .35, 0, -.08); brot(B.lowerLegR, .7, 0, 0);
+    brot(B.chest, -.15, 0, 0); brot(B.head, -.2, 0, 0);
+  } else if (move === 'land'){
+    // landing: knees give, body forward, hands out
+    B.pelvis.position.y -= .1 * H;
+    brot(B.upperLegL, -.95, 0, .05); brot(B.upperLegR, -.95, 0, -.05); brot(B.lowerLegL, 1.45, 0, 0); brot(B.lowerLegR, 1.45, 0, 0); brot(B.footL, -.45, 0, 0); brot(B.footR, -.45, 0, 0);
+    brot(B.chest, .32, 0, 0); brot(B.head, -.25, 0, 0); swingL = swingR = -.55; outL = outR = .35; elL = elR = -.55;
+  } else if (move === 'swim'){
+    // front crawl (the whole body is tipped forward by the caller): the arms turn over in turn, the legs flutter
+    ph = R.phase += dt * 3.4; const s = Math.sin(ph);
+    swingL = -1.5 + s * 1.55; swingR = -1.5 - s * 1.55; elL = -.25 - Math.max(0, s) * .5; elR = -.25 - Math.max(0, -s) * .5; outL = outR = .15;
+    const fl = Math.sin(ph * 2.6) * .28; brot(B.upperLegL, fl, 0, 0); brot(B.upperLegR, -fl, 0, 0); brot(B.lowerLegL, .2 + Math.max(0, fl), 0, 0); brot(B.lowerLegR, .2 + Math.max(0, -fl), 0, 0);
+    brot(B.chest, 0, s * .25, 0); brot(B.neck, -.35, 0, 0); brot(B.head, -.35, -s * .25, 0);
+  } else if (move === 'tread'){
+    // treading water: upright, hands sculling, legs cycling
+    ph = R.phase += dt * 2.4; const s = Math.sin(ph), c = Math.cos(ph);
+    outL = outR = .85 + s * .25; swingL = swingR = -.35; elL = elR = -.7 - c * .2;
+    brot(B.upperLegL, -.55 + s * .35, 0, .05); brot(B.lowerLegL, .95 + c * .3, 0, 0); brot(B.upperLegR, -.55 - s * .35, 0, -.05); brot(B.lowerLegR, .95 - c * .3, 0, 0);
+    brot(B.head, -.05, Math.sin(t * .6) * .2, 0);
+  } else if (move === 'climb'){
+    // pulling himself up out of the water
+    swingL = swingR = -2.75; elL = elR = -.55; outL = outR = .25;
+    brot(B.upperLegL, -1.15, 0, 0); brot(B.lowerLegL, 1.35, 0, 0); brot(B.upperLegR, -.25, 0, 0); brot(B.lowerLegR, .35, 0, 0);
+    brot(B.chest, .25, 0, 0); brot(B.head, -.3, 0, 0);
   }
   // long hair and wide sleeves over the shoulders stretch if the arms go up high: keep them lower in a long dress
   if (R.skirt){ outL = Math.min(outL, .85); outR = Math.min(outR, .85); swingL = Math.max(swingL, -1.25); swingR = Math.max(swingR, -1.25); }
   armRot(B.upperArmL, R.armDown.L, 1, swingL, outL, twL); armRot(B.upperArmR, R.armDown.R, -1, swingR, outR, twR);
   brot(B.lowerArmL, elL, 0, 0); brot(B.lowerArmR, elR, 0, 0);
+  }
   // looking at someone, and leaning into turns
   if (o.look){ const lk = Math.max(-1.1, Math.min(1.1, o.look)); addRot(B.neck, 0, lk * .4, 0); addRot(B.head, 0, lk * .6, 0); }
   if (o.lean){ const ln = Math.max(-.25, Math.min(.25, o.lean)); addRot(B.pelvis, 0, 0, ln * .4); addRot(B.chest, 0, 0, ln * .6); }
@@ -341,7 +378,7 @@ function poseRig(R, move, dt, o = {}){
   if (o.ikTarget) ikArm(R, o.ikTarget.side, o.ikTarget.pos, o.ikTarget.pole, o.ikTarget.k ?? 1);
   // blend from the last pose: quick inside a move, softer when the move changes, so nothing snaps
   const P = R.prev || (R.prev = {}), first = !P.root;
-  const rate = o.snap || first ? 0 : move === 'punch' ? 35 : R.since < .4 ? 10 : 40, a = rate ? 1 - Math.exp(-rate * dt) : 1;
+  const rate = o.snap || first ? 0 : move === 'punch' || move === 'strike' ? 35 : R.since < .4 ? 10 : 40, a = rate ? 1 - Math.exp(-rate * dt) : 1;
   for (const k in B){
     const b = B[k], p = P[k] || (P[k] = { q: b.quaternion.clone(), v: b.position.clone() });
     if (a < 1){ p.q.slerp(b.quaternion, a); p.v.lerp(b.position, a); b.quaternion.copy(p.q); b.position.copy(p.v); }

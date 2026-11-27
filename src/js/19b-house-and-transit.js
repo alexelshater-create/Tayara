@@ -1,7 +1,7 @@
 // ================= طيارة's house (interior, renovation) and public transport =================
 function fadeTo(fn, hold=.25){ return new Promise(res => { const f = $('fade'); f.classList.add('on'); setTimeout(() => { try { fn && fn(); } catch(e){ console.error(e); } setTimeout(() => { f.classList.remove('on'); setTimeout(res, 380); }, hold*1000); }, 380); }); }
 // ---- interior ----
-const HOUSE_C = new THREE.Vector3(-403, 0, -400);
+const HOUSE_C = new THREE.Vector3(5597, 0, 5600);
 const RENO = [
   { lvl: 0, name: 'على قد الحال', price: 0, text: 'مرتبة على الأرض ولمبة عريانة' },
   { lvl: 1, name: 'دهان وسرير', price: 250, text: 'دهان جديد، سرير، ستارة ونور' },
@@ -43,8 +43,8 @@ const mergedMesh = (parts) => { const m = new THREE.Mesh(mergeGeometries(parts),
   lvlGroups[3].add(mergedMesh(p));
   const frame = new THREE.Mesh(new THREE.PlaneGeometry(.9, 1.1), new THREE.MeshStandardMaterial({ map: dataTex(CH.hero.img.face) })); frame.position.set(-3.38, 1.7, 0); frame.rotation.y = Math.PI/2; lvlGroups[3].add(frame);
   const fb = new THREE.Mesh(new THREE.BoxGeometry(.04, 1.2, 1.0), new THREE.MeshStandardMaterial({ color: 0xd4a62a, metalness: .7, roughness: .3 })); fb.position.set(-3.42, 1.7, 0); lvlGroups[3].add(fb); }
-const HOUSE_SPOTS = { bed: new THREE.Vector3(-404.6, 0, -401), wardrobe: new THREE.Vector3(-400.2, 0, -401.8), table: new THREE.Vector3(-402.4, 0, -400.4), tv: new THREE.Vector3(-402.8, 0, -401.6), door: new THREE.Vector3(-403, 0, -397.6) };
-obstacles.push({ minX: -406.4, maxX: -404.5, minZ: -402.9, maxZ: -400.6 }, { minX: -400.9, maxX: -399.6, minZ: -402.9, maxZ: -402.1 }, { minX: -403.7, maxX: -402.7, minZ: -402, maxZ: -401 });
+const HOUSE_SPOTS = { bed: new THREE.Vector3(5595.4, 0, 5599), wardrobe: new THREE.Vector3(5599.8, 0, 5598.2), table: new THREE.Vector3(5597.6, 0, 5599.6), tv: new THREE.Vector3(5597.2, 0, 5598.4), door: new THREE.Vector3(5597, 0, 5602.4) };
+obstacles.push({ minX: 5593.6, maxX: 5595.5, minZ: 5597.1, maxZ: 5599.4 }, { minX: 5599.1, maxX: 5600.4, minZ: 5597.1, maxZ: 5597.9 }, { minX: 5596.3, maxX: 5597.3, minZ: 5598, maxZ: 5599 });
 function houseLevel(){ return (typeof SAVE !== 'undefined' && SAVE.house) || 0; }
 function houseVisual(){
   const L = houseLevel();
@@ -64,10 +64,10 @@ function exitHouse(){
 function houseAction(){
   const p = hero.pos, near = (v, r=1.4) => Math.hypot(p.x - v.x, p.z - v.z) < r;
   if (near(HOUSE_SPOTS.door, 1.3)) return { text: 'اخرج من البيت', fn: exitHouse };
-  if (near(HOUSE_SPOTS.bed, 1.7)) return { text: 'نام 😴', fn: openSleep };
+  if (near(HOUSE_SPOTS.bed, 1.7)) return { text: 'نام', fn: openSleep };
   if (near(HOUSE_SPOTS.wardrobe, 1.5)) return { text: 'افتح الدولاب', fn: openWardrobe };
-  if (houseLevel() >= 2 && near(HOUSE_SPOTS.tv, 1.4)) return { text: 'اتفرج على التلفزيون', fn: () => fadeTo(() => { advanceTime(2); banner('اتفرجت على ماتش الأهلي والزمالك 📺', 'info', 2.5); }) };
-  if (near(HOUSE_SPOTS.table, 1.5)) return { text: 'جدد البيت 🔨', fn: openRenovate };
+  if (houseLevel() >= 2 && near(HOUSE_SPOTS.tv, 1.4)) return { text: 'اتفرج على التلفزيون', fn: () => fadeTo(() => { advanceTime(2); banner('اتفرجت على ماتش الأهلي والزمالك', 'info', 2.5); }) };
+  if (near(HOUSE_SPOTS.table, 1.5) && !(modeId === 'story' && SAVE.m === 0)) return { text: 'جدد البيت', fn: openRenovate };
   return null;
 }
 // overlays reuse the shop panel
@@ -78,40 +78,40 @@ function openPanel(title, rows, note=''){
 }
 function closePanel(){ $('shop').hidden = true; hero.locked = false; }
 function openSleep(){
-  openPanel('😴 تنام لحد إمتى؟', [
-    { label: '🌅 لحد الصبح (٨ الصبح)', btn: 'نام', fn: () => sleepTo(8) },
-    { label: '🌙 لحد بالليل (٩ بالليل)', btn: 'نام', fn: () => sleepTo(21) },
+  openPanel('تنام لحد إمتى؟', [
+    { label: 'لحد الصبح (٨ الصبح)', btn: 'نام', fn: () => sleepTo(8) },
+    { label: 'لحد بالليل (٩ بالليل)', btn: 'نام', fn: () => sleepTo(21) },
   ], `الساعة دلوقتي ${clockText()}`);
 }
-function sleepTo(h){ closePanel(); fadeTo(() => { SAVE.time = h; applyTimeOfDay(h); hero.hp = 100; saveStory(); banner(h < 12 ? 'صباح الفل يا طيارة ☀️' : 'الدنيا ليلت 🌙', 'info', 2.5); if (typeof onStoryEvent === 'function') onStoryEvent('slept', h); }, .8); }
+function sleepTo(h){ closePanel(); fadeTo(() => { SAVE.time = h; applyTimeOfDay(h); hero.hp = 100; saveStory(); banner(h < 12 ? 'صباح الفل يا طيارة' : 'الدنيا ليلت', 'info', 2.5); if (typeof onStoryEvent === 'function') onStoryEvent('slept', h); }, .8); }
 function advanceTime(hours){ if (typeof SAVE === 'undefined') return; SAVE.time = ((SAVE.time ?? 15) + hours) % 24; applyTimeOfDay(SAVE.time); }
 function openWardrobe(){
   const owned = SHOP.items.filter(i => i.kind === 'acc' && SAVE.acc[i.id]);
-  if (!owned.length) return openPanel('👕 الدولاب', [{ label: 'الدولاب فاضي… اشتري حاجات من محل الأناقة', tag: '' }]);
+  if (!owned.length) return openPanel('الدولاب', [{ label: 'الدولاب فاضي… اشتري حاجات من محل الأناقة', tag: '' }]);
   const rows = owned.map(it => ({ label: it.name, btn: SAVE.wear[it.id] !== false ? 'اقلعها' : 'البسها', fn: () => { SAVE.wear[it.id] = SAVE.wear[it.id] === false; applyAccessories(); saveStory(); openWardrobe(); } }));
-  openPanel('👕 الدولاب', rows);
+  openPanel('الدولاب', rows);
 }
 function openRenovate(){
   const L = houseLevel();
-  const rows = RENO.slice(1).map(r => r.lvl <= L ? { label: `✅ ${r.name}`, tag: 'خلص' } : r.lvl === L + 1 ? { label: `🔨 ${r.name} · ${r.text}`, btn: `جدد · ${r.price} ج`, dim: hero.money < r.price, fn: () => buyReno(r) } : { label: `🔒 ${r.name}`, tag: `${r.price} ج` });
-  openPanel('🏠 تجديد البيت', rows);
+  const rows = RENO.slice(1).map(r => r.lvl <= L ? { label: `${r.name}`, tag: 'خلص' } : r.lvl === L + 1 ? { label: `${r.name} · ${r.text}`, btn: `جدد · ${r.price} ج`, dim: hero.money < r.price, fn: () => buyReno(r) } : { label: `${r.name}`, tag: `${r.price} ج` });
+  openPanel('تجديد البيت', rows);
 }
 function buyReno(r){
   if (hero.money < r.price){ $('shopMoney').textContent = `محتاج ${egp(r.price - hero.money)} كمان`; buzz(40); return; }
   hero.money -= r.price; SAVE.house = r.lvl; saveStory(); coin(); buzz(30);
-  closePanel(); fadeTo(() => { houseVisual(); banner(`🏠 البيت اتجدد: ${r.name}`, 'ok', 3); if (typeof onStoryEvent === 'function') onStoryEvent('renovated', r.lvl); }, .6);
+  closePanel(); fadeTo(() => { houseVisual(); banner(`البيت اتجدد: ${r.name}`, 'ok', 3); if (typeof onStoryEvent === 'function') onStoryEvent('renovated', r.lvl); }, .6);
 }
 // ---- public transport ----
 function nearestStop(p, r=2.6){ return STOPS.find(s => Math.hypot(s.pos.x - p.x, s.pos.z - p.z) < r); }
 function openTransit(from){
   const rows = STOPS.filter(s => s !== from).map(s => {
-    const d = Math.hypot(s.pos.x - from.pos.x, s.pos.z - from.pos.z), fare = Math.max(3, Math.round(d / 30)), kind = d > 140 ? '🚐 ميكروباص' : '🛺 توكتوك';
+    const d = Math.hypot(s.pos.x - from.pos.x, s.pos.z - from.pos.z), fare = Math.max(3, Math.round(d / 30)), kind = d > 140 ? 'ميكروباص' : 'توكتوك';
     return { label: `${kind} ← ${s.name}`, btn: `${fare} ج`, dim: hero.money < fare, fn: () => ride(s, fare, kind) };
   });
-  openPanel('🚏 رايح فين؟', rows);
+  openPanel('رايح فين؟', rows);
 }
 function ride(to, fare, kind){
-  if (hero.money < fare){ $('shopMoney').textContent = 'مفيش أجرة كفاية 😅'; buzz(40); return; }
+  if (hero.money < fare){ $('shopMoney').textContent = 'مفيش أجرة كفاية'; buzz(40); return; }
   closePanel(); hero.money -= fare;
   fadeTo(() => { { const [fx, fz] = freeSpot(to.pos.x + 1.4, to.pos.z + (to.pos.z > ZMAX ? -1.2 : 1.2)); hero.pos.set(fx, .15, fz); } lookAt.copy(hero.pos); hero.vel.set(0,0,0); advanceTime(.4); banner(`${kind.split(' ')[0]} وصلت ${to.name}`, 'info', 2.4); if (typeof onStoryEvent === 'function') onStoryEvent('rode', to.id); }, .9);
 }

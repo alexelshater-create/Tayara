@@ -1,20 +1,20 @@
 // ================= story: طيارة الجامد =================
-const STORY_KEY = 'ty_story_v2';
+let STORY_KEY = 'ty_story_v2';   // the save slot (20b-open-world.js picks it)
 const newStory = () => ({ money: 20, rep: 0, m: 0, time: 9, house: 0, owned: { moto: false, car: false }, acc: {}, wear: {}, up: {}, cnt: {}, ended: false, started: false, introSeen: -1, chSeen: -1, skipped: {} });
 function loadStory(){ try { const s = JSON.parse(store.get(STORY_KEY) || 'null'); if (s && typeof s.m === 'number'){ const d = newStory(); return { ...d, ...s, owned: { ...d.owned, ...s.owned }, acc: s.acc || {}, wear: s.wear || {}, up: s.up || {}, cnt: s.cnt || {} }; } } catch(e){} return newStory(); }
 let SAVE = loadStory();
 const STORY_V = 3;
 // replaying a finished mission from the missions screen runs on a copy of the save; the real one is kept in REPLAY.back
 const REPLAY = { on: false, back: null, i: -1, last: -1 };
-function saveStory(){ if (REPLAY.on) return; SAVE.v = STORY_V; if (modeId === 'story'){ SAVE.money = Math.max(0, Math.round(hero.money)); SAVE.time = TOD.h; } store.set(STORY_KEY, JSON.stringify(SAVE)); }
+function saveStory(){ if (REPLAY.on) return; SAVE.v = STORY_V; if (modeId === 'story'){ if (!SAVE.ow || SAVE.ow.cur === 'tayara') SAVE.money = Math.max(0, Math.round(hero.money)); SAVE.time = TOD.h; } store.set(STORY_KEY, JSON.stringify(SAVE)); }
 const trayCap = () => SAVE.up.tray4 ? 4 : 3;
 const SHOP = { pos: new THREE.Vector3(7.7, .15, 30), name: 'محل الأناقة', items: [
-  { id: 'glasses', kind: 'acc', name: '🕶️ نضارة شمس', price: 120 },
-  { id: 'cap', kind: 'acc', name: '🧢 كاب', price: 90 },
-  { id: 'chain', kind: 'acc', name: '📿 سلسلة دهب', price: 250 },
-  { id: 'watch', kind: 'acc', name: '⌚ ساعة', price: 180 },
-  { id: 'tray4', kind: 'up', name: '🍽️ صينية كبيرة (٤ طلبات)', price: 150 },
-  { id: 'fastpour', kind: 'up', name: '⚡ براد أسرع في الصب', price: 100 },
+  { id: 'glasses', kind: 'acc', name: 'نضارة شمس', price: 120 },
+  { id: 'cap', kind: 'acc', name: 'كاب', price: 90 },
+  { id: 'chain', kind: 'acc', name: 'سلسلة دهب', price: 250 },
+  { id: 'watch', kind: 'acc', name: 'ساعة', price: 180 },
+  { id: 'tray4', kind: 'up', name: 'صينية كبيرة (٤ طلبات)', price: 150 },
+  { id: 'fastpour', kind: 'up', name: 'براد أسرع في الصب', price: 100 },
 ] };
 const PRICE = { moto: 300, car: 1500 };
 // shop sign + markers
@@ -60,12 +60,12 @@ $('shopClose').onclick = () => { $('shop').hidden = true; hero.locked = false; }
 function buyVehicle(kind){
   const p = PRICE[kind]; if (hero.money < p){ banner(`محتاج ${egp(p - hero.money)} كمان… اشتغل في القهوة أو الفول`, 'bad', 2.5); buzz(40); return; }
   hero.money -= p; SAVE.owned[kind] = true; saveStory(); coin(); buzz(30);
-  banner(kind === 'moto' ? '🏍️ الموتوسيكل بقى بتاعك!' : '🚗 العربية بقت بتاعتك!', 'ok', 3);
+  banner(kind === 'moto' ? 'الموتوسيكل بقى بتاعك!' : 'العربية بقت بتاعتك!', 'ok', 3);
 }
 // jobs inside the story
 function startJob(kind){
   const m = modeObj; m.job = kind; m.served = 0; m.angry = 0; m.earned = 0; m.combo = 0; m.lastServe = -99;
-  if (kind === 'ahwa'){ m.time = 150; m.tray = []; m.spawnT = .5; m.seatsTaken = new Set(); m.patrons.forEach(n => { n.state = 'hidden'; n.g.visible = false; n.leaving = false; n.seat = undefined; n.order = null; }); resetAhwaStation(); refreshTray(); banner('☕ الوردية بدأت! (دقيقتين ونص)', 'info', 2.5); }
+  if (kind === 'ahwa'){ m.time = 150; m.tray = []; m.spawnT = .5; m.seatsTaken = new Set(); m.patrons.forEach(n => { n.state = 'hidden'; n.g.visible = false; n.leaving = false; n.seat = undefined; n.order = null; }); resetAhwaStation(); refreshTray(); banner('الوردية بدأت! (دقيقتين ونص)', 'info', 2.5); }
   if (kind === 'foul'){ m.time = 150; m.queue = []; m.spawnT = 1; m.pool.forEach(n => { n.state = 'hidden'; n.g.visible = false; }); FL.fry.forEach(f => f.mesh.parent && f.mesh.parent.remove(f.mesh)); Object.assign(FL, { fry: [], sF: [], sP: [], sand: null, bag: [] }); foulVisual(); hero.pos.copy(SPOT.cartHero); hero.pos.y = .15; enterStation('foul'); }
 }
 function endJob(fail){
@@ -73,7 +73,7 @@ function endJob(fail){
   m.job = null; m.time = undefined; exitStation(true);
   if (kind === 'ahwa'){ m.patrons.forEach(n => { if (n.bubble){ removeBubble(n.bubble); n.bubble = null; } if (n.glass){ scene.remove(n.glass); n.glass = null; } if (n.state !== 'hidden'){ n.order = null; leaveSeat(n); } }); m.tray = []; refreshTray(); }
   if (kind === 'foul'){ (m.queue||[]).forEach(c => { c.n.state = 'goto'; c.n.tx = SPOT.cart.x + 10; c.n.tz = SPOT.cart.z + 8; c.n.onArrive = n2 => { n2.state = 'hidden'; n2.g.visible = false; }; }); m.queue = []; hero.pos.set(SPOT.cart.x, .15, SPOT.cart.z + 2); }
-  banner(fail ? `المعلم مشّاك من الشغل 😬 · كسبت ${egp(m.earned)}` : `خلصت الشغل 👏 · كسبت ${egp(m.earned)}`, fail ? 'bad' : 'ok', 3.5);
+  banner(fail ? `المعلم مشّاك من الشغل · كسبت ${egp(m.earned)}` : `خلصت الشغل · كسبت ${egp(m.earned)}`, fail ? 'bad' : 'ok', 3.5);
   saveStory();
 }
 // ---------- story engine ----------
@@ -82,7 +82,7 @@ const cnt = k => SAVE.cnt[k] || 0;
 const mark = (d, ...ks) => { d.base = d.base || {}; for (const k of ks) d.base[k] = cnt(k); };
 const prog = (d, k) => cnt(k) - ((d.base && d.base[k] !== undefined) ? d.base[k] : cnt(k));
 function onStoryEvent(type, arg){ if (modeId !== 'story') return; ST2.ev[type] = arg === undefined ? true : arg; }
-const V = (x, y, z) => new THREE.Vector3(x, y, z);
+const V = (x, y, z) => RLV(x, y, z);   // stage 14: old-map positions land at the places' real spots (03c RELOC)
 const near = (a, b, r) => Math.hypot(a.x - b.x, a.z - b.z) < r;
 const heroAt = () => hero.veh ? hero.veh.pos : hero.pos;
 // named people (low-poly)
@@ -92,9 +92,22 @@ const NP = k => ST2.npcs[k];
 // pickups (papers, parts) with a glowing beam
 const pickups = [];
 const pickMat = new THREE.MeshStandardMaterial({ color: 0xffe082, emissive: 0xffb300, emissiveIntensity: .8, roughness: .4 });
-function addPickup(pos, kind='paper'){ const g = new THREE.Group(); const m = new THREE.Mesh(kind === 'part' ? new THREE.TorusGeometry(.22,.08,8,16) : new THREE.BoxGeometry(.4,.04,.3), pickMat); m.position.y = .9; g.add(m); const b = new THREE.Mesh(beamGeo, new THREE.MeshBasicMaterial({ color: 0xffd54f, transparent: true, opacity: .18, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false })); b.scale.set(.6, .6, .6); g.add(b); g.position.copy(pos); scene.add(g); const p = { g, m, pos: pos.clone(), got: false }; pickups.push(p); return p; }
+function addPickup(pos, kind='paper'){ const g = new THREE.Group(); const m = new THREE.Mesh(kind === 'part' ? new THREE.TorusGeometry(.22,.08,8,16) : kind === 'gas' ? new THREE.CylinderGeometry(.19,.19,.62,12) : new THREE.BoxGeometry(.4,.04,.3), pickMat); m.position.y = .9; g.add(m); const b = new THREE.Mesh(beamGeo, new THREE.MeshBasicMaterial({ color: 0xffd54f, transparent: true, opacity: .18, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false })); b.scale.set(.6, .6, .6); g.add(b); g.position.copy(pos); scene.add(g); const p = { g, m, pos: pos.clone(), got: false }; pickups.push(p); return p; }
+// the gas cylinder mission: a depot by the market (there was only a flat paper on a crosswalk) and the cylinder you carry back
+const GAS = { pos: (() => { const [ox, oz] = RELOC(156, -38.6), [x, z] = freeSpot(ox, oz); return new THREE.Vector3(x, .15, z); })(), carry: null };
+{
+  const mat = new THREE.MeshStandardMaterial({ color: 0x2e6fb5, roughness: .5, metalness: .2 }), cap = new THREE.MeshStandardMaterial({ color: 0x9aa3ad, metalness: .5, roughness: .4 });
+  const cylGeo = new THREE.CylinderGeometry(.19, .19, .62, 12), g = new THREE.Group();
+  for (let i = 0; i < 6; i++){ const c = new THREE.Mesh(cylGeo, mat); c.position.set((i % 3) * .42 - .42, .31, -Math.floor(i / 3) * .42 - .9); g.add(c); }
+  g.position.set(GAS.pos.x, 0, GAS.pos.z); scene.add(g);
+  const cy = new THREE.Group(); cy.add(new THREE.Mesh(cylGeo, mat)); const vlv = new THREE.Mesh(new THREE.CylinderGeometry(.06, .06, .12, 8), cap); vlv.position.y = .37; cy.add(vlv); cy.visible = false; scene.add(cy); GAS.carry = cy;
+  const sg = signSprite('🛢️', 'مستودع أنابيب'); sg.position.set(GAS.pos.x, 2.7, GAS.pos.z - 1.1);
+}
+function gasCarry(on){ const c = GAS.carry; if (!on){ c.visible = false; return; } c.visible = true; const v = hero.veh;
+  if (v){ c.position.set(v.pos.x - Math.sin(v.yaw) * .75, v.pos.y + .95, v.pos.z - Math.cos(v.yaw) * .75); c.rotation.set(0, v.yaw, 0); }
+  else { const a = hero.d.root.rotation.y; c.position.set(hero.pos.x + Math.cos(a) * .38, hero.pos.y + .45, hero.pos.z - Math.sin(a) * .38); c.rotation.set(0, a, 0); } }
 function clearPickups(){ for (const p of pickups) scene.remove(p.g); pickups.length = 0; }
-function updatePickups(dt, t){ for (const p of pickups){ if (p.got) continue; p.m.rotation.y = t*2; p.m.position.y = .9 + Math.sin(t*3)*.12; if (!hero.veh && near(hero.pos, p.pos, 1.6)){ p.got = true; p.g.visible = false; coin(); buzz(20); banner('✔️ لقيتها', 'ok', 1.2); } } }
+function updatePickups(dt, t){ for (const p of pickups){ if (p.got) continue; p.m.rotation.y = t*2; p.m.position.y = .9 + Math.sin(t*3)*.12; if (!hero.veh && near(hero.pos, p.pos, 1.6)){ p.got = true; p.g.visible = false; coin(); buzz(20); banner('✓ لقيتها', 'ok', 1.2); } } }
 // police checkpoints (كمين)
 const checkpoints = [];
 function addCheckpoint(x, z){ const car = makeCar('#f4f4f4', 'police'); car.position.set(x, 0, z); car.rotation.y = Math.PI/2; const c = { car, pos: V(x, 0, z), r: 10 }; checkpoints.push(c); return c; }
@@ -107,19 +120,41 @@ const wedding = new THREE.Group(); wedding.visible = false; scene.add(wedding);
   const bulbs = []; for (let i=0;i<40;i++){ const x = W.x - 14 + i*.7; bulbs.push({ x, y: 4.2 + Math.sin(i*.45)*.4, z: W.z }); bulbs.push({ x, y: 4.0 + Math.sin(i*.45)*.4, z: W.z - 6 }); }
   const bm = new THREE.InstancedMesh(new THREE.SphereGeometry(.09, 8, 6), new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 2.2 }), bulbs.length);
   const c = new THREE.Color(); bulbs.forEach((b, i) => { _m.makeTranslation(b.x, b.y, b.z); bm.setMatrixAt(i, _m); c.setHSL((i*.07)%1, .9, .55); bm.setColorAt(i, c); }); wedding.add(bm); }
+// the wedding had nobody at it: 12 guests from the café's spare people sit and stand facing the stage
+const WED_GUESTS = [];
+function weddingGuests(on){
+  if (!on){ for (const n of WED_GUESTS) if (n.role === 'guest'){ n.role = null; n.state = 'hidden'; n.g.visible = false; } WED_GUESTS.length = 0; return; }
+  if (WED_GUESTS.length && WED_GUESTS.every(n => n.role === 'guest')) return; WED_GUESTS.length = 0;
+  const pool = [...(modeObj.patrons || []), ...(modeObj.pool || [])].filter(n => n.state === 'hidden' && !n.role), W = PL.wed;
+  pool.slice(0, 12).forEach((n, i) => { const x = W.x - 6 + (i % 6) * 2.4 + R(-.3, .3), z = W.z - 3.2 - Math.floor(i / 6) * 1.8; seatNPC(n, x, z, 0); if (i % 3 === 0){ n.state = 'idle'; n.g.position.y = .15; } n.role = 'guest'; WED_GUESTS.push(n); });
+}
+// Haidy's model has one texture (dark clothes): at the wedding she gets a white dress and veil over it
+const brideLook = (() => {
+  const g = new THREE.Group(), white = new THREE.MeshStandardMaterial({ color: 0xf7f4ee, roughness: .55 }), veilM = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .4, transparent: true, opacity: .55, side: THREE.DoubleSide });
+  const skirt = new THREE.Mesh(new THREE.CylinderGeometry(.2, .56, .95, 18, 1, true), white); skirt.position.y = .48; g.add(skirt);
+  const top = new THREE.Mesh(new THREE.CylinderGeometry(.17, .2, .42, 14), white); top.position.y = 1.12; g.add(top);
+  const veil = new THREE.Mesh(new THREE.ConeGeometry(.32, .95, 18, 1, true), veilM); veil.position.set(0, 1.18, -.06); g.add(veil);
+  g.visible = false; haidyD.root.add(g); return g;
+})();
 // arabi's motorcycle (for chapter 5) and شمس's getaway motorcycle
 const arabiMoto = addVehicle('moto', 262, 92.5, -Math.PI/2, '#1565c0'); arabiMoto.jobOnly = 'arabi'; arabiMoto.home.y = 0;
 const shamsMoto = makeMoto('#212121'); shamsMoto.visible = false;
 // شمس as a fighter for the final fight
-const boss = { active: false, pos: V(0,0,0), hp: 160, atk: 0, downs: 0, vx: 0, vz: 0 };
+// the final boss: three rounds, he blocks some punches and gets faster after each knock-down
+const boss = { active: false, pos: V(0,0,0), hp: 160, maxHp: 160, atk: 0, downs: 0, need: 3, vx: 0, vz: 0 };
 function bossTarget(p){ if (!boss.active || wantedD.downT > 0) return null; const d = boss.pos.distanceTo(p); return d < 1.9 ? { boss: true, x: boss.pos.x, z: boss.pos.z } : null; }
-function bossHit(big){ boss.hp -= big ? 34 : 18; wantedD.hitT = .45; thwack(); say(wanted, rpick(['آه!','ماشي يا طيارة!','لسه بدري!']), 1, 'angry'); if (boss.hp <= 0){ boss.downs++; boss.hp = 160; wantedD.downT = 3.5; say(wanted, boss.downs >= 2 ? 'خلاص… خلاص!' : 'قوم يا شمس… قوم', 2, 'angry'); } }
+function bossHit(big){
+  if (boss.iT > 0) return; boss.iT = .3;
+  if (!big && Math.random() < .3 + boss.downs * .1){ wantedD.hitT = .2; tone(220, 180, .08, 'square', .06); say(wanted, rpick(['صدّيتها!','ضعيفة!','تاني؟']), .8, 'angry'); return; }
+  boss.hp -= big ? 30 : 14; wantedD.hitT = .45; thwack(); say(wanted, rpick(['آه!','ماشي يا طيارة!','لسه بدري!']), 1, 'angry');
+  if (boss.hp <= 0){ boss.downs++; boss.hp = boss.maxHp; wantedD.downT = 3; say(wanted, boss.downs >= boss.need ? 'خلاص… خلاص!' : 'قوم يا شمس… قوم', 2, 'angry'); }
+}
 function updateBoss(dt, t){
-  if (!boss.active) return;
+  if (!boss.active) return; boss.iT = Math.max(0, (boss.iT || 0) - dt);
   const p = boss.pos, tg = hero.pos, dx = tg.x - p.x, dz = tg.z - p.z, dist = Math.hypot(dx, dz); boss.vx = boss.vz = 0;
   if (wantedD.downT <= 0 && !CUT.on){
-    if (dist > 1.2){ const sp = 6.2 * DIFF.enemySpd; boss.vx = dx/dist*sp; boss.vz = dz/dist*sp; moveWithSlide(p, boss.vx*dt, boss.vz*dt); }
-    else { boss.atk -= dt; if (boss.atk <= 0){ boss.atk = 1.0; wantedD.punchT = .28; setTimeout(() => { if (boss.active && wantedD.downT <= 0 && boss.pos.distanceTo(hero.pos) < 1.8) heroDamage(10 * DIFF.dmg, 'enemy'); }, 130); } }
+    if (dist > 1.2){ const sp = (6.2 + boss.downs * .6) * DIFF.enemySpd; boss.vx = dx/dist*sp; boss.vz = dz/dist*sp; moveWithSlide(p, boss.vx*dt, boss.vz*dt); }
+    else { boss.atk -= dt; if (boss.atk <= 0){ boss.atk = Math.max(.55, .85 - boss.downs * .12); wantedD.punchT = .28; setTimeout(() => { if (boss.active && wantedD.downT <= 0 && boss.pos.distanceTo(hero.pos) < 1.8) heroDamage((13 + boss.downs * 3) * DIFF.dmg, 'enemy'); }, 220); } }
   }
   wantedD.root.position.copy(p); animDoll(wantedD, boss.vx, boss.vz, dt, t);
 }
@@ -129,7 +164,7 @@ function allyUpdate(dt){
   if (hero.veh || HOUSE.inside){ enemy.d.root.visible = false; enemy.vel.set(0,0,0); return; }
   if (!enemy.d.root.visible){ enemy.d.root.visible = true; p.set(hero.pos.x + 1.6, hero.pos.y, hero.pos.z + .8); }
   const thug = npcs.find(n => n.thug && !n.thugDone && n.state === 'fight' && n.g.position.distanceTo(p) < 14);
-  const tg = thug ? thug.g.position : V(hero.pos.x + 1.4, 0, hero.pos.z + .6);
+  const tg = thug ? thug.g.position : new THREE.Vector3(hero.pos.x + 1.4, 0, hero.pos.z + .6);
   const dx = tg.x - p.x, dz = tg.z - p.z, d = Math.hypot(dx, dz); let vx = 0, vz = 0;
   if (d > (thug ? 1.1 : 1.8)){ const sp = d > 8 ? 8 : 5.2; vx = dx/d*sp; vz = dz/d*sp; moveWithSlide(p, vx*dt, vz*dt); if (d > 30) p.set(hero.pos.x + 1.4, hero.pos.y, hero.pos.z + .6); }
   else if (thug){ enemy.atk -= dt; if (enemy.atk <= 0){ enemy.atk = 1.1; enemy.d.punchT = .28; setTimeout(() => { if (thug.state === 'fight') npcHit(thug, 0); }, 120); } }
@@ -144,12 +179,12 @@ function updateStalker(dt){
   const f = heroAt();
   if (enemy.active){
     if (enemy.d.downT > 0){ ST2.downT = (ST2.downT || 0) + dt; if (ST2.downT > 5){ ST2.downT = 0; arabiHide(); ST2.stalkT = R(110, 190); } return; }
-    if (enemy.pos.distanceTo(f) > 75){ ST2.lostT = (ST2.lostT || 0) + dt; if (ST2.lostT > 5){ ST2.lostT = 0; arabiHide(); ST2.stalkT = R(60, 110); banner('هربت من العربي 😎', 'ok', 2); } } else ST2.lostT = 0;
+    if (enemy.pos.distanceTo(f) > 75){ ST2.lostT = (ST2.lostT || 0) + dt; if (ST2.lostT > 5){ ST2.lostT = 0; arabiHide(); ST2.stalkT = R(60, 110); banner('هربت من العربي', 'ok', 2); } } else ST2.lostT = 0;
     return;
   }
   ST2.stalkT -= dt; if (ST2.stalkT > 0) return;
   ST2.stalkT = R(40, 70); const p = randomSidewalkPoint(32, f); if (p.distanceTo(f) > 60) return;
-  arabiAppear(p); banner('⚠️ العربي ظهر! اهرب أو واجهه', 'bad', 2.5);
+  arabiAppear(p); banner('العربي ظهر! اهرب أو واجهه', 'bad', 2.5);
 }
 function pickDrink(){ const M = MS[SAVE.m]; if (modeId === 'story' && M && ST2.phase === 'active'){ if (M.id === 'coffee' && Math.random() < .6) return 'قهوة'; if (M.id === 'tea' && Math.random() < .7) return 'شاي'; } return rpick(DRINKS); }
 function storyAllowsThief(){ return modeId === 'story' && !SAVE.ended && SAVE.m > idx('islam') && SAVE.m <= idx('ringPhoto') && !ST2.d.noThief && ST2.phase === 'active'; }
@@ -161,7 +196,7 @@ const OLD_ORDER = ["wake", "toCafe", "islamHi", "tea", "coffee", "rush", "spill"
 const OLD_TO_NEW = { sayed: 'clues', arabiHelp: 'refuseDeal', parts: 'refuseDeal', thugs: 'refuseDeal', returnMoto: 'refuseDeal', friendRace: 'refuseDeal', tuk: 'buyMoto' };
 const L = (who, text) => ({ say: who, text });
 const shot = (p, dx=2.6, dy=1.3, dz=3.6, t=1.3) => ({ cam: [p.x+dx, (p.y||0)+dy+.4, p.z+dz], look: [p.x, (p.y||0)+1.45, p.z], t });
-function heroTo(x, z){ if (hero.veh) exitVehicle(true); if (!HOUSE.inside) [x, z] = freeSpot(x, z); hero.pos.set(x, groundY(x, z), z); hero.vel.set(0,0,0); hero.knock.set(0,0,0); lookAt.copy(hero.pos); }
+function heroTo(x, z){ [x, z] = RELOC(x, z); if (TRAMR.on){ TRAMR.on = false; hero.locked = false; if (TRAMR.cam) camTarget = TRAMR.cam; } if (hero.veh) exitVehicle(true); if (!HOUSE.inside) [x, z] = freeSpot(x, z); hero.pos.set(x, groundY(x, z), z); hero.vel.set(0,0,0); hero.knock.set(0,0,0); lookAt.copy(hero.pos); }
 const npcAt = k => NP(k) ? NP(k).g.position : V(0,0,0);
 const yEnt = { d: youssefD }, sEnt = { d: wantedD }, aEnt = { d: enemyD }, iEnt = { d: islamD };
 const PL = { cafeIn: V(22.6,.15,25.4), cafeOut: V(20,.15,39), domino: V(30,.15,27.2), cart: V(35.6,.15,33.4), house: V(-24,.15,90), azz: V(119,.15,42.6), tuk: V(126,.15,-6.4), ws: V(260,.15,90.4), police: V(31,.15,40), wed: V(-72,.15,33), shop: SHOP.pos, corniche: V(168,.15,150) };
@@ -170,7 +205,7 @@ const talkU = k => () => !!NP(k) && near(heroAt(), npcAt(k), 2.8);
 const nPick = (d, n) => `(${pickups.filter(p => p.got).length}/${n})`;
 const allPicked = () => pickups.length > 0 && pickups.every(p => p.got);
 const nearestPick = () => { const f = heroAt(); let b = null, bd = 1e9; for (const p of pickups){ if (p.got) continue; const dd = p.pos.distanceTo(f); if (dd < bd){ bd = dd; b = p.pos; } } return b; };
-const waitNight = (pos, r=14) => (p) => (!isNight() && near(p, pos(), r)) ? { text: '⏳ استنى لحد بالليل', fn: () => fadeTo(() => { applyTimeOfDay(21); SAVE.time = 21; banner('الدنيا ليلت 🌙', 'info', 2); }, .8) } : null;
+const waitNight = (pos, r=14) => (p) => (!isNight() && near(p, pos(), r)) ? { text: 'استنى لحد بالليل', fn: () => fadeTo(() => { applyTimeOfDay(21); SAVE.time = 21; banner('الدنيا ليلت', 'info', 2); }, .8) } : null;
 function sidewalkNear(c, rad){ for (let i=0;i<60;i++){ const a = Math.random()*Math.PI*2, r = rad*(.6 + Math.random()*.6), x = c.x + Math.sin(a)*r, z = c.z + Math.cos(a)*r; if (inWorld(x, z) && !staticBlocked(x, z, .5)) return V(x, groundY(x, z), z); } return c.clone(); }
 // --- arabi races on his own motorcycle along a road path ---
 function ghostStart(d, moto, doll, path, speed){
@@ -189,13 +224,13 @@ function ghostEnd(d){ const g = d.gh; if (!g) return; g.doll.P.legL.visible = g.
 const pathLen = path => path.slice(1).reduce((s, p, i) => s + Math.hypot(p[0]-path[i][0], p[1]-path[i][1]), 0);
 function raceM(o){
   return { ...o, spawn: PL.cafeOut,
-    text: d => !d.go ? (hero.veh && hero.veh.type === 'moto' ? 'قرّب بالموتوسيكل من العربي… السباق هيبدأ لوحده 🏁' : 'اركب موتوسيكلك وقف جنب العربي قدام القهوة (★)') : `🏁 السباق لـ${o.goalName}! فاضل ${Math.max(0, Math.ceil(d.t))} ثانية`,
+    text: d => !d.go ? (hero.veh && hero.veh.type === 'moto' ? 'قرّب بالموتوسيكل من العربي… السباق هيبدأ لوحده' : 'اركب موتوسيكلك وقف جنب العربي قدام القهوة (★)') : `السباق لـ${o.goalName}! فاضل ${Math.max(0, Math.ceil(d.t))} ثانية`,
     target: d => d.go ? o.goal : arabiMoto.pos,
     start(d){ d.enemyBusy = true; arabiHide(); const sp = 14 * DIFF.enemySpd; d.t = pathLen(o.path) / sp * 1.6; ghostStart(d, arabiMoto, enemyD, o.path, sp); d.go = false; d.cd = null; d.noThief = true; },
     update(dt, d){
       const g = d.gh; if (!g) return;
       if (!d.go){ ghostPose(g, dt);
-        if (hero.veh && hero.veh.type === 'moto' && near(hero.veh.pos, g.mesh.position, d.cd == null ? 14 : 40)){ const prev = d.cd ?? 3.99; d.cd = prev - dt; if (Math.ceil(d.cd) !== Math.ceil(prev)){ banner(d.cd > 0 ? `${Math.ceil(d.cd)}…` : '🏁 يلا!!', 'info', 1); tone(d.cd > 0 ? 440 : 880, d.cd > 0 ? 440 : 880, .2, 'square', .09); } if (d.cd <= 0){ d.go = true; say(aEnt, o.taunt, 2.5, 'angry'); } }
+        if (hero.veh && hero.veh.type === 'moto' && near(hero.veh.pos, g.mesh.position, d.cd == null ? 14 : 40)){ const prev = d.cd ?? 3.99; d.cd = prev - dt; if (Math.ceil(d.cd) !== Math.ceil(prev)){ banner(d.cd > 0 ? `${Math.ceil(d.cd)}…` : 'يلا!!', 'info', 1); tone(d.cd > 0 ? 440 : 880, d.cd > 0 ? 440 : 880, .2, 'square', .09); } if (d.cd <= 0){ d.go = true; say(aEnt, o.taunt, 2.5, 'angry'); } }
         else d.cd = null; return; }
       d.t -= dt; const arrived = ghostStep(g, dt, g.speed);
       if (near(heroAt(), o.goal, 9)) return true;
@@ -210,11 +245,11 @@ function parkArabiMoto(){
 }
 // --- thugs (شمس's men) ---
 function spawnThugs(d){
-  d.thugs = [36, 37, 38].map(i => { const n = npcs[i]; const p = sidewalkNear(hero.pos, 9); n.role = 'thug'; n.thug = true; n.thugHits = 0; n.thugDone = false; n.g.visible = true; n.g.position.copy(p); n.state = 'fight'; n.fightT = 999; n.downT = 0; n.fall = 0; n.name = 'واحد من رجالة شمس'; return n; });
+  d.thugs = [36, 37, 38].map(i => { const n = npcs[i]; const p = sidewalkNear(hero.pos, 9); n.role = 'thug'; n.thug = true; n.mhp = undefined; n.mel = false; n.fstyle = undefined; n.windT = 0; n.thugHits = 0; n.thugNeed = 5; n.thugDone = false; n.g.visible = true; n.g.position.copy(p); n.state = 'fight'; n.fightT = 999; n.downT = 0; n.fall = 0; n.name = 'واحد من رجالة شمس'; return n; });
   d.thugs.forEach((n, k) => npcWear3D(n, k === 1 ? 'soldier' : 'thug'));   // شمس's men in 3D when the models are there
   say(d.thugs[0], 'إنتوا بتعملوا إيه هنا؟!', 2.5, 'angry');
 }
-function clearThugs(d){ (d.thugs || []).forEach(n => { npcTakeOff3D(n); n.thug = false; n.thugDone = false; n.state = 'hidden'; n.g.visible = false; n.role = null; n.g.rotation.x = 0; }); d.thugs = null; }
+function clearThugs(d){ (d.thugs || []).forEach(n => { npcTakeOff3D(n); n.thug = false; n.thugDone = false; n.mhp = undefined; n.mel = false; n.fstyle = undefined; n.state = 'hidden'; n.g.visible = false; n.role = null; n.g.rotation.x = 0; }); d.thugs = null; }
 
 // ---- places and people used by the story (Alexandria) ----
 const PL2 = { shadia: STORY_HOUSES.shadia.door, shadiaOut: V(-35, .15, 88), houseOut: V(-24, .15, 89), wall: V(60, .15, 152.3), villa: V(VILLA.cx - 4, .15, VILLA.cz + 6), port: V(PORT.door.x, .15, PORT.door.z + 2), portIn: PORT.inside, pier: V((PIER.x0 + PIER.x1) / 2, .15, 160), showroom: SHOWROOM.front, fortGate: V(96, .15, 262), fortIn: V(96, .15, 271), market: V(147, .15, -40), tramStop: V(72, .15, -53.6), wed: V(-72, .15, 33), roof: V(-24, 10.2, 79) };
@@ -235,7 +270,7 @@ function carRunStep(d, dt){
 // شمس's launch in the harbour: it runs along a path over the water
 function launchRunStep(d, dt){
   const g = d.lr, p = shamsLaunch.position, [tx, tz] = g.path[Math.min(g.i, g.path.length - 1)], dx = tx - p.x, dz = tz - p.z, dd = Math.hypot(dx, dz), dist = heroAt().distanceTo(p);
-  const sp = (dist > 60 ? 7 : dist > 25 ? 13 : 15.5) * DIFF.enemySpd, s = sp * dt;
+  const sp = (dist > 60 ? 8 : dist > 25 ? 14 : 17) * DIFF.enemySpd, s = sp * dt;
   if (g.i < g.path.length){ if (dd <= s){ p.x = tx; p.z = tz; g.i++; } else { p.x += dx / dd * s; p.z += dz / dd * s; } if (dd > .01) g.yaw = lerpAngle(g.yaw, Math.atan2(dx, dz), damp(4, dt)); }
   shamsLaunch.rotation.set(0, g.yaw, Math.sin(runTime * 3) * .04); p.y = -.9 + Math.sin(runTime * 2) * .08; d.dist = dist; return g.i >= g.path.length;
 }
@@ -243,61 +278,61 @@ function launchRunStep(d, dt){
 const MS = [
   // ===== الفصل الأول: صباح في بحري =====
   { id: 'wake', ch: 1, title: 'صباح الخير يا طيارة', prologue: true, par: 40,
-    intro: () => [ { cam: [-400.4, 2.2, -397.7], look: [-404, .8, -400.6], t: 0 }, { wait: .6 },
-      L('phone', '📱 المعلم عبده: انت فين يا طيارة؟! الوردية بدأت من ساعة!'),
+    intro: () => [ { cam: [5599.6, 2.2, 5602.3], look: [5596, .8, 5599.4], t: 0 }, { wait: .6 },
+      L('phone', 'المعلم عبده: انت فين يا طيارة؟! الوردية بدأت من ساعة!'),
       L('tayara', 'يا نهار أبيض… نمت تاني!'),
       { do: () => { noise(.12, 300, .5); setTimeout(() => noise(.12, 300, .5), 250); shake = .25; } },
       L('landlord', '(بيخبط على الباب) يا طيارةةة! الإيجار متأخر شهرين يا ابني!'),
       L('landlord', 'آخر الأسبوع يا ١٠٠ جنيه يا تلم هدومك وتمشي. أنا مش جمعية خيرية!'),
       L('tayara', 'حاضر يا حاج محمود… ربنا يسهلها.'),
-      L('tayara', 'يلا يا طيارة… النهارده يوم جديد. هنبقى الجامد 👑') ],
-    text: () => 'اخرج من البيت 🚪 (الباب ورا)', target: () => HOUSE.inside ? HOUSE_SPOTS.door : null,
+      L('tayara', 'يلا يا طيارة… النهارده يوم جديد. هنبقى الجامد') ],
+    text: () => 'اخرج من البيت (الباب ورا)', target: () => HOUSE.inside ? HOUSE_SPOTS.door : null,
     update: () => !!ST2.ev.exitHouse || !HOUSE.inside },
   { id: 'laundry', ch: 1, title: 'الغسيل', par: 60,
-    intro: () => [ { do: () => { heroTo(PL2.houseOut.x, PL2.houseOut.z); const sh = new THREE.Mesh(new THREE.PlaneGeometry(.9, 1.1), new THREE.MeshStandardMaterial({ color: 0x5b8fd6, side: THREE.DoubleSide, roughness: .9 })); scene.add(sh); SCENE.shirt = sh; tween(1.6, k => { sh.position.set(-35 + 11 * k, 10 - 8.1 * k * k, 87 + 2 * k); sh.rotation.set(k * 5, k * 3, k * 2); }, () => { sh.position.set(hero.pos.x, 1.9, hero.pos.z); sh.rotation.set(-1.4, 0, 0); noise(.15, 500, .2); }); } },
+    intro: () => [ { do: () => { heroTo(PL2.houseOut.x, PL2.houseOut.z); const sh = new THREE.Mesh(new THREE.PlaneGeometry(.9, 1.1), new THREE.MeshStandardMaterial({ color: 0x5b8fd6, side: THREE.DoubleSide, roughness: .9 })); scene.add(sh); SCENE.shirt = sh; tween(1.6, k => { sh.position.set(-35 + 11 * k, 10 - 8.1 * k * k, 87 + 2 * k); sh.rotation.set(k * 5, k * 3, k * 2); }, () => { sh.position.set(hero.pos.x + .08, 1.42, hero.pos.z + .2); sh.rotation.set(-.22, .35, .18); sh.scale.set(.85, .95, 1); noise(.15, 500, .2); }); } },
       camAt(-18, 3.4, 95, -26, 2.6, 87, 1.4), { wait: 1.2 },
       L('tayara', 'إيه ده؟! قميص… نازل عليّا من السما؟'),
       { do: () => showActor(shadiaD, PL2.shadiaOut.x, PL2.shadiaOut.z) }, { walk: [shadiaD, -28.5, 88.6, 2.2] },
       L('shadia', 'يا نهار أبيض! القميص بتاعي… معلش والله، الهوا شاله.'),
-      L('tayara', 'ولا يهمك… ده أحلى حاجة وقعت عليّا من شهور 😅'),
+      L('tayara', 'ولا يهمك… ده أحلى حاجة وقعت عليّا من شهور'),
       L('shadia', 'انت طيارة؟ اللي بيقولوا عليه في القهوة؟'),
       L('tayara', 'هو بعينه… بس اللي بيقولوه نصه كدب.'),
-      L('shadia', 'طب هات القميص… ولا هتاخده تذكار؟ 😄'),
+      L('shadia', 'طب هات القميص… ولا هتاخده تذكار؟'),
       { do: () => { if (SCENE.shirt){ scene.remove(SCENE.shirt); SCENE.shirt = null; } hideActor(shadiaD); } } ],
     text: () => 'رجّع القميص لشادية عند باب بيتها (★) جنب بيتك', target: () => PL2.shadiaOut, update: reachU(() => PL2.shadiaOut, 2.6),
     outro: () => [ { do: () => showActor(shadiaD, PL2.shadiaOut.x, PL2.shadiaOut.z - .6) }, shot(PL2.shadiaOut, 2.4, 1.1, 3.2),
       L('shadia', 'شكراً يا طيارة. أنا شادية… جارتك من ساعة ما نقلنا.'),
       L('shadia', 'وبصوّر… الكاميرا دي حياتي كلها. يوم من الأيام هبقى أشهر مصورة في إسكندرية.'),
-      L('tayara', 'وأنا يوم من الأيام هبقى صاحب القهوة… يبقى نتقابل على القمة 😎'),
-      L('shadia', 'روح يا عم القمة… المعلم عبده بيزعّق من الصبح 😂'), { do: () => hideActor(shadiaD) } ] },
-  { id: 'toCafe', ch: 1, title: 'على القهوة', par: 70,
-    text: () => 'روح قهوة قصر الملوك (★). بعيدة؟ اركب توكتوك من المحطة 🚏 اللي جنب البيت.', target: () => PL.cafeOut,
+      L('tayara', 'وأنا يوم من الأيام هبقى صاحب القهوة… يبقى نتقابل على القمة'),
+      L('shadia', 'روح يا عم القمة… المعلم عبده بيزعّق من الصبح'), { do: () => hideActor(shadiaD) } ] },
+  { id: 'toCafe', spawn: PL2.houseOut, ch: 1, title: 'على القهوة', par: 70,
+    text: () => 'روح قهوة قصر الملوك (★). بعيدة؟ اركب توكتوك من المحطة اللي جنب البيت.', target: () => PL.cafeOut,
     update: reachU(() => PL.cafeOut, 6),
     outro: () => [ { do: () => heroTo(PL.cafeIn.x - 1.5, PL.cafeIn.z + .4) }, shot(npcAt('moallem'), -2.6, 1, 3.2),
-      L('moallem', 'أهلاً بالبيه! ده لو ميت كان جه بدري 😒'),
+      L('moallem', 'أهلاً بالبيه! ده لو ميت كان جه بدري'),
       L('tayara', 'معلش يا معلم… المنبه بايظ.'),
       L('moallem', 'المنبه بايظ ولا انت اللي بايظ؟ يلا… سلّم على صاحبك الأول، وبعدين عندي ليك درس.') ] },
   { id: 'islamHi', ch: 1, title: 'إسلام', par: 40,
     text: () => 'إسلام قاعد على ترابيزة الدومنو… سلّم عليه (★)', target: () => SPOT.domino,
     update: reachU(() => SPOT.domino, 2.8),
     outro: () => [ shot(SPOT.domino, 2.4, 1.1, 3),
-      L('islam', 'طيارة! أخيراً يا عم 😂 المعلم كان هيعلّق صورتك على الحيطة ومكتوب عليها «مفقود».'),
+      L('islam', 'طيارة! أخيراً يا عم المعلم كان هيعلّق صورتك على الحيطة ومكتوب عليها «مفقود».'),
       L('tayara', 'ههه… إيه الأخبار يا إسلام؟ وشك منوّر كده ليه؟'),
-      L('islam', 'عندي خبر حلو أوي… بس مش دلوقتي. اشتغل الأول قبل ما المعلم يرفدك 😄') ] },
+      L('islam', 'عندي خبر حلو أوي… بس مش دلوقتي. اشتغل الأول قبل ما المعلم يرفدك') ] },
   { id: 'tea', ch: 1, title: 'درس الشاي', at: () => SPOT.counter, atR: 6, goText: 'روح للمعلم عبده عند النَصبة (★)', par: 150,
     intro: () => [ shot(npcAt('moallem'), -2.4, 1, 3),
       L('moallem', 'بص يا طيارة… الشاي عندنا ليه أصول، وأنا هقولهالك خطوة خطوة.'),
       L('moallem', '١- ادخل النَصبة. ٢- حط الشاي والميه في البراد وسيبه يغلي. ٣- صب في الكوباية. ٤- حط السكر على مزاج الزبون وقلّب.'),
       L('moallem', 'سادة يعني من غير سكر، مظبوط معلقتين، زيادة تلاتة. وكل زبون فوق راسه طلبه والوقت بتاعه.'),
       L('moallem', 'قدّم ٣ كوبايات شاي… ووريني الشطارة.') ],
-    start: d => mark(d, 'tea'), text: d => `اشتغل وردية (E عند النَصبة ☕) وقدّم ٣ شاي (${Math.min(prog(d,'tea'),3)}/3)`, target: () => modeObj.job ? null : SPOT.counter,
+    start: d => mark(d, 'tea'), text: d => `اشتغل وردية (E عند النَصبة) وقدّم ٣ شاي (${Math.min(prog(d,'tea'),3)}/3)`, target: () => modeObj.job ? null : SPOT.counter,
     update: (dt, d) => prog(d, 'tea') >= 3,
-    outro: () => [ L('moallem', 'ماشي… مش وحش. الشاي اتشرب على الأقل 😏') ] },
+    outro: () => [ L('moallem', 'ماشي… مش وحش. الشاي اتشرب على الأقل') ] },
   { id: 'coffee', ch: 1, title: 'درس القهوة', par: 150,
     intro: () => [ L('moallem', 'القهوة غير الشاي يا طيارة. البن والسكر في الكنكة مع الميه، وعلى النار.'),
       L('moallem', 'مظبوط يعني معلقة سكر، وزيادة معلقتين. وأول ما توش وتعلى، شيلها قبل ما تفور!'),
       L('moallem', 'قدّم ٢ قهوة.') ],
-    start: d => mark(d, 'coffee'), text: d => `قدّم ٢ قهوة ☕ (${Math.min(prog(d,'coffee'),2)}/2) · لو الوردية خلصت ابدأ واحدة جديدة من النَصبة`, target: () => modeObj.job ? null : SPOT.counter,
+    start: d => mark(d, 'coffee'), text: d => `قدّم ٢ قهوة (${Math.min(prog(d,'coffee'),2)}/2) · لو الوردية خلصت ابدأ واحدة جديدة من النَصبة`, target: () => modeObj.job ? null : SPOT.counter,
     update: (dt, d) => prog(d, 'coffee') >= 2 },
   { id: 'domino', ch: 1, title: 'دومنو الحاج كامل', at: () => SPOT.domino, atR: 4, goText: 'الحاج كامل بيناديك على ترابيزة الدومنو (★)', par: 600,
     intro: () => [ shot(SPOT.domino, -2.4, 1.1, 3),
@@ -305,7 +340,7 @@ const MS = [
       L('sayed', 'اللي معاه الدش يفتح أول دور. اللي يخلّص حجارته ياخد نِمر اللي قصاده… متقرّبة لأقرب عشرة، والماتش لـ ٢٥٠.'),
       L('sayed', 'ولو الدور قفل، اللي نِمره أقل ياخد نِمر التاني. والكسبان هو اللي يفتح اللي بعده.'),
       L('sayed', 'العب لوحدك قصادي، أو انت وإسلام قصاد شمس والعربي… اختار.') ],
-    start: d => mark(d, 'dom'), text: () => 'اكسب ماتش دومنو (E عند الترابيزة) 🎲', target: () => SPOT.domino,
+    start: d => mark(d, 'dom'), text: () => 'اكسب ماتش دومنو (E عند الترابيزة)', target: () => SPOT.domino,
     update: (dt, d) => prog(d, 'dom') >= 1,
     outro: () => [ L('sayed', 'برافو عليك… إيدك خفيفة زي أبوك الله يرحمه.'), KN('kamel_01_end') ] },
 
@@ -334,68 +369,71 @@ const MS = [
       L('fathi', 'الطلب مكتوب فوق كل زبون. الفول في الطبق وعليه اللي طالبه، والطعمية تتقلي لحد ما تحمر… متسيبهاش تتحرق!'),
       L('fathi', 'بيع ٤ طلبات.') ],
     start: d => mark(d, 'foul'), text: d => `اشتغل على عربية الفول (E) وبيع ٤ طلبات (${Math.min(prog(d,'foul'),4)}/4)`, target: () => modeObj.job ? null : SPOT.cart,
-    update: (dt, d) => prog(d, 'foul') >= 4, outro: () => [ L('fathi', 'إيدك تتلف في حرير يا طيارة 🧆') ] },
+    update: (dt, d) => prog(d, 'foul') >= 4, outro: () => [ L('fathi', 'إيدك تتلف في حرير يا طيارة') ] },
   { id: 'azzouz', ch: 2, title: 'مطعم عزوز', par: 90,
-    text: () => 'عزوز صاحب مطعم البيتزا عايز طيّار ديليفري. روحله في شارع المطاعم (★) — بعيد؟ اركب من المحطة 🚏', target: () => SPOT.azzouz,
+    text: () => 'عزوز صاحب مطعم البيتزا عايز طيّار ديليفري. روحله في شارع المطاعم (★) — بعيد؟ اركب من المحطة', target: () => SPOT.azzouz,
     update: reachU(() => SPOT.azzouz, 5),
     outro: () => [ shot(npcAt('azzouz'), 2.4, 1, 3),
-      L('azzouz', 'انت طيارة؟ اسم على مسمى والله 😂'),
+      L('azzouz', 'انت طيارة؟ اسم على مسمى والله'),
       L('azzouz', 'الموتوسيكل الأحمر ده للديليفري. البيتزا لازم توصل سخنة… وكل ما تتخبط العلبة بتبوظ.'),
       L('azzouz', 'كل طلب ١٢ جنيه، والبقشيش على حسب السرعة.') ] },
   { id: 'pizza3', ch: 2, title: 'أول ديليفري', par: 240,
-    start: d => mark(d, 'pizza'), text: d => `وصّل ٣ طلبات بيتزا 🍕 (ابدأ من عند عزوز E) (${Math.min(prog(d,'pizza'),3)}/3)`, target: () => JOB.kind ? null : SPOT.azzouz,
+    start: d => mark(d, 'pizza'), text: d => `وصّل ٣ طلبات بيتزا (ابدأ من عند عزوز E) (${Math.min(prog(d,'pizza'),3)}/3)`, target: () => JOB.kind ? null : SPOT.azzouz,
     update: (dt, d) => prog(d, 'pizza') >= 3 },
   { id: 'buyMoto', ch: 2, title: 'موتوسيكل باسمي', par: 600,
-    intro: () => [ L('phone', '📱 إسلام: يا طيارة! فيه موتوسيكل مستعمل للبيع قدام القهوة بـ ٣٠٠ جنيه. حوّش واشتريه… مش هتفضل ماشي على رجلك!') ],
-    text: () => `اشتري الموتوسيكل المستعمل قدام القهوة (★) · ${egp(hero.money)} / ٣٠٠<br><small>الفلوس: وردية قهوة ☕ · فول 🧆 · بيتزا 🍕 · توكتوك 🛺 · دومنو 🎲</small>`, target: () => heroMoto.pos,
-    update: () => SAVE.owned.moto, outro: () => [ L('tayara', 'أخيراً… موتوسيكل باسمي! 🏍️ اركبه يا طيارة.') ] },
+    intro: () => [ L('phone', 'إسلام: يا طيارة! فيه موتوسيكل مستعمل للبيع قدام القهوة بـ ٣٠٠ جنيه. حوّش واشتريه… مش هتفضل ماشي على رجلك!') ],
+    text: () => `اشتري الموتوسيكل المستعمل قدام القهوة (★) · ${egp(hero.money)} / ٣٠٠<br><small>الفلوس: وردية قهوة · فول · بيتزا · توكتوك · دومنو</small>`, target: () => heroMoto.pos,
+    update: () => SAVE.owned.moto, outro: () => [ L('tayara', 'أخيراً… موتوسيكل باسمي! اركبه يا طيارة.') ] },
   { id: 'shadiaRide', ch: 2, title: 'توصيلة للكورنيش', par: 120,
-    intro: () => [ L('phone', '📱 شادية: طيارة؟ أنا شادية… الشمس هتغرب كمان شوية وعايزة أصوّرها من على الكورنيش.'), L('phone', '📱 شادية: ممكن توصلني بالموتوسيكل؟ هستناك قدام البيت.') ],
-    start: d => { d.picked = false; d.t = 0; showIdle(shadiaD, PL2.shadiaOut.x, PL2.shadiaOut.z); },
-    text: d => d.picked ? `وصّل شادية للكورنيش (★) قبل الغروب 🌅 · ${Math.max(0, Math.ceil(90 - d.t))} ثانية` : 'اركب موتوسيكلك وروح لشادية قدام بيتها (★)',
+    intro: () => [ L('phone', 'شادية: طيارة؟ أنا شادية… الشمس هتغرب كمان شوية وعايزة أصوّرها من على الكورنيش.'), L('phone', 'شادية: ممكن توصلني بالموتوسيكل؟ هستناك قدام البيت.') ],
+    start: d => { d.picked = false; d.t = 0; if (TOD.h < 16 || TOD.h > 17.6){ applyTimeOfDay(16.9); SAVE.time = 16.9; } showIdle(shadiaD, PL2.shadiaOut.x, PL2.shadiaOut.z); },
+    text: d => d.picked ? `وصّل شادية للكورنيش (★) قبل الغروب · ${Math.max(0, Math.ceil(90 - d.t))} ثانية` : 'اركب موتوسيكلك وروح لشادية قدام بيتها (★)',
     target: d => d.picked ? V(150, 0, 150) : PL2.shadiaOut,
     update(dt, d){
-      if (!d.picked){ if (hero.veh && hero.veh.type === 'moto' && near(hero.veh.pos, PL2.shadiaOut, 6)){ d.picked = true; ST2.idle.delete(shadiaD); shadiaD.root.visible = false; banner('شادية ركبت ورا 🏍️', 'ok', 2); } return; }
+      if (!d.picked){ if (hero.veh && hero.veh.type === 'moto' && near(hero.veh.pos, PL2.shadiaOut, 6)){ d.picked = true; ST2.idle.delete(shadiaD); shadiaD.root.visible = false; banner('شادية ركبت ورا', 'ok', 2); } return; }
+      const v = hero.veh, sd = shadiaD;
+      if (v && v.type === 'moto'){ sd.root.visible = true; sd.P.legL.visible = sd.P.legR.visible = false; sd.blob.visible = false; sd.root.position.set(v.pos.x - Math.sin(v.yaw) * .85, v.pos.y + .9 - sd.hipY, v.pos.z - Math.cos(v.yaw) * .85); sd.faceYaw = v.yaw; animDoll(sd, 0, 0, dt, runTime); }
+      else { sd.root.visible = false; sd.P.legL.visible = sd.P.legR.visible = true; sd.blob.visible = true; }
       d.t += dt; if (d.t > 90){ d.failMsg = 'الشمس غربت قبل ما توصل'; return 'fail'; }
       return near(heroAt(), V(150, 0, 150), 9);
     },
-    cleanup: () => { ST2.idle.delete(shadiaD); shadiaD.root.visible = false; },
+    cleanup: () => { ST2.idle.delete(shadiaD); shadiaD.root.visible = false; shadiaD.P.legL.visible = shadiaD.P.legR.visible = true; shadiaD.blob.visible = true; },
     outro: () => [ { do: () => { if (hero.veh) exitVehicle(true); heroTo(148, 151); showActor(shadiaD, 150.4, 152.4); applyTimeOfDay(18.2); } }, camAt(143, 2.2, 146, 152, 1.6, 158, 1.4),
       L('shadia', 'بص… بص على البحر! مفيش حاجة في الدنيا أحلى من غروب إسكندرية.'),
       L('tayara', 'أنا بقالي عمري هنا… عمري ما وقفت أبص كده.'),
-      L('shadia', 'عشان انت دايماً جري… بين القهوة والفول والبيتزا. استنى ثانية… (تِك) خدتلك صورة 📸'),
+      L('shadia', 'عشان انت دايماً جري… بين القهوة والفول والبيتزا. استنى ثانية… (تِك) خدتلك صورة'),
       L('tayara', 'صورة ليّا أنا؟ هتعمليها إيه؟'),
-      L('shadia', 'هعلّقها… «طيارة وهو واقف مكانه لأول مرة» 😂'), { do: () => hideActor(shadiaD) } ] },
+      L('shadia', 'هعلّقها… «طيارة وهو واقف مكانه لأول مرة»'), { do: () => hideActor(shadiaD) } ] },
   { id: 'gas', ch: 2, title: 'الأنبوبة', par: 180,
     intro: () => [ shot(npcAt('landlord'), 2.4, 1, 3), L('landlord', 'يا طيارة يا ابني… الأنبوبة خلصت وأم شادية عايزة تطبخ.'), L('landlord', 'هات واحدة مليانة من المستودع اللي عند السوق. وبالراحة! الأنبوبة مش كورة.') ],
-    start: d => { addPickup(PL2.market); d.dmg0 = null; },
-    text: d => allPicked() ? 'رجّع الأنبوبة لبيت شادية (★) — بالراحة، لو خبطت جامد هتقع!' : 'روح المستودع عند السوق وخد الأنبوبة (★)',
+    start: d => { addPickup(GAS.pos, 'gas'); d.dmg0 = null; },
+    text: d => allPicked() ? 'رجّع الأنبوبة لبيت شادية (★) — بالراحة، لو خبطت جامد هتقع!' : 'روح مستودع الأنابيب جنب السوق وخد أنبوبة مليانة (★)',
     target: d => allPicked() ? PL2.shadiaOut : nearestPick(),
     update(dt, d){
-      if (!allPicked()) return;
-      if (hero.veh){ if (d.dmg0 === null || d.veh !== hero.veh){ d.veh = hero.veh; d.dmg0 = hero.veh.dmg || 0; } if ((hero.veh.dmg || 0) - d.dmg0 > 20){ d.failMsg = 'الأنبوبة وقعت واتدحرجت 😬'; return 'fail'; } }
+      if (!allPicked()) return; gasCarry(true);
+      if (hero.veh){ if (d.dmg0 === null || d.veh !== hero.veh){ d.veh = hero.veh; d.dmg0 = hero.veh.dmg || 0; } if ((hero.veh.dmg || 0) - d.dmg0 > 20){ d.failMsg = 'الأنبوبة وقعت واتدحرجت'; return 'fail'; } }
       return near(heroAt(), PL2.shadiaOut, 4);
     },
     outro: () => [ { do: () => { if (hero.veh) exitVehicle(true); showActor(shadiaD, PL2.shadiaOut.x, PL2.shadiaOut.z - .6); } }, shot(PL2.shadiaOut, 2.4, 1.1, 3.2),
       L('mother', 'تسلم إيدك يا ابني… ربنا يكرمك ويجعلك من نصيب اللي تستاهلك.'),
-      L('shadia', 'ماما!! 😳'), L('tayara', 'آمين يا رب… آمين 😅'),
+      L('shadia', 'ماما!!'), L('tayara', 'آمين يا رب… آمين'),
       { do: () => hideActor(shadiaD) },
       // meanwhile: يوسف looks for work all day, and nobody takes him
       hideHero(), { do: () => { showActor(youssefD, 33, 40.5); } }, camAt(26, 2.6, 46, 31, 1.4, 40, 1.4), KN('kamel_02_y1'),
       { walk: [youssefD, 25.5, 40, 2] }, L('youssef', 'يا معلم عبده… محتاج حد يشيل صواني؟ أنا سريع والله.'), L('moallem', 'مفيش مكان يا ابني… طيارة مالي الدنيا.'),
       { do: () => showActor(youssefD, 128, -4) }, camAt(122, 2.6, 2, 127, 1.4, -5, 1.2), L('youssef', 'يا أسطى رضا… أي حاجة، حتى أمسح التكاتك.'), L('mechanic', 'تعالى بكرة يا يوسف… بكرة.'),
       { do: () => showActor(youssefD, 118, 41) }, camAt(114, 2.6, 47, 119, 1.4, 40, 1.2), KN('kamel_02_y2'),
-      { do: () => { showActor(youssefD, PL2.wall.x, PL2.wall.z); youssefD.forceMove = 'sit'; } }, camAt(55, 2.2, 146, 60, 1.1, 153, 1.6), KN('kamel_02_y3'), KN('kamel_02_end'),
+      { do: () => { showActor(youssefD, PL2.wall.x, PL2.wall.z); youssefD.holdMove = 'sit'; } }, camAt(55, 2.2, 146, 60, 1.1, 153, 1.6), KN('kamel_02_y3'), KN('kamel_02_end'),
       { do: () => { hideActor(youssefD); SCENE.hideHero = false; } } ] },
 
   // ===== الفصل التالت: العربي =====
   { id: 'arabiArrives', ch: 3, title: 'العرض', at: () => PL.cafeOut, atR: 9, goText: 'ارجع القهوة (★) — فيه عربية حمرا واقفة قدامها', par: 30,
     intro: () => [ { do: () => { heroTo(19, 38.5); if (arabiCar){ arabiCar.mesh.visible = true; arabiCar.pos.set(70, 0, 51); arabiCar.yaw = -Math.PI / 2; arabiCar.mesh.rotation.set(0, -Math.PI / 2, 0); tween(3, k => { const e = 1 - (1 - k) * (1 - k); arabiCar.pos.set(70 - 44 * e, 0, 51 - 7.8 * Math.min(1, e * 1.6)); }); horn(); } } },
       camAt(16, 2.4, 36.5, 30, 1.2, 46, 1.4), { wait: 2.2 }, { do: () => showActor(enemyD, 25.5, 41.4) }, { walk: [enemyD, 22, 39.6, 1.8] },
-      L('arabi', 'مساء الفل يا قصر الملوك 😎 العربية دي؟ هدية صغيرة من أبويا.'),
+      L('arabi', 'مساء الفل يا قصر الملوك العربية دي؟ هدية صغيرة من أبويا.'),
       L('arabi', 'الحاج العربي الكبير عايز يشتري القهوة… والشارع كله لحد البحر. هيبني برج.'),
       L('moallem', 'القهوة دي مش للبيع يا عربي. لا لأبوك ولا لغيره.'),
-      L('arabi', 'كله بيتباع يا معلم… السؤال بكام بس. وانت يا صبي القهوة… هتشتغل عندنا في البرج، تمسح السلالم 😂'),
+      L('arabi', 'كله بيتباع يا معلم… السؤال بكام بس. وانت يا صبي القهوة… هتشتغل عندنا في البرج، تمسح السلالم'),
       L('tayara', 'أنا مش للبيع برضه يا عربي.'),
       L('arabi', 'هنشوف يا طيارة… هنشوف.'), { do: () => hideActor(enemyD) } ],
     update: () => true },
@@ -411,107 +449,107 @@ const MS = [
   { id: 'spill', ch: 3, title: 'صينية الشاي', at: () => PL.cafeIn, atR: 9, goText: 'المعلم عايزك (★)', par: 90,
     intro: () => [ { do: () => { heroTo(19.4, 36); parkArabiMoto(); showActor(enemyD, 31, 42.5); } }, { cam: [21, 2.3, 34.2], look: [26.5, 1.3, 42], t: 1.2 },
       { walk: [enemyD, 25.2, 40.2, 2.4] },
-      L('arabi', 'شاي يا قهوة! ولا هنا الشاي بالحجز؟ 😏'),
+      L('arabi', 'شاي يا قهوة! ولا هنا الشاي بالحجز؟'),
       L('moallem', 'يا طيارة! خد الصينية للأستاذ العربي… على حسابي، خلينا نصفّي النفوس.'),
       { do: () => { trayGroup.visible = true; } }, { walk: [hero.d, 24.4, 41.6, 1.8] },
-      { do: () => { trayGroup.visible = false; clink(); noise(.3, 900, .5); shake = .35; puff(V(25.6, .8, 43.3), .8); say(aEnt, '😱', 1.5); } }, shot(V(25.6, 0, 43.3), 2.2, .6, 2.6, .6),
+      { do: () => { trayGroup.visible = false; clink(); noise(.3, 900, .5); shake = .35; puff(V(25.6, .8, 43.3), .8); say(aEnt, 'يا ساتر!', 1.5); } }, shot(V(25.6, 0, 43.3), 2.2, .6, 2.6, .6),
       L('arabi', 'انت عملت إيه!!! الشاي على القميص الإيطالي!'),
       L('tayara', 'والله غصب عني يا عربي… رجلي اتكعبلت.'),
       L('arabi', 'غصب عنك؟! أبويا بيقولي كل يوم إنك أجدع مني… أهو الأجدع دلق الشاي عليّا!'),
       L('arabi', 'اسمع يا طيارة… من النهارده هتشوفني في كل حتة تروحها. مش هسيبك!'),
       L('moallem', 'اجري يا طيارة! الواد ده اتجنن!') ],
-    start: d => { arabiAppear(sidewalkNear(V(27, 0, 40.5), 3)); enemy.cd = 1.2; }, text: () => 'اهرب من العربي (ابعد عنه لحد ما يتوه) أو وقّعه في خناقة 👊', target: () => null,
+    start: d => { arabiAppear(sidewalkNear(V(27, 0, 40.5), 3)); enemy.cd = 1.2; }, text: () => 'اهرب من العربي (ابعد عنه لحد ما يتوه) أو وقّعه في خناقة', target: () => null,
     update: () => !enemy.active || enemy.d.downT > 0,
-    outro: () => [ L('phone', '📱 إسلام: سمعت اللي حصل! العربي ده أبوه مطلّع عينه… وهو بيطلّعها عليك. خلي بالك منه.') ] },
+    outro: () => [ L('phone', 'إسلام: سمعت اللي حصل! العربي ده أبوه مطلّع عينه… وهو بيطلّعها عليك. خلي بالك منه.') ] },
   { id: 'flatTire', ch: 3, title: 'الكاوتش', at: () => SPOT.azzouz, atR: 7, goText: 'ارجع لعزوز (★)', reward: 40, spawn: PL.azz, par: 90,
     intro: () => [ { do: () => { heroTo(PL.azz.x, PL.azz.z); showActor(enemyD, 126, 44); } }, shot(pizzaMoto.pos, -3, 1, 3.4),
-      L('arabi', 'إيه يا طيارة؟ الكاوتش نايم؟ 😂 حظك وحش!'),
+      L('arabi', 'إيه يا طيارة؟ الكاوتش نايم؟ حظك وحش!'),
       L('tayara', 'انت اللي خرمته يا عربي؟!'),
       L('arabi', 'أثبت! ولو عايزني… تعالى خدني.') ],
-    start: d => { d.enemyBusy = true; arabiAppear(sidewalkNear(V(126, 0, 44), 2)); mark(d, 'edown'); }, text: () => 'العربي خرّم الكاوتش! الحقه ووقّعه 👊', target: () => enemy.pos,
+    start: d => { d.enemyBusy = true; arabiAppear(sidewalkNear(V(126, 0, 44), 2)); mark(d, 'edown'); }, text: () => 'العربي خرّم الكاوتش! الحقه ووقّعه', target: () => enemy.pos,
     update: (dt, d) => { if (!enemy.active) arabiAppear(sidewalkNear(heroAt(), 25)); return prog(d, 'edown') >= 1; },
     outro: () => [ { do: () => { enemy.active = false; showActor(enemyD, enemy.pos.x, enemy.pos.z); enemyD.downT = 4; } }, shot(enemy.pos, 2.2, 1, 3),
       L('arabi', 'ماشي يا طيارة… دي جولة بس.'), L('azzouz', 'سيبك منه. خد ٤٠ جنيه تمن الكاوتش… وكمّل شغل.') ] },
   raceM({ id: 'race', ch: 3, title: 'سباق الكورنيش', reward: 80, at: () => PL.cafeOut, atR: 8, goText: 'العربي واقف قدام القهوة… ومستنيك (★)', goal: V(150, 0, 144), goalName: 'الكورنيش', time: 50, par: 70,
-    path: [[30, 51], [141, 51], [141, 141], [150, 141]], taunt: 'هتاكل تراب يا طيارة!',
+    get path(){ return cityPath([[30, 51], [141, 51], [141, 141], [150, 141]]); }, taunt: 'هتاكل تراب يا طيارة!',
     intro: () => [ { do: () => showActor(enemyD, 27, 41) }, shot(V(27, .15, 41), 2.4, 1, 3.2),
-      L('arabi', 'عملت فيها صاحب موتوسيكل؟ 😏 العربية الحمرا في التوكيل… هسابقك بالموتوسيكل الأزرق وبرضه هكسبك.'),
+      L('arabi', 'عملت فيها صاحب موتوسيكل؟ العربية الحمرا في التوكيل… هسابقك بالموتوسيكل الأزرق وبرضه هكسبك.'),
       L('arabi', 'نتسابق للكورنيش. اللي يخسر يشيل الصينية قدام الحتة كلها.'), L('tayara', 'اتفقنا… جهّز نفسك للتراب.') ],
     outro: () => [ L('arabi', 'ماشي… المرة الجاية مش هسيبك!') ] }),
   { id: 'flirt', ch: 3, title: 'العربي وشادية', at: () => PL2.shadiaOut, atR: 12, goText: 'فيه دوشة قدام بيت شادية (★)', par: 90,
     intro: () => [ { do: () => { heroTo(-20, 92); showActor(shadiaD, PL2.shadiaOut.x, PL2.shadiaOut.z); showActor(enemyD, -33.2, 89.4); } }, camAt(-25, 2.6, 96, -34, 1.4, 88, 1.2),
       L('arabi', 'تيجي نلف بالعربية الحمرا يا قمر؟ الكورنيش كله هيبص علينا.'),
       L('shadia', 'لا شكراً… أنا بركب ترام.'),
-      L('arabi', 'ترام؟! ده أنا أشتريلك الترام باللي فيه 😎'),
+      L('arabi', 'ترام؟! ده أنا أشتريلك الترام باللي فيه'),
       L('tayara', 'سيبها في حالها يا عربي.'),
-      L('arabi', 'وانت مالك يا صبي القهوة؟ … ولا الحكاية فيها حاجة؟ 😏'), { do: () => hideActor(shadiaD) } ],
-    start: d => { d.enemyBusy = true; arabiAppear(sidewalkNear(V(-33, 0, 89), 2)); mark(d, 'edown'); }, text: () => 'العربي مش راضي يمشي… وقّعه 👊', target: () => enemy.pos,
+      L('arabi', 'وانت مالك يا صبي القهوة؟ … ولا الحكاية فيها حاجة؟'), { do: () => hideActor(shadiaD) } ],
+    start: d => { d.enemyBusy = true; arabiAppear(sidewalkNear(V(-33, 0, 89), 2)); mark(d, 'edown'); }, text: () => 'العربي مش راضي يمشي… وقّعه', target: () => enemy.pos,
     update: (dt, d) => { if (!enemy.active) arabiAppear(sidewalkNear(heroAt(), 20)); return prog(d, 'edown') >= 1; },
     outro: () => [ { do: () => { enemy.active = false; showActor(enemyD, enemy.pos.x, enemy.pos.z); enemyD.downT = 4; showActor(shadiaD, PL2.shadiaOut.x, PL2.shadiaOut.z); } }, shot(PL2.shadiaOut, 2.4, 1.1, 3.4),
       L('arabi', 'دي مش آخرتها يا طيارة…'),
       L('shadia', 'شكراً يا طيارة… بس مكانش لازم تتخانق عشاني.'),
-      L('tayara', 'أنا ماتخانقتش عشانك… اتخانقت عشان… عشان الحتة يعني 😅'),
-      L('shadia', 'آه… الحتة 😄 ماشي يا بتاع الحتة.'), { do: () => { hideActor(shadiaD); hideActor(enemyD); } } ] },
+      L('tayara', 'أنا ماتخانقتش عشانك… اتخانقت عشان… عشان الحتة يعني'),
+      L('shadia', 'آه… الحتة ماشي يا بتاع الحتة.'), { do: () => { hideActor(shadiaD); hideActor(enemyD); } } ] },
   { id: 'reno1', ch: 3, title: 'نوّر البيت', par: 600,
-    text: () => `جدّد البيت أول مرة (٢٥٠ جنيه) من الترابيزة جوه البيت 🏠 (★) · ${egp(hero.money)} / ٢٥٠`, target: () => HOUSE.inside ? HOUSE_SPOTS.table : SPOT.house,
+    text: () => `جدّد البيت أول مرة (٢٥٠ جنيه) من الترابيزة جوه البيت (★) · ${egp(hero.money)} / ٢٥٠`, target: () => HOUSE.inside ? HOUSE_SPOTS.table : SPOT.house,
     update: () => SAVE.house >= 1, outro: () => [ L('landlord', 'ما شاء الله يا طيارة! البيت نوّر… ربنا يكرمك يا ابني.'), KN('kamel_03_end') ] },
 
   // ===== الفصل الرابع: الساندوتش الطاير =====
   { id: 'recruit', ch: 4, title: 'الشغلانة', par: 20,
-    intro: () => [ hideHero(), { do: () => { applyTimeOfDay(21.5); showActor(youssefD, PL2.wall.x, PL2.wall.z); youssefD.forceMove = 'sit'; showActor(leatherD, PL2.wall.x - 7, PL2.wall.z - 3); } },
+    intro: () => [ hideHero(), { do: () => { applyTimeOfDay(21.5); showActor(youssefD, PL2.wall.x, PL2.wall.z); youssefD.holdMove = 'sit'; showActor(leatherD, PL2.wall.x - 7, PL2.wall.z - 3); } },
       camAt(54, 2.2, 146, 60, 1.1, 153, 0), KN('kamel_04_y1'), { walk: [leatherD, PL2.wall.x - 1.2, PL2.wall.z - .6, 1.6] },
       L('leather', 'انت يوسف؟ … قاعد هنا كل يوم جعان.'),
       L('leather', 'عايز تشتغل؟ الشغل عندنا سهل… وفلوسه حلوة.'),
-      L('youssef', 'شغل إيه بالظبط؟ أنا مبعرفش أعمل حاجة غير إني أجري… وأهزر 😅'),
+      L('youssef', 'شغل إيه بالظبط؟ أنا مبعرفش أعمل حاجة غير إني أجري… وأهزر'),
       L('leather', 'ما هو الجري هو الشغل. متسألش كتير… هتعرف بكرة.'),
       KN('kamel_04_y2'), KN('kamel_04_1'), { do: () => { hideActor(youssefD); hideActor(leatherD); SCENE.hideHero = false; } } ],
     update: () => true },
   { id: 'snatch', ch: 4, title: 'الساندوتش', at: () => PL.cart, atR: 8, goText: 'روح عربية الفول (★)', spawn: V(36, .15, 35.5), par: 60,
-    intro: () => [ { do: () => showActor(youssefD, 33.6, 33.8) }, shot(V(34, .15, 33), 2.6, 1.1, 3.4),
-      L('fathi', 'يوسف إبراهيم!! حط الساندوتش ده مكانه!'), L('youssef', 'ده ساندوتش واحد يا حاج… مش هتفرق 😅'), L('tayara', 'يوسف! استنى عندك!') ],
-    start: d => { d.noThief = true; thiefStart(); }, text: () => 'يوسف خطف ساندوتش! الحقه وامسكه (النقطة الحمرا) 🏃', target: () => thief.pos,
+    intro: () => [ { do: () => { applyTimeOfDay(9.5); SAVE.time = 9.5; showActor(youssefD, 33.6, 33.8); } }, shot(V(34, .15, 33), 2.6, 1.1, 3.4),
+      L('fathi', 'يوسف إبراهيم!! حط الساندوتش ده مكانه!'), L('youssef', 'ده ساندوتش واحد يا حاج… مش هتفرق'), L('tayara', 'يوسف! استنى عندك!') ],
+    start: d => { d.noThief = true; thiefStart(); }, text: () => 'يوسف خطف ساندوتش! الحقه وامسكه (النقطة الحمرا)', target: () => thief.pos,
     update: (dt, d) => { if (thief.caught) return true; if (!thief.active){ d.failMsg = 'يوسف هرب'; return 'fail'; } },
     outro: () => [ { do: () => { showActor(youssefD, thief.pos.x, thief.pos.z); } }, shot(thief.pos, 2.2, 1, 3),
-      L('youssef', 'خلاص يا طيارة والله جعان… مش هعملها تاني 😅'),
+      L('youssef', 'خلاص يا طيارة والله جعان… مش هعملها تاني'),
       L('fathi', 'كل يوم نفس الكلمة! أنا هكتب يافطة وأعلقها:'),
-      L('fathi', '«ممنوع دخول يوسف إبراهيم» 🚫') ] },
+      L('fathi', '«ممنوع دخول يوسف إبراهيم»') ] },
   { id: 'pizzaThief', ch: 4, title: 'البيتزا الطايرة', at: () => SPOT.azzouz, atR: 7, goText: 'عزوز عايزك في المطعم (★)', spawn: PL.azz, par: 60,
     intro: () => [ { do: () => { heroTo(PL.azz.x - 2, PL.azz.z + .8); pizzaBox.visible = true; showActor(youssefD, 113.4, 44.6); } }, shot(pizzaMoto.pos, 3, 1, 3.4),
       { do: () => { pizzaBox.visible = false; noise(.1, 1400, .3); } },
-      L('azzouz', 'البيتزا!! يوسف خد البيتزا من على الموتوسيكل!'), L('youssef', 'دي هتبرد يا عزوز… أنا بنقذها 😂') ],
-    start: d => { d.noThief = true; thiefStart(V(113.4, .15, 44.6), 'بيتزا ببلاش 🍕', '🚨 يوسف خطف البيتزا! الحقه'); }, text: () => 'يوسف خطف البيتزا! الحقه (النقطة الحمرا) 🍕', target: () => thief.pos,
+      L('azzouz', 'البيتزا!! يوسف خد البيتزا من على الموتوسيكل!'), L('youssef', 'دي هتبرد يا عزوز… أنا بنقذها') ],
+    start: d => { d.noThief = true; thiefStart(V(113.4, .15, 44.6), 'بيتزا ببلاش', 'يوسف خطف البيتزا! الحقه'); }, text: () => 'يوسف خطف البيتزا! الحقه (النقطة الحمرا)', target: () => thief.pos,
     update: (dt, d) => { if (thief.caught) return true; if (!thief.active){ d.failMsg = 'يوسف هرب بالبيتزا'; return 'fail'; } },
     outro: () => [ L('azzouz', 'حتى البيتزا يا يوسف؟! اليافطة هتتعلق عندي كمان.'), L('azzouz', 'والمحلات كلها هتعمل زيي… شوف بنفسك.') ] },
   { id: 'cameraThief', ch: 4, title: 'الكاميرا', at: () => V(150, .15, 150), atR: 12, goText: 'شادية بتصوّر على الكورنيش… عدّي عليها (★)', par: 60,
-    intro: () => [ { do: () => { heroTo(146, 148); showActor(shadiaD, 151, 152.2); showActor(youssefD, 158, 150); } }, camAt(142, 2.4, 145, 152, 1.3, 152, 1.2),
+    intro: () => [ { do: () => { applyTimeOfDay(11); SAVE.time = 11; heroTo(146, 148); showActor(shadiaD, 151, 152.2); showActor(youssefD, 158, 150); } }, camAt(142, 2.4, 145, 152, 1.3, 152, 1.2),
       L('shadia', 'طيارة! تعالى شوف الصورة دي… البحر النهارده رايق.'),
-      { walk: [youssefD, 151.6, 151.4, 5] }, { do: () => { noise(.12, 1500, .3); say(yEnt, '📸😅', 1.5); } },
-      L('shadia', 'الكاميرا!!! يوسف خد الكاميرا!'), L('youssef', 'دي كاميرا؟ أنا افتكرتها علبة كشري 😅'), { do: () => hideActor(shadiaD) } ],
-    start: d => { d.noThief = true; thiefStart(V(151.6, .15, 151.4), 'دي هتجيب كام دي؟ 📸', '🚨 يوسف خطف كاميرا شادية! الحقه'); }, text: () => 'يوسف خطف كاميرا شادية! الحقه (النقطة الحمرا) 📸', target: () => thief.pos,
+      { walk: [youssefD, 151.6, 151.4, 5] }, { do: () => { noise(.12, 1500, .3); say(yEnt, 'خلاص… صورة واحدة بس', 1.5); } },
+      L('shadia', 'الكاميرا!!! يوسف خد الكاميرا!'), L('youssef', 'دي كاميرا؟ أنا افتكرتها علبة كشري'), { do: () => hideActor(shadiaD) } ],
+    start: d => { d.noThief = true; thiefStart(V(151.6, .15, 151.4), 'دي هتجيب كام دي؟', 'يوسف خطف كاميرا شادية! الحقه'); }, text: () => 'يوسف خطف كاميرا شادية! الحقه (النقطة الحمرا)', target: () => thief.pos,
     update: (dt, d) => { if (thief.caught) return true; if (!thief.active){ d.failMsg = 'يوسف هرب بالكاميرا'; return 'fail'; } },
     outro: () => [ { do: () => showActor(youssefD, thief.pos.x, thief.pos.z) }, shot(thief.pos, 2.2, 1, 3),
-      L('youssef', 'خد يا عم خد… أنا مش عارف أصوّر بيها أصلاً 😅'),
+      L('youssef', 'خد يا عم خد… أنا مش عارف أصوّر بيها أصلاً'),
       L('tayara', 'يوسف… انت بتعمل كده ليه؟ انت مكنتش كده.'),
       L('youssef', '(سكت، وبص في الأرض)… أنا لازم أمشي.'), { do: () => hideActor(youssefD) },
       L('tayara', 'فيه حاجة غلط… هامشي وراه.') ] },
-  { id: 'tail', ch: 4, title: 'ورا يوسف', spawn: V(124, .15, 41.5), par: 120,
+  { id: 'tail', ch: 4, title: 'ورا يوسف', spawn: V(124, .15, 44.6), par: 120,
     intro: () => [ L('tayara', 'يوسف ماشي ناحية البحر… وبيبص وراه كل شوية. رايح فين؟'), L('tayara', 'هامشي وراه من بعيد… من غير ما يشوفني.') ],
-    start: d => { d.noThief = true; d.path = [[136, 40.6], [240.6, 40.6], [240.6, 126.5], [PORT.door.x, 126.5]]; d.tp = V(136, .15, 40.6); d.i = 1; d.warn = 0; d.lost = 0; d.lookT = 5; youssefD.root.visible = true; youssefD.downT = 0; youssefD.root.position.copy(d.tp); },
-    text: d => `امشي ورا يوسف من بعيد (١٠–٤٠ متر) 👀 · المسافة ${Math.round(d.dist || 0)} م · اتشافت ${d.warn || 0}/3`, target: d => d.tp,
+    start: d => { d.noThief = true; d.path = cityPath([[136, 44.8], [240.6, 44.8], [240.6, 126.5], [PORT.door.x, 126.5]]); d.tp = V(136, .15, 44.8); d.i = 1; d.warn = 0; d.lost = 0; d.lookT = 5; youssefD.root.visible = true; youssefD.downT = 0; youssefD.root.position.copy(d.tp); },
+    text: d => `امشي ورا يوسف من بعيد (١٠–٤٠ متر) · المسافة ${Math.round(d.dist || 0)} م · اتشافت ${d.warn || 0}/3`, target: d => d.tp,
     update(dt, d){
       const p = d.tp, [tx, tz] = d.path[Math.min(d.i, d.path.length - 1)], dx = tx - p.x, dz = tz - p.z, dd = Math.hypot(dx, dz), s = 3.1*dt; let vx = 0, vz = 0;
       if (d.i < d.path.length){ if (dd <= s){ p.x = tx; p.z = tz; d.i++; } else { vx = dx/dd*3.1; vz = dz/dd*3.1; p.x += vx*dt; p.z += vz*dt; } }
       youssefD.root.position.set(p.x, groundY(p.x, p.z), p.z); animDoll(youssefD, vx, vz, dt, runTime);
       const f = heroAt(), dist = Math.hypot(f.x - p.x, f.z - p.z); d.dist = dist;
       if (dist < 4){ d.failMsg = 'يوسف شافك'; return 'fail'; }
-      d.lookT -= dt; if (d.lookT <= 0){ d.lookT = 3 + Math.random()*3; say(yEnt, '🤨', 1.2); if (dist < (hero.veh ? 18 : 10)){ d.warn++; banner(`👀 يوسف كان هيشوفك! (${d.warn}/3)`, 'bad', 2); buzz(40); if (d.warn >= 3){ d.failMsg = 'يوسف شافك'; return 'fail'; } } }
+      d.lookT -= dt; if (d.lookT <= 0){ d.lookT = 3 + Math.random()*3; say(yEnt, 'مين هناك؟', 1.2); if (dist < (hero.veh ? 18 : 10)){ d.warn++; banner(`يوسف كان هيشوفك! (${d.warn}/3)`, 'bad', 2); buzz(40); if (d.warn >= 3){ d.failMsg = 'يوسف شافك'; return 'fail'; } } }
       if (dist > 55){ d.lost += dt; if (d.lost > 6){ d.failMsg = 'ضيّعت يوسف'; return 'fail'; } } else d.lost = 0;
       return d.i >= d.path.length;
     },
     cleanup: () => { youssefD.root.visible = false; },
     outro: () => [ { do: () => { heroTo(246, 128); showActor(youssefD, PORT.door.x - 1.5, 124); showActor(wantedD, PORT.door.x + 1.5, 123.4); } }, camAt(250, 2.6, 131, PORT.door.x, 1.3, 123.5, 1.2),
       L('shams', 'اتأخرت.'),
-      L('youssef', 'كنت بجيب ساندوتش… عشانك والله يا أسطى 😅'),
+      L('youssef', 'كنت بجيب ساندوتش… عشانك والله يا أسطى'),
       L('shams', 'بكرة. الشنطة دي تروح الكورنيش. ولا كلمة لحد.'),
       L('youssef', 'حاضر يا أسطى… (وقعت منه ورقة)'),
       { do: () => { hideActor(youssefD); hideActor(wantedD); } },
@@ -525,9 +563,9 @@ const MS = [
       L('islam', 'شمس؟! ده كان أشطر ميكانيكي في المنطقة… الحتة كلها كانت بتصلّح عنده.'),
       L('islam', 'وبعدين اختفى سنين. واللي بيقولوه إنه رجع… بس مش زي ما كان. ويوسف الغلبان ماشي وراه عشان اللقمة.'),
       { do: () => setNoEntryShown(1) }, { cam: [16, 3.6, 46], look: [21, 2, 36], t: 1.6 },
-      L('islam', 'وبص حواليك يا طيارة… كل محل في الحتة علّق اليافطة 😂 «ممنوع دخول يوسف إبراهيم»!') ] },
+      L('islam', 'وبص حواليك يا طيارة… كل محل في الحتة علّق اليافطة «ممنوع دخول يوسف إبراهيم»!') ] },
   { id: 'ringPhoto', ch: 4, title: 'الصورة', par: 120,
-    intro: () => [ L('phone', '📱 شادية: طيارة! تعالى بسرعة… لقيت حاجة غريبة في الصور اللي صورتها على الكورنيش.') ],
+    intro: () => [ L('phone', 'شادية: طيارة! تعالى بسرعة… لقيت حاجة غريبة في الصور اللي صورتها على الكورنيش.') ],
     text: () => 'روح لشادية عند بيتها (★)', target: () => PL2.shadiaOut, update: reachU(() => PL2.shadiaOut, 2.8),
     outro: () => [ { do: () => showActor(shadiaD, PL2.shadiaOut.x, PL2.shadiaOut.z - .6) }, shot(PL2.shadiaOut, 2.4, 1.1, 3.2),
       L('shadia', 'بص هنا… الصورة دي يوم ما يوسف خطف الكاميرا. ورا يوسف… الراجل ده.'),
@@ -563,16 +601,16 @@ const MS = [
     text: d => `دوّر على ٣ أدلة: عند الملعب، والسوق، والكورنيش (النقط الصفرا) ${nPick(d, 3)}`, target: () => nearestPick(), update: allPicked,
     outro: () => [ L('tayara', 'ورق عربيات… ونِمر متقطعة… ورسومات لأرض على البحر. كله بيروح لورشة شمس.') ] },
   { id: 'nightWorkshop', ch: 5, title: 'الورشة بالليل', par: 200,
-    text: () => isNight() ? 'روح ورشة شمس (★) واتسحب من غير ما حد يشوفك 🌙' : 'لازم تروح الورشة بالليل 🌙 — نام في البيت لحد ٩ بالليل، أو روح هناك واستنى.', target: () => SPOT.workshop,
+    text: () => isNight() ? 'روح ورشة شمس (★) واتسحب من غير ما حد يشوفك' : 'لازم تروح الورشة بالليل — نام في البيت لحد ٩ بالليل، أو روح هناك واستنى.', target: () => SPOT.workshop,
     action: waitNight(() => SPOT.workshop), update: () => isNight() && near(heroAt(), SPOT.workshop, 9),
     outro: () => [ { do: () => { heroTo(250, 84.5); showActor(wantedD, 263, 89.4); showActor(youssefD, 268, 90.6); } }, { cam: [252, 2.6, 84], look: [262, 1.3, 89.4], t: 1.2 },
       L('shams', 'البضاعة تطلع من الميناء على اللانش. الليلة.'),
-      L('shams', 'يوسف. عينك على الشارع.'), L('youssef', 'حاضر يا أسطى… عيني على الشارع، والتانية على الساندوتشات 😅'),
+      L('shams', 'يوسف. عينك على الشارع.'), L('youssef', 'حاضر يا أسطى… عيني على الشارع، والتانية على الساندوتشات'),
       { do: () => { hideActor(wantedD); hideActor(youssefD); } },
       L('tayara', 'لازم أصوّر الحاجات اللي هناك قبل ما يرجعوا.') ] },
   { id: 'evidence', ch: 5, title: 'الصور', par: 90,
-    start: () => { addPickup(V(255.4, .15, 88.6)); addPickup(V(272.6, .15, 88.6)); }, text: d => `صوّر الدليلين 📸 (النقط الصفرا) ${nPick(d, 2)}`, target: () => nearestPick(), update: allPicked,
-    outro: () => [ L('youssef', '🎵 (صفّارة عالية)'), L('shams', 'مين هناك؟! الحقوه!'), L('tayara', 'يلا يا طيارة… اجري!') ] },
+    start: () => { addPickup(V(255.4, .15, 88.6)); addPickup(V(272.6, .15, 88.6)); }, text: d => `صوّر الدليلين (النقط الصفرا) ${nPick(d, 2)}`, target: () => nearestPick(), update: allPicked,
+    outro: () => [ L('youssef', '(صفّارة عالية)'), L('shams', 'مين هناك؟! الحقوه!'), L('tayara', 'يلا يا طيارة… اجري!') ] },
   { id: 'shamsF3', ch: 5, title: 'ليلة الميناء', par: 20,
     intro: () => [ { flash: true }, hideHero(), { do: () => { applyTimeOfDay(23); showActor(wantedD, PL2.pier.x, PL2.pier.z + 6); showActor(leatherD, PL2.pier.x + .4, PL2.pier.z + 9); } },
       camAt(PL2.pier.x - 7, 3, PL2.pier.z + 1, PL2.pier.x, 1.2, PL2.pier.z + 7, 0), KN('kamel_05_f3'),
@@ -581,15 +619,15 @@ const MS = [
       KN('kamel_05_f4'), { do: () => { hideActor(wantedD); hideActor(leatherD); } }, { flash: false } ],
     update: () => true },
   { id: 'checkpoints', ch: 5, title: 'الكماين', reward: 150, spawn: PL.ws, par: 120,
-    intro: () => [ L('police', '📱 الظابط: طيارة؟ عرفت إن معاك أدلة. البوليس عامل كماين في الطرق… لو وقفوك بيها هيفتكروك منهم!'),
+    intro: () => [ L('police', 'الظابط: طيارة؟ عرفت إن معاك أدلة. البوليس عامل كماين في الطرق… لو وقفوك بيها هيفتكروك منهم!'),
       L('police', 'تعالى القسم جنب القهوة (★) من غير ما تعدي على أي كمين (النقط الحمرا والزرقا على الخريطة).') ],
     start: d => { addCheckpoint(192, 48); addCheckpoint(96, 48); addCheckpoint(144, 96); d.grace = 2; },
-    text: () => 'وصّل الأدلة للظابط جنب القهوة (★)… ولف من بعيد عن الكماين 🚓', target: () => PL.police,
+    text: () => 'وصّل الأدلة للظابط جنب القهوة (★)… ولف من بعيد عن الكماين', target: () => PL.police,
     update(dt, d){ d.grace -= dt; const f = heroAt(); if (d.grace <= 0 && checkpoints.some(c => near(f, c.pos, c.r))){ d.failMsg = 'الكمين وقفك'; return 'fail'; } return near(f, PL.police, 5); },
     outro: () => [ shot(npcAt('officer'), 2.4, 1, 3.2), L('police', 'الأدلة دي تقيلة يا طيارة… برافو عليك.'), L('police', 'بس من غير شمس نفسه منقدرش نعمل حاجة. خليك صاحي.') ] },
   { id: 'sighting', ch: 5, title: 'شمس في السوق', par: 90,
-    intro: () => [ L('police', '📱 الظابط: شمس اتشاف في السوق دلوقتي! الحقه قبل ما يختفي!') ],
-    start: () => { spawnWanted(); wanted.pos.set(148, .15, -47.6); }, text: () => 'الحق شمس في السوق (النقطة الحمرا) وامسكه 🏃', target: () => wanted.pos,
+    intro: () => [ L('police', 'الظابط: شمس اتشاف في السوق دلوقتي! الحقه قبل ما يختفي!') ],
+    start: () => { spawnWanted(); wanted.pos.set(148, .15, -47.6); wanted.home = V(148, 0, -40); wanted.leash = 55; }, text: () => 'الحق شمس في السوق (النقطة الحمرا) وامسكه', target: () => wanted.pos,
     update: () => !!ST2.ev.arrest,
     outro: () => [ { do: () => { wanted.active = false; showActor(wantedD, wanted.pos.x, wanted.pos.z); heroTo(wanted.pos.x + 1.4, wanted.pos.z + .6); } }, shot(wanted.pos, 2.2, 1, 3),
       L('shams', 'طيارة بتاع القهوة.'),
@@ -600,11 +638,11 @@ const MS = [
       L('tayara', 'آه… هرب. بس دلوقتي عرفت هو عايز إيه.') ] },
   { id: 'awning', ch: 5, title: 'التندة', par: 70,
     intro: () => [ { do: () => { applyTimeOfDay(22); heroTo(20, 38); awningFire(true); } }, camAt(14, 3, 40, 18, 3.4, 23, 1.2),
-      L('crowd', 'الحقوا!! تندة القهوة بتولع!!'), L('moallem', 'يا طيارة!! الميه! هات جرادل الميه من عند عربية الفول!') ],
-    start: d => { awningFire(true); for (const [x, z] of [[37.4, 33.6], [34, 30], [38.4, 29.6]]) addPickup(V(x, .15, z)); d.t = 0; d.got = 0; },
-    text: d => `هات ٣ جرادل ميه وطفّي النار 🔥 (${pickups.filter(p => p.got).length}/3) · ${Math.max(0, Math.ceil(75 - d.t))} ثانية`, target: () => nearestPick() || PL.cafeIn,
+      L('crowd', 'الحقوا!! تندة القهوة بتولع!!'), L('moallem', 'يا طيارة!! الميه! لف على المحلات اللي حوالينا وهات جرادل ميه!') ],
+    start: d => { awningFire(true); for (const [x, z] of [[60, 45], [-4, 52], [44, 4]]){ const [fx, fz] = freeSpot(x, z); addPickup(V(fx, .15, fz)); } d.t = 0; d.got = 0; },
+    text: d => `هات ٣ جرادل ميه من حوالين القهوة وطفّي النار (${pickups.filter(p => p.got).length}/3) · ${Math.max(0, Math.ceil(45 - d.t))} ثانية`, target: () => nearestPick() || PL.cafeIn,
     update(dt, d){ d.t += dt; const g = pickups.filter(p => p.got).length; while (FIRES.length > 3 - g){ const f = FIRES.pop(); scene.remove(f.g); puff(f.g.position, 1.4); noise(.4, 800, .3); }
-      if (allPicked()) return true; if (d.t > 75){ d.failMsg = 'النار مسكت في التندة كلها'; return 'fail'; } },
+      if (allPicked()) return true; if (d.t > 45){ d.failMsg = 'النار مسكت في التندة كلها'; return 'fail'; } },
     cleanup: () => { clearFires(); },
     outro: () => [ { do: () => { awningBurnt(true); } }, shot(PL.cafeIn, -2.2, 1.4, 4),
       L('moallem', 'الحمد لله إنها جت على قد التندة…'),
@@ -624,18 +662,18 @@ const MS = [
     intro: () => [ hideHero(), { do: () => { applyTimeOfDay(21.5); showroomFire(true); } }, camAt(SHOWROOM.cx - 12, 7, SHOWROOM.cz + 20, SHOWROOM.cx, 3, SHOWROOM.cz - 2, 0), KN('kamel_06_fire'),
       { do: () => { SCENE.hideHero = false; heroTo(19, 38.5); if (arabiCar){ arabiCar.mesh.visible = true; arabiCar.pos.set(26, 0, 43.2); arabiCar.yaw = Math.PI / 2; arabiCar.mesh.rotation.set(0, Math.PI / 2, 0); } showActor(enemyD, 22, 40); } }, camAt(17, 2.4, 36, 27, 1.2, 44, 1.2),
       { do: () => { noise(.3, 200, .5); horn(); } }, L('arabi', 'العربية!!! حد ركب عربيتي!!'), L('tayara', 'اركب يا طيارة… مش هيبعد!') ],
-    start: d => { if (!arabiCar) return; d.run = { v: arabiCar, i: 1, path: [[34, 51], [240.6, 51], [240.6, 141], [258, 141], [PORT.door.x, 127]] }; d.far = 0; showroomFire(false); },
-    text: d => `الحق العربية الحمرا (النقطة الحمرا) ومتسيبهاش تبعد 🚗 · ${Math.round(d.dist || 0)} م`, target: d => arabiCar ? arabiCar.pos : null,
+    start: d => { if (!arabiCar) return; d.run = { v: arabiCar, i: 1, path: cityPath([[34, 51], [240.6, 51], [240.6, 141], [258, 141], [PORT.door.x, 127]]) }; d.far = 0; },
+    text: d => `الحق العربية الحمرا (النقطة الحمرا) ومتسيبهاش تبعد · ${Math.round(d.dist || 0)} م`, target: d => arabiCar ? arabiCar.pos : null,
     update(dt, d){ if (!d.run) return true; const done = carRunStep(d, dt); ST2.d.shamsPos = arabiCar.pos; if (d.dist > 95){ d.far += dt; if (d.far > 7){ d.failMsg = 'العربية اختفت'; return 'fail'; } } else d.far = 0; return done; },
-    cleanup: d => { ST2.d.shamsPos = null; hideActor(enemyD); },
+    cleanup: d => { ST2.d.shamsPos = null; hideActor(enemyD); showroomFire(false); },
     outro: () => [ camAt(PORT.door.x - 8, 3, PORT.door.z + 9, PORT.door.x, 1.3, PORT.door.z - 2, 1.2),
       { do: () => { if (arabiCar){ arabiCar.pos.copy(PORT.inside); arabiCar.mesh.rotation.set(0, Math.PI, 0); } } },
       L('tayara', 'دخلت مخزن الميناء… نفس المخزن اللي يوسف كان رايحه.'), L('tayara', 'لوحدي مش هعرف أعمل حاجة. لازم أستنى.') ] },
   { id: 'papers', ch: 6, title: 'الورق', par: 20,
     intro: () => [ hideHero(), { do: () => { showActor(fatherD, VILLA.cx - 2, VILLA.cz + 2); showActor(enemyD, VILLA.cx + 1.4, VILLA.cz + 5); } },
       camAt(VILLA.cx - 6, 2.6, VILLA.cz + 12, VILLA.cx - 1, 1.3, VILLA.cz + 3, 0),
-      L('phone', '📱 صوت ناشف: المعرض اتحرق… والعربية الحمرا عندنا. ولسه.'),
-      L('phone', '📱 صوت ناشف: عندنا ورق بإمضتك إنك بتهرّب في عربياتك. يا تكمّل الصفقة… يا الورق ده يروح للبوليس.'),
+      L('phone', 'صوت ناشف: المعرض اتحرق… والعربية الحمرا عندنا. ولسه.'),
+      L('phone', 'صوت ناشف: عندنا ورق بإمضتك إنك بتهرّب في عربياتك. يا تكمّل الصفقة… يا الورق ده يروح للبوليس.'),
       L('father', '(قعد على الكرسي… ومردّش)'),
       KN('kamel_06_fear'),
       L('arabi', 'بابا… انت كويس؟'),
@@ -643,7 +681,7 @@ const MS = [
       { do: () => { hideActor(fatherD); hideActor(enemyD); SCENE.hideHero = false; } } ],
     update: () => true },
   { id: 'needYou', ch: 6, title: 'نص الليل', par: 200,
-    text: () => isNight() ? 'روح البيت (★)… الدنيا ليلت' : 'روح البيت ونام لحد بالليل 🌙 (★)', target: () => SPOT.house,
+    text: () => isNight() ? 'روح البيت (★)… الدنيا ليلت' : 'روح البيت ونام لحد بالليل (★)', target: () => SPOT.house,
     action: waitNight(() => SPOT.house, 6), update: () => isNight() && near(heroAt(), SPOT.house, 6),
     outro: () => [ { do: () => { if (hero.veh) exitVehicle(true); applyTimeOfDay(0.2); heroTo(PL2.houseOut.x, PL2.houseOut.z - .4); showActor(enemyD, PL2.houseOut.x + 1.6, PL2.houseOut.z + 2.2); noise(.12, 300, .5); setTimeout(() => noise(.12, 300, .5), 260); } },
       camAt(-18, 2.2, 94, -24, 1.4, 88.6, 1.2),
@@ -653,43 +691,43 @@ const MS = [
       KN('kamel_06_2'),
       L('arabi', 'محتاجك.'),
       L('tayara', '… يلا بينا.') ] },
-  { id: 'prepare', ch: 6, title: 'الشومة', koFail: true, par: 120,
+  { id: 'prepare', ch: 6, title: 'الشومة', koFail: true, par: 120, spawn: V(PL2.port.x - 8, .15, PL2.port.z + 10),
     intro: () => [ { do: () => { heroTo(PL2.port.x - 8, PL2.port.z + 10); showActor(enemyD, PL2.port.x - 6.5, PL2.port.z + 10.5); } }, camAt(PL2.port.x - 13, 2.4, PL2.port.z + 15, PL2.port.x - 7, 1.2, PL2.port.z + 10, 1.2),
       L('arabi', 'خد دي.'), { do: () => giveStick(true) },
       L('tayara', 'شومة؟! هو احنا رايحين نتخانق ولا نتفسح؟'),
       L('arabi', 'رجالة شمس مش هيقابلونا بالورد. واقفين على باب الميناء.'),
       L('tayara', 'كتف في كتف يا عربي.') ],
-    start: d => spawnThugs(d), text: d => `اضرب حرس الميناء مع العربي 👊 الشومة بتوقّعهم أسرع (${(d.thugs||[]).filter(n => n.thugDone).length}/3)`, target: () => null,
+    start: d => spawnThugs(d), text: d => `اضرب حرس الميناء مع العربي الشومة بتوقّعهم أسرع (${(d.thugs||[]).filter(n => n.thugDone).length}/3)`, target: () => null,
     update(dt, d){ if (!d.thugs) return; for (const n of d.thugs){ if (!n.thugDone && (n.state === 'walk' || n.state === 'goto') && !hero.veh){ n.state = 'fight'; n.fightT = 999; } } return d.thugs.every(n => n.thugDone); },
     cleanup: d => clearThugs(d), outro: () => [ L('arabi', 'هاهاها! شفت؟ إحنا الاتنين مع بعض محدش يقف قدامنا.') ] },
-  { id: 'nawaRaid', ch: 6, title: 'ليلة النوّة', koFail: true, par: 180,
+  { id: 'nawaRaid', ch: 6, title: 'ليلة النوّة', koFail: true, par: 180, spawn: V(PL2.port.x - 6, .15, PL2.port.z + 9),
     intro: () => [ { rain: true }, { do: () => { applyTimeOfDay(1); } }, camAt(PL2.port.x + 10, 5, PL2.port.z + 12, PL2.port.x, 1.5, PL2.port.z - 4, 1.4), KN('kamel_06_nawa'),
       L('arabi', 'نوّة المكنسة… محدش هيسمعنا وسط الرعد ده.'), L('tayara', 'جوه المخزن: الورق الأصلي… ومفتاح عربيتك.') ],
     start: d => { setRain(true); addPickup(V(PORT.shed.x0 + 4, .15, PORT.shed.z0 + 12)); addPickup(V(PORT.shed.x1 - 4, .15, PORT.shed.z0 + 3)); spawnThugs(d); },
-    text: d => `ادخل المخزن وهات الورق والمفتاح ${nPick(d, 2)} · رجالة شمس جوه 👊`, target: () => nearestPick(), update: allPicked,
+    text: d => `ادخل المخزن وهات الورق والمفتاح ${nPick(d, 2)} · رجالة شمس جوه`, target: () => nearestPick(), update: allPicked,
     cleanup: d => clearThugs(d),
     outro: () => [ L('tayara', 'الورق أهو… بس ده نسخة! فين الأصل؟'),
       { do: () => { shamsLaunch.visible = true; shamsLaunch.position.set(PIER.x1 + 4, -.9, 168); } }, camAt(PL2.pier.x - 6, 3.2, PL2.pier.z - 6, PL2.pier.x + 4, 1, 168, 1.2),
       L('shams', '(بيركب اللانش ومعاه الشنطة) الأصل معايا يا طيارة. الحقني لو تعرف.'),
       L('arabi', 'اللانشات على الرصيف! يلا!') ] },
-  { id: 'launchChase', ch: 6, title: 'مطاردة اللانشات', par: 120,
-    start: d => { setRain(true); d.boatOK = true; shamsLaunch.visible = true; shamsLaunch.position.set(PIER.x1 + 4, -.9, 168); d.lr = { i: 1, yaw: 0, path: [[PIER.x1 + 6, 190], [250, 214], [200, 232], [170, 238], [150, 300], [180, 360], [240, 380]] }; d.close = 0; d.far = 0; },
-    text: d => !(hero.veh && hero.veh.type === 'boat') ? 'اركب لانش من على الرصيف (★)' : `الحق لانش شمس 🚤 · قرّب منه ٣ ثواني (${d.close.toFixed(1)}/3) · ${Math.round(d.dist || 0)} م`,
+  { id: 'launchChase', ch: 6, title: 'مطاردة اللانشات', par: 120, spawn: PL2.pier,
+    start: d => { setRain(true); d.boatOK = true; shamsLaunch.visible = true; shamsLaunch.position.set(LAUNCH_PATH[0][0], -.9, LAUNCH_PATH[0][1]); d.lr = { i: 1, yaw: 0, path: LAUNCH_PATH.slice() }; d.close = 0; d.far = 0; d.waitT = 0; },
+    text: d => !(hero.veh && hero.veh.type === 'boat') ? 'اركب لانش من على الرصيف (★)' : `الحق لانش شمس · خليك لازق فيه (أقل من ١٠ م) ٥ ثواني (${d.close.toFixed(1)}/5) · ${Math.round(d.dist || 0)} م`,
     target: d => !(hero.veh && hero.veh.type === 'boat') ? launches[0].pos : shamsLaunch.position,
     update(dt, d){
       if (!(hero.veh && hero.veh.type === 'boat')) return;
       const done = launchRunStep(d, dt); ST2.d.shamsPos = shamsLaunch.position;
-      if (d.dist < 16){ d.close += dt; if (d.close >= 3) return true; } else d.close = Math.max(0, d.close - dt * .5);
+      if (d.dist < 10){ d.close += dt; if (d.close >= 5) return true; } else d.close = Math.max(0, d.close - dt);
       if (d.dist > 110){ d.far += dt; if (d.far > 6){ d.failMsg = 'لانش شمس اختفى في الضلمة'; return 'fail'; } } else d.far = 0;
       if (done){ d.failMsg = 'شمس هرب في البحر'; return 'fail'; }
     },
     cleanup: d => { ST2.d.shamsPos = null; },
-    outro: () => [ camAt(shamsLaunch.position.x - 10, 3, shamsLaunch.position.z - 8, shamsLaunch.position.x, 1, shamsLaunch.position.z, 1),
+    outro: () => [ { do: () => { shamsLaunch.visible = true; } }, camAt(shamsLaunch.position.x - 10, 3, shamsLaunch.position.z - 8, shamsLaunch.position.x, 1, shamsLaunch.position.z, 1),
       L('shams', '(رمى الشنطة في اللانش بتاعك) خدوا ورقكم… اللعبة لسه في أولها.'),
       L('shams', 'هرجع يا طيارة… في أحلى ليلة في الحتة.'),
       { do: () => { tween(4, k => { shamsLaunch.position.z += .6; }, () => { shamsLaunch.visible = false; }); } }, { wait: 2 },
       L('tayara', 'الورق الأصلي… معانا! يلا نرجّع عربيتك يا عربي.') ] },
-  { id: 'carBack', ch: 6, title: 'رجّع العربية', par: 160,
+  { id: 'carBack', ch: 6, title: 'رجّع العربية', par: 160, spawn: V(PL2.port.x, .15, PL2.port.z + 6),
     start: d => { d.arabiCar = true; setRain(true); if (hero.veh && hero.veh.type === 'boat') exitVehicle(true); if (arabiCar){ arabiCar.mesh.visible = true; arabiCar.pos.copy(PORT.inside); } },
     text: () => hero.veh === arabiCar ? 'سوق عربية العربي الحمرا لحد القهوة (★)' : 'اركب العربية الحمرا اللي في المخزن (★)', target: () => hero.veh === arabiCar ? PL.cafeOut : (arabiCar ? arabiCar.pos : PL.cafeOut),
     update: () => !arabiCar || (hero.veh === arabiCar && near(arabiCar.pos, PL.cafeOut, 9)),
@@ -707,41 +745,41 @@ const MS = [
     intro: () => [ { flash: true }, hideHero(), { do: () => { tram.x = TRAM.stations[1]; tram.stopT = 99; tram.at = tram.x; showActor(islamD, tram.x - 1.4, TRAM.z - 2.2); showActor(haidyD, tram.x + .6, TRAM.z - 2.2); haidyD.faceYaw = -Math.PI / 2; islamD.faceYaw = Math.PI / 2; } },
       camAt(TRAM.stations[1] - 3, 2.2, TRAM.z - 8, TRAM.stations[1], 1.3, TRAM.z - 2, 0), KN('kamel_07_f1'),
       L('islam', 'لو سمحتي… هي المحطة الجاية إيه؟'),
-      L('haidy', 'هي المحطة اللي انت كان المفروض تنزل فيها من ساعة 😄'),
+      L('haidy', 'هي المحطة اللي انت كان المفروض تنزل فيها من ساعة'),
       L('islam', 'آه… ما أنا… بحب الترام أوي يعني.'),
       KN('kamel_07_f2'), { do: () => { hideActor(islamD); hideActor(haidyD); tram.stopT = 2; } }, { flash: false } ],
     update: () => true },
   { id: 'invite', ch: 7, title: 'الخبر الحلو', at: () => SPOT.domino, atR: 4, goText: 'إسلام عايزك على الدومنو (★)', par: 240,
     intro: () => [ shot(SPOT.domino, 2.4, 1.1, 3),
       L('islam', 'طيارة! فاكر الخبر الحلو اللي قلتلك عليه من أول يوم؟'),
-      L('islam', 'أنا وهايدي هنتجوز!! 💍 والفرح في الساحة، وانت أول واحد لازم يبقى جنبي.'),
+      L('islam', 'أنا وهايدي هنتجوز!! والفرح في الساحة، وانت أول واحد لازم يبقى جنبي.'),
       L('tayara', 'ألف مبروك يا إسلام!! ده أحلى خبر سمعته من سنين!'),
-      L('islam', 'بس لازم تبقى شيك… هات حاجة حلوة من محل الأناقة 😎') ],
+      L('islam', 'بس لازم تبقى شيك… هات حاجة حلوة من محل الأناقة') ],
     text: () => 'اشتري حاجة شيك للفرح من محل الأناقة (★) — ساعة أو سلسلة أو نضارة', target: () => SHOP.pos,
-    update: () => !!(SAVE.acc.watch || SAVE.acc.chain || SAVE.acc.glasses), outro: () => [ L('tayara', 'كده تمام… طيارة الجامد جاهز للفرح 😎') ] },
+    update: () => !!(SAVE.acc.watch || SAVE.acc.chain || SAVE.acc.glasses), outro: () => [ L('tayara', 'كده تمام… طيارة الجامد جاهز للفرح') ] },
   { id: 'prep', ch: 7, title: 'تجهيز الفرح', par: 150,
-    intro: () => [ L('phone', '📱 إسلام: يا طيارة… الكراسي والزينة والإضاءة لسه في الساحة متكومة! تعالى ساعدني.') ],
+    intro: () => [ L('phone', 'إسلام: يا طيارة… الكراسي والزينة والإضاءة لسه في الساحة متكومة! تعالى ساعدني.') ],
     start: () => { for (const [x, z] of [[-80, 28], [-64, 28], [-80, 38], [-64, 38]]) addPickup(V(x, .15, z), 'part'); },
     text: d => `رتّب الفرح: لم ٤ حاجات من الساحة (النقط الصفرا) ${nPick(d, 4)}`, target: () => nearestPick(), update: allPicked,
     outro: () => [ L('islam', 'الله ينوّر عليك! الساحة بقت تجنن.') ] },
   { id: 'weddingNight', ch: 7, title: 'ليلة الفرح', par: 200,
-    text: () => isNight() ? 'روح الفرح في الساحة (★) 🎉' : 'الفرح بالليل 🌙 — نام في البيت لحد بالليل، أو روح الساحة (★) واستنى.', target: () => PL.wed,
+    text: () => isNight() ? 'روح الفرح في الساحة (★)' : 'الفرح بالليل — نام في البيت لحد بالليل، أو روح الساحة (★) واستنى.', target: () => PL.wed,
     action: waitNight(() => PL.wed), update: () => isNight() && near(heroAt(), PL.wed, 10),
     outro: () => [ { do: () => { heroTo(-72, 30.5); showActor(islamD, -76, 42); showActor(haidyD, -75.3, 42); } }, { cam: [-64, 4, 26], look: [-72, 1.6, 36], t: 1.6 }, KN('kamel_07_1'),
       { walk: [islamD, -72.4, 36.6, 1.1], noWait: true }, { walk: [haidyD, -71.7, 36.6, 1.1] },
-      L('crowd', 'ززززغرررررطة!! 🎉'),
+      L('crowd', 'ززززغرررررطة!!'),
       L('islam', 'منوّر يا طيارة! هايدي… ده طيارة اللي كلمتك عنه.'),
-      L('haidy', 'أهلاً يا طيارة! إسلام بيحكي عنك أكتر ما بيحكي عني 😄'),
+      L('haidy', 'أهلاً يا طيارة! إسلام بيحكي عنك أكتر ما بيحكي عني'),
       L('arabi', 'الدي جي شغّال مهرجانات… انزل يا طيارة!'),
-      L('crowd', 'طيارة! طيارة! طيارة! 👏') ] },
+      L('crowd', 'طيارة! طيارة! طيارة!') ] },
   { id: 'dance', ch: 7, title: 'الرقصة', par: 120,
     start: d => { heroTo(-72, 34.4); d.res = null; d.dancing = true; playWedding().then(r => { d.res = r; }); },
-    text: () => 'ارقص على المزيكا! دوس على الخانة لما النوتة توصل للخط 💃', target: () => null,
+    text: () => 'ارقص على المزيكا! دوس على الخانة لما النوتة توصل للخط', target: () => null,
     update: (dt, d) => { if (!d.res) return; const need = DIFF.pat > 1 ? .4 : .55; if (d.res.pct >= need) return true; d.failMsg = `الرقص مكانش حلو (${Math.round(d.res.pct*100)}%)`; return 'fail'; },
-    outro: () => [ L('islam', 'إيه الرقص ده يا طيارة!! الحتة كلها هتتكلم عليك بكرة 😂') ] },
-  { id: 'shamsWedding', ch: 7, title: 'هجوم على الفرح', par: 120,
+    outro: () => [ L('islam', 'إيه الرقص ده يا طيارة!! الحتة كلها هتتكلم عليك بكرة') ] },
+  { id: 'shamsWedding', ch: 7, title: 'هجوم على الفرح', par: 120, spawn: V(-66, .15, 34),
     intro: () => [ { do: () => showActor(shadiaD, -66, 31) }, L('shadia', 'طيارة!! حد خد الكاميرا من إيدي… فيها كل صور شمس!'), L('crowd', 'الحقوا!! شمس!!'), L('tayara', 'شمس!! في فرح إسلام؟! مش هسيبه المرة دي.'), { do: () => hideActor(shadiaD) } ],
-    start: () => { spawnWanted(); wanted.pos.set(-57, .15, 41); }, text: () => 'الحق شمس في حواري بحري (النقطة الحمرا) وامسكه 🏃', target: () => wanted.pos,
+    start: () => { spawnWanted(); wanted.pos.set(-57, .15, 41); wanted.home = V(-48, 0, 40); wanted.leash = 50; }, text: () => 'الحق شمس في حواري بحري (النقطة الحمرا) وامسكه', target: () => wanted.pos,
     update: () => !!ST2.ev.arrest,
     outro: () => [ { do: () => { wanted.active = false; showActor(wantedD, wanted.pos.x, wanted.pos.z); heroTo(wanted.pos.x + 1.4, wanted.pos.z + .6); } }, shot(wanted.pos, 2.2, 1, 3),
       L('shams', 'وعدتك بأحلى ليلة في الحتة يا طيارة.'), { do: () => { flash(); thwack(); shake = .4; hero.d.downT = 1.5; } }, { fade: () => hideActor(wantedD) },
@@ -762,18 +800,18 @@ const MS = [
       L('police', 'القلعة… آخر شحنة. يبقى دي آخر فرصة.'),
       L('police', 'إحنا هنقفل الكوبري من ناحية القلعة. انت امشي وراه من الكورنيش بالموتوسيكل، وماتسيبوش.'),
       L('arabi', 'وأنا معاك يا طيارة. المرة دي سوا.'),
-      L('phone', '📱 إسلام: وأنا هدعيلك… لسه عريس جديد 😅'), KN('kamel_07_end') ] },
+      L('phone', 'إسلام: وأنا هدعيلك… لسه عريس جديد'), KN('kamel_07_end') ] },
 
   // ===== الفصل التامن: الكوبري والقلعة =====
   { id: 'chase', ch: 8, title: 'مطاردة الكورنيش', at: () => PL.corniche, atR: 10, goText: 'روح الكورنيش (★) — شمس هيعدي من هناك', spawn: PL.corniche, par: 120,
-    intro: () => [ { do: () => { applyTimeOfDay(22); SAVE.time = 22; heroTo(PL.corniche.x, PL.corniche.z); if (SAVE.owned.moto){ heroMoto.pos.set(164, 0, 147); heroMoto.yaw = -Math.PI/2; heroMoto.mesh.rotation.set(0, -Math.PI/2, 0); } } },
+    intro: () => [ { do: () => { applyTimeOfDay(22); SAVE.time = 22; heroTo(PL.corniche.x, PL.corniche.z); if (SAVE.owned.moto){ heroMoto.pos.set(...(([x, z]) => [x, 0, z])(RELOC(164, 147))); heroMoto.yaw = -Math.PI/2; heroMoto.mesh.rotation.set(0, -Math.PI/2, 0); } } },
       { cam: [176, 4, 156], look: [196, 1, 141], t: 1.6 },
       L('shams', '(بيعدي بالموتوسيكل) محدش هيوقفني النهارده!'), L('tayara', 'لا يا شمس… النهارده آخرها. اركب يا طيارة!') ],
-    start: d => { d.noThief = true; ghostStart(d, shamsMoto, wantedD, [[214, 141], [150, 141], [99, 141], [96, 160], [96, 262]], 12); d.far = 0; },
-    text: d => `الحق شمس (النقطة الحمرا) ومتسيبوش يبعد 🏍️ · المسافة ${Math.round(d.dist || 0)} م`, target: d => d.gh ? d.gh.mesh.position : null,
+    start: d => { d.noThief = true; ghostStart(d, shamsMoto, wantedD, cityPath([[214, 141], [240, 141], [240, 96], [192, 96], [192, 48], [192, 0], [144, 0], [144, 48], [96, 48], [96, 96], [48, 96], [48, 141], [93, 141], [96, 262]]), 12); d.far = 0; },
+    text: d => `الحق شمس (النقطة الحمرا) ومتسيبوش يبعد · المسافة ${Math.round(d.dist || 0)} م`, target: d => d.gh ? d.gh.mesh.position : null,
     update(dt, d){ const g = d.gh; if (!g) return; const dist = heroAt().distanceTo(g.mesh.position); d.dist = dist; ST2.d.shamsPos = g.mesh.position;
-      const sp = (dist > 60 ? 7 : dist > 30 ? 13 : 19) * DIFF.enemySpd; const done = ghostStep(g, dt, sp);
-      if (dist > 95){ d.far += dt; if (d.far > 6){ d.failMsg = 'شمس هرب'; return 'fail'; } } else d.far = 0;
+      const sp = (dist > 60 ? 9 : dist > 30 ? 16 : 22) * DIFF.enemySpd; const done = ghostStep(g, dt, sp);
+      if (dist > 80){ d.far += dt; if (d.far > 5){ d.failMsg = 'شمس هرب'; return 'fail'; } } else d.far = 0;
       return done; },
     cleanup: d => { ghostEnd(d); ST2.d.shamsPos = null; } },
   { id: 'bossFight', ch: 8, title: 'جوه القلعة', reward: 1000, koFail: true, spawn: V(92, 0, 270), par: 120,
@@ -781,9 +819,9 @@ const MS = [
       L('shams', 'وصلت لحد هنا؟ … القلعة دي شافت ناس أجمد منك يا طيارة.'),
       L('tayara', 'مش عايز أكسبك يا شمس… عايزك ترجع الميكانيكي اللي كان بيصلّح ببلاش.'),
       L('shams', 'الميكانيكي مات.') ],
-    start: () => { heroTo(92, 270); boss.active = true; boss.hp = DIFF.dmg < 1 ? 120 : 160; boss.downs = 0; boss.atk = 1.2; boss.pos.set(100, 0, 276); wantedD.root.visible = true; wantedD.P.legL.visible = wantedD.P.legR.visible = true; wantedD.blob.visible = true; wantedD.downT = 0; },
-    text: () => `وقّع شمس مرتين 👊 (${boss.downs}/2) · ${'❤️'.repeat(Math.ceil(boss.hp / 40))}`, target: () => null,
-    update: () => boss.downs >= 2, cleanup: () => { boss.active = false; } },
+    start: () => { heroTo(92, 270); boss.active = true; boss.maxHp = boss.hp = DIFF.dmg < 1 ? 200 : 260; boss.need = 3; boss.downs = 0; boss.atk = 1.2; boss.pos.set(100, 0, 276); wantedD.root.visible = true; wantedD.P.legL.visible = wantedD.P.legR.visible = true; wantedD.blob.visible = true; wantedD.downT = 0; },
+    text: () => `وقّع شمس ٣ مرات (${boss.downs}/${boss.need}) · بيصد الضربة الواحدة… اضرب ٣ ورا بعض · صحته ${AR(Math.max(0, Math.round(boss.hp)))}`, target: () => null,
+    update: () => boss.downs >= boss.need, cleanup: () => { boss.active = false; } },
   { id: 'policeArrive', ch: 8, title: 'الصور', par: 20,
     intro: () => [ { do: () => { showActor(wantedD, boss.pos.x || 100, boss.pos.z || 276); wantedD.downT = 30; showActor(shadiaD, 94, 266.5); copCar.pos.set(96, 0, 256); copCar.yaw = 0; copCar.mesh.rotation.set(0, 0, 0); } }, camAt(88, 2.6, 268, 97, 1.3, 273, 1.2),
       L('police', 'محدش يتحرك!'),
@@ -797,7 +835,7 @@ const MS = [
   { id: 'confess', ch: 8, title: 'يوسف لاقى نفسه', at: () => PL.cart, atR: 7, goText: 'يوسف مستنيك عند عربية الفول (★)', par: 200,
     intro: () => [ { do: () => showActor(youssefD, 33.4, 34.4) }, shot(V(34, .15, 34), 2.4, 1, 3.2),
       L('youssef', 'طيارة… أنا رايح القسم. هقول كل حاجة عملتها.'),
-      L('youssef', 'بس عمري ما سرقت غير ساندوتشات وبيتزا… وكاميرا واحدة 😅 والله العظيم.'),
+      L('youssef', 'بس عمري ما سرقت غير ساندوتشات وبيتزا… وكاميرا واحدة والله العظيم.'),
       L('tayara', 'وأنا هقف جنبك. ولما تخرج… تعالى اشتغل معايا عند عزوز بدل اللف ده.'),
       L('youssef', 'بجد؟! … طب واليافطات؟'),
       L('fathi', 'لو اتعدلت يا يوسف، أشيلها بإيدي.'), KN('kamel_08_y') ],
@@ -808,17 +846,17 @@ const MS = [
     intro: () => [ { do: () => { awningBurnt(false); showroomBurnt(false); heroTo(21.4, 30); showActor(enemyD, 19.4, 24.8); showActor(youssefD, 25.6, 29.4); setNoEntryShown(.05); } }, { cam: [17, 3, 37], look: [22, 1.3, 27], t: 1.8 },
       KN('kamel_09_1'),
       L('moallem', 'طيارة… القهوة اتجددت، والتندة رجعت أحسن من الأول، والحتة كلها بتتكلم عليك.'),
-      L('moallem', 'ومن النهارده انت مش قهوجي بس… انت شريكي في قصر الملوك 🤝'),
-      L('arabi', 'وأنا مسؤول الوردية الليلي… وبرضه هفضل أتريق عليك 😏'),
-      L('youssef', 'واليافطات اتشالت كلها… إلا واحدة 😅'),
-      L('fathi', 'دي للذكرى يا يوسف 😂'),
+      L('moallem', 'ومن النهارده انت مش قهوجي بس… انت شريكي في قصر الملوك'),
+      L('arabi', 'وأنا مسؤول الوردية الليلي… وبرضه هفضل أتريق عليك'),
+      L('youssef', 'واليافطات اتشالت كلها… إلا واحدة'),
+      L('fathi', 'دي للذكرى يا يوسف'),
       shot(SPOT.domino, 2.4, 1.1, 3),
       L('islam', 'طيارة الجامد… الحتة من غيرك ماتحلاش.'),
       // the roof: a kite, and شادية taking a picture
       { do: () => { hideActor(enemyD); hideActor(youssefD); hero.pos.set(PL2.roof.x - .8, PL2.roof.y, PL2.roof.z); showActor(shadiaD, PL2.roof.x + .8, PL2.roof.z); shadiaD.root.position.y = PL2.roof.y; kiteShow(true); } },
       camAt(PL2.roof.x - 5, PL2.roof.y + 2.2, PL2.roof.z + 7, PL2.roof.x, PL2.roof.y + 2.5, PL2.roof.z - 3, 1.8), KN('kamel_09_2'),
-      L('shadia', 'اثبت يا طيارة… الطيارة الورق ورا راسك بالظبط 📸'),
-      L('tayara', 'إحنا كلنا الجامدين 👑'), KN('kamel_09_3'),
+      L('shadia', 'اثبت يا طيارة… الطيارة الورق ورا راسك بالظبط'),
+      L('tayara', 'إحنا كلنا الجامدين'), KN('kamel_09_3'),
       { do: () => { kiteShow(false); hideActor(shadiaD); heroTo(21.4, 30); } } ],
     update: () => true },
 ];
@@ -838,7 +876,7 @@ if (SAVE.v !== STORY_V && (SAVE.started || SAVE.m > 0)){
 ST2.idle = new Set();
 function chapterCardBig(ch){ const el = $('chap'); if (ch === false || ch == null){ el.classList.remove('big'); el.hidden = true; return; } const c = CHAPS[ch] || CHAPS[0]; el.querySelector('small').textContent = c[0]; el.querySelector('b').textContent = c[1]; el.classList.add('big'); el.hidden = false; el.classList.remove('show'); void el.offsetWidth; el.classList.add('show'); tone(392, 392, .25, 'triangle', .1); tone(523, 523, .35, 'triangle', .08, .2); }
 function chapterCard(ch){ const el = $('chap'), c = CHAPS[ch] || CHAPS[0]; el.querySelector('small').textContent = c[0]; el.querySelector('b').textContent = c[1]; el.hidden = false; el.classList.remove('show'); void el.offsetWidth; el.classList.add('show'); tone(392, 392, .25, 'triangle', .12); tone(523, 523, .35, 'triangle', .12, .25); clearTimeout(chapterCard.t); chapterCard.t = setTimeout(() => { el.hidden = true; }, 3600); }
-async function cut(steps){ await playCut(steps); for (const d of [...CUT.idle]) hideActor(d); for (const d of [hero.d, enemyD, wantedD, youssefD]) d.downT = Math.min(d.downT, 0); applyStoryWorld(); }
+async function cut(steps){ if (TRAMR.on) endTramRide(); $('mEnd').hidden = true; await playCut(steps); for (const d of [...CUT.idle]) hideActor(d); for (const d of [hero.d, enemyD, wantedD, youssefD]) d.downT = Math.min(d.downT, 0); applyStoryWorld(); }
 function beginMission(){
   const M = curM(); if (!M) return;
   ST2.d = { base: {} }; ST2.ev = {};
@@ -854,9 +892,16 @@ async function playIntro(M, seen){
   if (curM() !== M || modeId !== 'story' || state !== 'play') return;
   SAVE.introSeen = SAVE.m; saveStory();
   startActive(M);
-  banner(`📱 ${M.title}`, 'info', 2.6);
+  banner(`${M.title}`, 'info', 2.6);
 }
-function startActive(M){ ST2.d = { base: {} }; ST2.ev = {}; ST2.phase = 'active'; ST2.t0 = runTime; applyStoryWorld(); if (M.start) M.start(ST2.d); }
+// a mission starts at its own start point (M.spawn) and remembers where it started:
+// retries, knock-outs and a reload in the middle of it come back there, not to the café
+function startActive(M){
+  ST2.d = { base: {} }; ST2.ev = {}; ST2.phase = 'active'; ST2.t0 = runTime;
+  if (M.spawn && !HOUSE.inside && heroAt().distanceTo(M.spawn) > 30) heroTo(M.spawn.x, M.spawn.z);
+  if (!HOUSE.inside){ const f = heroAt(); ST2.startPos = new THREE.Vector3(f.x, .15, f.z); SAVE.startAt = [SAVE.m, +f.x.toFixed(1), +f.z.toFixed(1)]; saveStory(); } else ST2.startPos = null;
+  applyStoryWorld(); if (M.start) M.start(ST2.d);
+}
 async function finishMission(){
   const M = curM(); ST2.phase = 'outro';
   if (M.cleanup) M.cleanup(ST2.d);
@@ -867,34 +912,35 @@ async function finishMission(){
   if (steps.length) await cut(steps);
   if (modeId !== 'story') return;
   easyOff(); ST2.fails = 0; ST2.asked = false;
-  if (REPLAY.on){ coin(); buzz(40); heroCheer(); banner(`✅ ${M.title}`, 'ok', 2.5); setTimeout(() => endReplay(M), 1600); return; }
+  if (REPLAY.on){ const sk = !!ST2.skipping; ST2.skipping = false; if (!sk){ coin(); buzz(40); heroCheer(); banner(`${M.title}`, 'ok', 2.5); } REPLAY.endT = setTimeout(() => endReplay(M, sk), sk ? 600 : 1600); return; }
   if (M.reward) hero.money += M.reward;
   if (!ST2.skipping) missionCard(M, runTime - (ST2.t0 ?? runTime), ST2.fails || 0, M.reward); ST2.skipping = false;
   SAVE.rep += 5; SAVE.m++; coin(); buzz(40);
-  banner(`✅ ${M.title}${M.reward ? ' · +' + M.reward + ' جنيه' : ''}`, 'ok', 3); heroCheer();
+  banner(`${M.title}${M.reward ? ' · +' + M.reward + ' جنيه' : ''}`, 'ok', 3); heroCheer();
   ST2.d = { base: {} }; parkArabiMoto(); applyStoryWorld();
   if (SAVE.m >= MS.length){ SAVE.ended = true; saveStory(); ST2.phase = 'done'; applyStoryWorld(); setTimeout(showStoryEnd, 1200); return; }
   saveStory(); ST2.phase = 'wait'; ST2.waitT = 2.2;
 }
 function failMission(msg){
-  const M = curM(); ST2.phase = 'failed'; ST2.waitT = 3;
+  const M = curM(); ST2.phase = 'failed'; ST2.waitT = 3; if (TRAMR.on) endTramRide();
   if (ST2.failsFor !== M.id){ ST2.failsFor = M.id; ST2.fails = 0; ST2.asked = false; }
   ST2.fails++;
   if (M.cleanup) M.cleanup(ST2.d);
   if (modeObj.job) endJob(true); if (JOB.kind) endJob2(true);
   storyReset(); parkArabiMoto(); applyStoryWorld();
-  banner(`❌ ${msg || 'المهمة فشلت'} · هتتعاد تاني`, 'bad', 3.5); buzz(60);
+  banner(`${msg || 'المهمة فشلت'} · هتتعاد تاني`, 'bad', 3.5); buzz(60);
 }
 function retryMission(){
   const M = curM(); if (!M) return;
-  if (M.spawn && heroAt().distanceTo(M.spawn) > 30) fadeTo(() => { heroTo(M.spawn.x, M.spawn.z); startActive(M); }, .3);
+  const sp = M.spawn || ST2.startPos;
+  if (sp && !HOUSE.inside && heroAt().distanceTo(sp) > 30) fadeTo(() => { heroTo(sp.x, sp.z); startActive(M); }, .3);
   else startActive(M);
 }
 function storyReset(){
-  clearPickups(); clearCheckpoints(); boss.active = false; ghostEnd(ST2.d); clearThugs(ST2.d); ST2.d.shamsPos = null;
+  clearPickups(); gasCarry(false); clearCheckpoints(); boss.active = false; ghostEnd(ST2.d); clearThugs(ST2.d); ST2.d.shamsPos = null;
   if (wanted.active){ wanted.active = false; wantedD.root.visible = false; }
   if (thief.active && !thief.caught){ thief.active = false; youssefD.root.visible = false; thief.next = R(90, 160); }
-  race.active = false; shamsMoto.visible = false; copCar.pos.set(copCar.home.x, copCar.home.y || 0, copCar.home.z); copCar.yaw = copCar.home.yaw; copCar.mesh.rotation.set(0, copCar.yaw, 0);
+  race.active = false; shamsMoto.visible = false; if (!CUT.on) shamsLaunch.visible = false; copCar.pos.set(copCar.home.x, copCar.home.y || 0, copCar.home.z); copCar.yaw = copCar.home.yaw; copCar.mesh.rotation.set(0, copCar.yaw, 0);
 }
 function showIdle(d, x, z){ d.root.visible = true; d.root.position.set(x, groundY(x, z), z); d.P.legL.visible = d.P.legR.visible = true; d.blob.visible = true; d.downT = 0; ST2.idle.add(d); }
 // places and props that change with the story (Alexandria stage 4)
@@ -917,8 +963,9 @@ function applyStoryWorld(){
   if (modeId !== 'story') return;
   const m = SAVE.m, I = idx;
   setNoEntryShown(signLevel()); setPostersShown(m > I('poster') && m <= I('bossFight'));
-  wedding.visible = m >= I('weddingNight') && m <= I('plan');
+  wedding.visible = m > I('prep') && m <= I('plan');
   const atWed = m >= I('weddingNight') && m <= I('shamsWedding');
+  weddingGuests(atWed); brideLook.visible = m >= I('weddingNight');
   ST2.idle.clear();
   if (atWed){ showIdle(islamD, -72, 38.4); ST2.idle.delete(islamD); }
   else { islamD.P.legL.visible = islamD.P.legR.visible = false; islamD.blob.visible = false; seatIslam(true); }
@@ -937,7 +984,7 @@ function storyTarget(){
   const M = curM();
   if (JOB.kind) return jobTarget();
   if (!M) return null;
-  if (ST2.phase === 'goto') return M.at();
+  if (ST2.phase === 'goto') return typeof M.at === 'function' ? M.at() : (M.at || null);
   if (ST2.phase === 'active' && M.target) return M.target(ST2.d);
   return null;
 }
@@ -953,7 +1000,7 @@ function storyMapMarks(t){
 function storyTick(dt){
   const M = curM(); if (!M || state !== 'play') return;
   if (ST2.phase === 'idle') return beginMission();
-  if (ST2.phase === 'goto'){ if (!CUT.on && !hero.locked && near(heroAt(), M.at(), M.atR || 5)) playIntro(M, false); return; }
+  if (ST2.phase === 'goto') return;   // stage 13: you start it at its marker when you want (20b owMissionAction)
   if (ST2.phase === 'wait'){ ST2.waitT -= dt; if (ST2.waitT <= 0) ST2.phase = 'idle'; return; }
   if (ST2.phase === 'failed'){ ST2.waitT -= dt; if (ST2.waitT <= 0){ if (ST2.fails >= 3 && !ST2.asked && !EASY.on){ ST2.asked = true; ST2.phase = 'asking'; openFailAsk(); } else { ST2.phase = 'retrying'; retryMission(); } } return; }
   if (ST2.phase !== 'active' || CUT.on) return;
@@ -965,8 +1012,8 @@ $('storyEndBtn').onclick = () => { $('storyEnd').hidden = true; hero.locked = fa
 // small talk with the named people
 const NAMED_LINES = {
   moallem: ['الشغل مش عيب يا طيارة','الشاي التقيل لزبون الصبح','فين الصينية يا ابني؟','القهوة دي بيتي التاني'],
-  landlord: ['البيت بيتك يا ابني… بس الإيجار إيجار 😄','ربنا يكرمك يا طيارة','شد حيلك يا ابني'],
-  azzouz: ['البيتزا بتبرد يا طيارة!','عندي طلبات كتير النهارده','أحسن بيتزا في مصر عند عزوز 🍕'],
+  landlord: ['البيت بيتك يا ابني… بس الإيجار إيجار','ربنا يكرمك يا طيارة','شد حيلك يا ابني'],
+  azzouz: ['البيتزا بتبرد يا طيارة!','عندي طلبات كتير النهارده','أحسن بيتزا في مصر عند عزوز'],
   fathi: ['الفول بالزيت الحار؟','الطعمية لسه طالعة من الزيت','يوسف لو جه قولي'],
   officer: ['عينك على الشارع يا طيارة','لو شفت حاجة غريبة بلّغني','المكافأة لسه موجودة'],
   reda: ['التوكتوك مستنيك','اللي يطلع من الشغل نصين','حافظ عليه زي عينيك'],
@@ -984,26 +1031,26 @@ function storyAction(){
   if (JOB.kind) return null;
   if (p.distanceTo(SHOP.pos) < 2.6) return { text: 'ادخل محل الأناقة', fn: openShop };
   for (const [v, kind] of [[heroMoto,'moto'],[heroCar,'car']]) if (!SAVE.owned[kind] && Math.hypot(v.pos.x-p.x, v.pos.z-p.z) < 3.2) return { text: `اشتري ${kind === 'moto' ? 'الموتوسيكل' : 'العربية'} (${PRICE[kind]} جنيه)`, fn: () => buyVehicle(kind) };
-  if (near(p, SPOT.house, 2.4)) return { text: 'ادخل البيت 🏠', fn: enterHouse };
-  if (unlocked('tea') && p.distanceTo(SPOT.counter) < 2.6) return { text: 'اشتغل وردية قهوجي ☕', fn: () => startJob('ahwa') };
-  if (unlocked('foul') && Math.hypot(p.x-SPOT.cart.x, p.z-SPOT.cart.z) < 2.8) return { text: 'اشتغل على عربية الفول 🧆', fn: () => startJob('foul') };
-  if (unlocked('pizza3') && near(p, SPOT.azzouz, 3.2)) return { text: 'اشتغل ديليفري بيتزا 🍕', fn: startPizzaJob };
-  if (unlocked('pizza3') && near(p, tukVeh.pos, 4.4)) return { text: 'اشتغل على التوكتوك 🛺', fn: startTukJob };
+  if (near(p, SPOT.house, 2.4)) return { text: 'ادخل البيت', fn: enterHouse };
+  if (unlocked('tea') && p.distanceTo(SPOT.counter) < 2.6) return { text: 'اشتغل وردية قهوجي', fn: () => startJob('ahwa') };
+  if (unlocked('foul') && Math.hypot(p.x-SPOT.cart.x, p.z-SPOT.cart.z) < 2.8) return { text: 'اشتغل على عربية الفول', fn: () => startJob('foul') };
+  if (unlocked('pizza3') && near(p, SPOT.azzouz, 3.2)) return { text: 'اشتغل ديليفري بيتزا', fn: startPizzaJob };
+  if (unlocked('pizza3') && near(p, tukVeh.pos, 4.4)) return { text: 'اشتغل على التوكتوك', fn: startTukJob };
   for (const [k, n] of Object.entries(ST2.npcs)) if (n.g.visible && n.state === 'idle' && near(p, n.g.position, 2.2)) return { text: `كلّم ${n.name}`, fn: () => { say(n, rpick(NAMED_LINES[k] || ['أهلاً يا طيارة']), 2.6); n.yaw = Math.atan2(p.x - n.g.position.x, p.z - n.g.position.z); } };
   return null;
 }
-function storyHudTitle(){ const m = modeObj; if (m.job === 'ahwa') return 'وردية قهوجي ☕'; if (m.job === 'foul') return 'شغل الفول 🧆'; if (JOB.kind === 'pizza') return 'ديليفري عزوز 🍕'; if (JOB.kind === 'tuk') return 'سواق توكتوك 🛺'; const M = curM(); return M ? `📱 ${M.title}` : 'طيارة الجامد 👑'; }
+function storyHudTitle(){ const m = modeObj; if (m.job === 'ahwa') return 'وردية قهوجي'; if (m.job === 'foul') return 'شغل الفول'; if (JOB.kind === 'pizza') return 'ديليفري عزوز'; if (JOB.kind === 'tuk') return 'سواق توكتوك'; const M = curM(); return M ? `${M.title}` : 'طيارة الجامد'; }
 function storyHud(){
   const m = modeObj, M = curM(); let s;
   if (m.job) s = `الوقت: <b style="display:inline;color:#fff">${fmtTime(m.time||0)}</b> · بعت: ${m.served} · زعلانين: <b style="display:inline;color:#ff9a9a">${m.angry}/٣</b><br>كسبت: ${egp(m.earned)}${m.job === 'ahwa' ? '<br>روح النَصبة (E) ووزّع على الزباين.' : ''}`;
-  else if (JOB.kind) s = jobHud();
+  else if (JOB.kind) s = (M && ST2.phase === 'active' && M.text ? M.text(ST2.d) + '<br>' : '') + jobHud();
   else if (!M) s = 'خلصت القصة! لف في الحتة براحتك: اشتغل، العب دومنو، وجدّد البيت.';
   else if (ST2.phase === 'goto') s = M.goText || 'روح للعلامة (★)';
   else if (ST2.phase === 'active') s = M.text ? M.text(ST2.d) : '…';
   else s = '…';
-  if (M && ST2.phase === 'active' && (m.job || JOB.kind) && M.text) s += `<br><small style="color:#ffd98a">📱 ${M.text(ST2.d)}</small>`;
-  const c = CHAPS[M ? M.ch : 8];
-  return s + `<br><small style="color:#c2b7a3">🕐 ${clockText()} · ${c[0]}: ${c[1]}</small>`;
+  if (M && ST2.phase === 'active' && (m.job || JOB.kind) && M.text) s += `<br><small style="color:#ffd98a">${M.text(ST2.d)}</small>`;
+  const c = CHAPS[M ? M.ch : 9];
+  return s + `<br><small style="color:#c2b7a3">${clockText()} · ${c[0]}: ${c[1]}</small>`;
 }
 function updateStory(dt){
   motoTag.visible = !SAVE.owned.moto && !CUT.on; carTag.visible = !SAVE.owned.car && !CUT.on;
@@ -1028,10 +1075,10 @@ function resetWorld(){
   storyReset(); wedding.visible = false; ST2.idle.clear(); ST2.phase = 'off'; enemy.ally = false; pizzaBox.visible = false; $('chap').hidden = true;
   for (const d of [youssefD, enemyD, wantedD]){ d.root.visible = false; d.P.legL.visible = d.P.legR.visible = true; d.blob.visible = true; d.downT = 0; }
   islamD.P.legL.visible = islamD.P.legR.visible = false; islamD.blob.visible = false;
-  vehicles.forEach(v => { v.pos.set(v.home.x, v.home.y||0, v.home.z); v.yaw = v.home.yaw; v.mesh.rotation.set(0, v.yaw, 0); v.speed = 0; v.dmg = 0; v.broke = false; });
+  vehicles.forEach(v => { v.pos.set(v.home.x, v.home.y||0, v.home.z); v.yaw = v.home.yaw; v.mesh.rotation.set(0, v.yaw, 0); v.speed = 0; v.slip = 0; v.dmg = 0; v.broke = false; v.fallen = false; v.kick = null; v.lean = 0; v.sp = null; });
   seatIslam(false); seatKamel(false); thiefReset();
   motoTag.visible = carTag.visible = false; missionMark.visible = false; race.active = false; enemy.boss = false; enemy.maxHp = 100; $('shop').hidden = true; $('storyEnd').hidden = true;
-  npcs.forEach(n => { if (n.thug) npcTakeOff3D(n); n.state = 'hidden'; n.g.visible = false; n.role = null; n.onArrive = null; n.thug = false; n.thugDone = false; n.g.rotation.x = 0; });
+  npcs.forEach(n => { if (n.thug) npcTakeOff3D(n); n.state = 'hidden'; n.g.visible = false; n.role = null; n.onArrive = null; n.thug = false; n.thugDone = false; n.mhp = undefined; n.mel = false; n.fstyle = undefined; n.g.rotation.x = 0; });
   let i = 0;
   for (; i<WALKERS; i++) setWalker(npcs[i]);
   enemy.active = false; enemy.d.root.visible = false; wanted.active = false; wanted.d.root.visible = false;
@@ -1065,18 +1112,18 @@ function startMode(id){
   const M_ = {
     free: () => { const k = seatDeco(free); void k; spawnEnemy(); hero.pos.copy(SPOT.spawn);
       return { vehicles: true, cafe: true, enemyOn: true, title: 'حر في الحتة',
-        hud: () => `اركب الموتوسيكل أو العربية اللي جنب القهوة.<br>${enemy.d.downT > 0 ? 'وقّعته 💪' : enemy.state === 'chase' ? '<b style="color:#ff7a7a;display:inline">اللي بيكرهك جاي عليك!</b>' : 'خلي بالك… فيه واحد بيكرهك في الحتة.'}<br>اشرب شاي أو كُل فلافل عشان صحتك.` }; },
+        hud: () => `اركب الموتوسيكل أو العربية اللي جنب القهوة.<br>${enemy.d.downT > 0 ? 'وقّعته' : enemy.state === 'chase' ? '<b style="color:#ff7a7a;display:inline">اللي بيكرهك جاي عليك!</b>' : 'خلي بالك… فيه واحد بيكرهك في الحتة.'}<br>اشرب شاي أو كُل فلافل عشان صحتك.` }; },
     domino: () => { const r = M_.free(); hero.pos.set(SPOT.domino.x, .15, SPOT.domino.z + 1.6); setTimeout(openDomino, 200); return r; },
     tawla: () => { const r = M_.free(); hero.pos.set(TAWLA_SPOT.x, .15, TAWLA_SPOT.z + 1.6); setTimeout(openTawla, 200); return r; },
     police: () => { seatDeco(free); hero.pos.copy(SPOT.policeSpawn); spawnWanted();
-      return { vehicles: true, cafe: false, title: 'ظابط مباحث 🚓', time: 240,
+      return { vehicles: true, cafe: false, title: 'ظابط مباحث', time: 240,
         hud: () => { const d = wanted.pos.distanceTo(hero.veh ? hero.veh.pos : hero.pos); return `اقبض على المطلوب (النقطة الحمرا على الخريطة).<br>المسافة: <b style="display:inline;color:#fff">${Math.round(d)} م</b> · الوقت: <b style="display:inline;color:#fff">${fmtTime(modeObj.time)}</b><br>اخبطه بالبوكس أو اقرب منه واضربه.`; },
-        onArrest: () => { const t = 240 - modeObj.time; const best = parseFloat(store.get('ty_best_police')||'0'); let bt=''; if (!best || t < best){ store.set('ty_best_police', String(t)); bt = 'رقم قياسي جديد! 🏆'; } else bt = `أحسن وقت: ${fmtTime(best)}`; coin(); setTimeout(() => endMode('قبضت على المطلوب! 🚔', `الظابط ${heroName} قبض عليه في ${fmtTime(t)}.`, bt), 1200); },
-        onTime: () => endMode('المطلوب هرب 😤', 'الوقت خلص قبل ما تقبض عليه. جرّب تاني وخد البوكس على طول.') }; },
+        onArrest: () => { const t = 240 - modeObj.time; const best = parseFloat(store.get('ty_best_police')||'0'); let bt=''; if (!best || t < best){ store.set('ty_best_police', String(t)); bt = 'رقم قياسي جديد!'; } else bt = `أحسن وقت: ${fmtTime(best)}`; coin(); setTimeout(() => endMode('قبضت على المطلوب!', `الظابط ${heroName} قبض عليه في ${fmtTime(t)}.`, bt), 1200); },
+        onTime: () => endMode('المطلوب هرب', 'الوقت خلص قبل ما تقبض عليه. جرّب تاني وخد البوكس على طول.') }; },
     cash: () => { hero.pos.copy(SPOT.spawn); cash.forEach(c => { c.g.visible = true; c.g.scale.setScalar(1); c.g.position.y = 0; });
-      return { vehicles: false, cafe: false, title: 'فلوس الشارع 💵', got: 0, money: 0,
+      return { vehicles: false, cafe: false, title: 'فلوس الشارع', got: 0, money: 0,
         hud: () => `لميت ${modeObj.got} من ١٥ رزمة (${egp(modeObj.money)}).<br>${chaser.active ? '<b style="color:#ff7a7a;display:inline">البوليس وراك!</b>' : 'دوّر على النور الأصفر.'}`,
-        onKO: () => endMode('العربيات بهدلتك 🚗', `${heroName} لم ${egp(modeObj.money)} قبل ما يقع.`) }; },
+        onKO: () => endMode('العربيات بهدلتك', `${heroName} لم ${egp(modeObj.money)} قبل ما يقع.`) }; },
     story: () => {
       hero.money = SAVE.money; const a = npcs[free], b = npcs[free+1];
       seatNPC(a, SPOT.domino.x-.85, SPOT.domino.z, Math.PI/2); a.state = 'domino'; a.name = 'الحاج كامل';
@@ -1086,23 +1133,27 @@ function startMode(id){
       setupNamed(); arabiHide(); enemy.boss = false; enemy.maxHp = 100; hero.pos.copy(SPOT.spawn);
       ST2.phase = SAVE.m >= MS.length ? 'done' : 'idle'; ST2.d = { base: {} }; ST2.ev = {}; ST2.stalkT = 45; SAVE.started = true;
       const M = curM();
-      if (SAVE.m === 0 && SAVE.introSeen !== 0){ HOUSE.inside = true; HOUSE.prevCam = camTarget; camTarget = Math.min(camTarget, 3.4); camDist = camTarget; hero.pos.set(-403.6, 0, -399.6); CAM.orbit = CAM.orbitSm = 0; }
-      else if (M && M.spawn && SAVE.introSeen === SAVE.m) hero.pos.copy(M.spawn);
+      if (SAVE.m === 0 && SAVE.introSeen !== 0){ HOUSE.inside = true; HOUSE.prevCam = camTarget; camTarget = Math.min(camTarget, 3.4); camDist = camTarget; hero.pos.set(5596.4, 0, 5600.4); CAM.orbit = CAM.orbitSm = 0; }
+      else if (M && SAVE.introSeen === SAVE.m){
+        // back in the middle of a mission: where it started, not the café (where a "go to the café" mission would finish by itself)
+        const s = SAVE.startAt && SAVE.startAt[0] === SAVE.m && inWorld(SAVE.startAt[1], SAVE.startAt[2]) ? V(SAVE.startAt[1], .15, SAVE.startAt[2]) : M.spawn;
+        if (s){ const [fx, fz] = freeSpot(s.x, s.z); hero.pos.set(fx, .15, fz); }
+      }
       houseVisual(); TOD.h = SAVE.time ?? 9; applyTimeOfDay(TOD.h); parkArabiMoto(); applyStoryWorld();
       const patrons = npcs.slice(free+2, free+14), pool = npcs.slice(free+14, free+20);
       return { vehicles: true, cafe: true, story: true, title: 'القصة', job: null, patrons, pool, tray: [], seatsTaken: new Set(), queue: [], served: 0, angry: 0, earned: 0, spawnT: 1, domBet: 20,
-        canDrive: v => (v === heroMoto && SAVE.owned.moto) || (v === heroCar && SAVE.owned.car) || (!!v.jobOnly && v.jobOnly === JOB.kind) || (v === arabiMoto && !!ST2.d.arabiMoto) || (!!v.jobOnly && v.jobOnly === ACT.kind) || (v === arabiCar && !!ST2.d.arabiCar) || (v.type === 'boat' && !!ST2.d.boatOK),
+        canDrive: v => (!v.jobOnly && v !== heroMoto && v !== heroCar && v !== arabiMoto && v !== arabiCar && v.type !== 'boat') || (v === heroMoto && SAVE.owned.moto) || (v === heroCar && SAVE.owned.car) || (!!v.jobOnly && v.jobOnly === JOB.kind) || (v === arabiMoto && !!ST2.d.arabiMoto) || (!!v.jobOnly && v.jobOnly === ACT.kind) || (v === arabiCar && !!ST2.d.arabiCar) || (v.type === 'boat' && !!ST2.d.boatOK),
         hud: storyHud, hudTitle: storyHudTitle, action: storyAction,
         onServe: (kind, drink) => { SAVE.cnt[kind] = (SAVE.cnt[kind]||0) + 1; if (drink === 'شاي') SAVE.cnt.tea = (SAVE.cnt.tea||0) + 1; if (drink === 'قهوة') SAVE.cnt.coffee = (SAVE.cnt.coffee||0) + 1; },
         onDomino: w => { const bet = Math.min(modeObj.domBet, Math.max(0, Math.floor(hero.money))); if (w){ hero.money += bet; SAVE.cnt.dom = (SAVE.cnt.dom||0) + 1; } else hero.money -= bet; saveStory(); return bet; },
         onEnemyDown: () => { SAVE.cnt.edown = (SAVE.cnt.edown||0) + 1; saveStory(); },
         onArrest: () => { onStoryEvent('arrest'); coin(); },
-        onKO: why => { knockout(why); const M = curM(); if (M && ST2.phase === 'active' && M.koFail){ hero.hp = 100; failMission('اتبهدلت'); } },
+        onKO: why => { knockout(why); const M = curM(); if (M && ST2.phase === 'active'){ if (M.koFail){ hero.hp = 100; failMission('اتبهدلت'); } else if (ST2.startPos) heroTo(ST2.startPos.x, ST2.startPos.z); } },
         onTime: () => endJob(false), onFail: () => endJob(true) };
     },
     ahwa: () => { hero.pos.set(SPOT.counter.x, .15, SPOT.counter.z + 1.5); decoGlasses.forEach(g => g.visible = false);
       const patrons = npcs.slice(free, free+12); patrons.forEach(n => { n.leaving = false; n.seat = undefined; });
-      return { vehicles: false, cafe: false, title: 'قهوجي في قصر الملوك ☕', time: 240, tray: [], served: 0, angry: 0, earned: 0, spawnT: .5, patrons, seatsTaken: new Set(), init: () => resetAhwaStation(),
+      return { vehicles: false, cafe: false, title: 'قهوجي في قصر الملوك', time: 240, tray: [], served: 0, angry: 0, earned: 0, spawnT: .5, patrons, seatsTaken: new Set(), init: () => resetAhwaStation(),
         hud: () => `وصّلت: <b style="display:inline;color:#fff">${modeObj.served}</b> · زعلانين: <b style="display:inline;color:#ff9a9a">${modeObj.angry} / ٣</b><br>الوقت: ${fmtTime(modeObj.time)} · الغلة: ${egp(modeObj.earned)}<br>${(modeObj.tray||[]).length ? 'وزّع اللي على الصينية (E جنب الزبون).' : 'روح للنَصبة (E) وحضّر الطلبات.'}`,
         action: () => {
           if (hero.pos.distanceTo(SPOT.counter) < 2.6) return { text: 'ادخل النَصبة وحضّر الطلبات', fn: () => enterStation('ahwa') };
@@ -1110,13 +1161,13 @@ function startMode(id){
           if (c) return { text: `قدّم ${c.order.drink} ${c.order.sugar} لـ ${c.name}`, fn: () => serveAhwa(c) };
           return null;
         },
-        onTime: () => endMode('الوردية خلصت ☕', `${heroName} وصّل ${modeObj.served} طلب وكسب ${egp(modeObj.earned)}.`, bestScore('ahwa', modeObj.earned)) }; },
+        onTime: () => endMode('الوردية خلصت', `${heroName} وصّل ${modeObj.served} طلب وكسب ${egp(modeObj.earned)}.`, bestScore('ahwa', modeObj.earned)) }; },
     foul: () => { hero.pos.copy(SPOT.cartHero); hero.pos.y = .15;
       const q = npcs.slice(free, free+6);
-      return { vehicles: false, cafe: false, title: 'عربية الفول 🧆', time: 210, queue: [], pool: q, served: 0, angry: 0, earned: 0, spawnT: 2,
+      return { vehicles: false, cafe: false, title: 'عربية الفول', time: 210, queue: [], pool: q, served: 0, angry: 0, earned: 0, spawnT: 2,
         init: () => { FL.fry.forEach(f => f.mesh.parent && f.mesh.parent.remove(f.mesh)); Object.assign(FL, { fry: [], sF: [], sP: [], sand: null, bag: [] }); foulVisual(); },
         hud: () => `بعت: <b style="display:inline;color:#fff">${modeObj.served}</b> · زعلانين: <b style="display:inline;color:#ff9a9a">${modeObj.angry} / ٣</b><br>الوقت: ${fmtTime(modeObj.time)} · الغلة: ${egp(modeObj.earned)}`,
-        onTime: () => endMode('خلّصت الفول 🧆', `${heroName} باع ${modeObj.served} طلب وكسب ${egp(modeObj.earned)}.`, bestScore('foul', modeObj.earned)) }; },
+        onTime: () => endMode('خلّصت الفول', `${heroName} باع ${modeObj.served} طلب وكسب ${egp(modeObj.earned)}.`, bestScore('foul', modeObj.earned)) }; },
   };
   if (id !== 'story' || !REPLAY.on) REPLAY.last = -1;
   if (id !== 'story'){ const h0 = PROG.ramadan && (id === 'free' || id === 'domino') ? 21 : 15; TOD.h = h0; applyTimeOfDay(h0); setNoEntryShown(1); setPostersShown(true); }
@@ -1125,9 +1176,9 @@ function startMode(id){
   setObjective(modeObj.title, '');
   camera.position.set(hero.pos.x, 4, hero.pos.z + 6); lookAt.copy(hero.pos);
   refreshTray(); updateHud(); if (id === 'foul') enterStation('foul');
-  banner({ story: SAVE.started && SAVE.m ? 'رجعت الحتة يا ' + heroName + ' 👑' : 'يلا يا ' + heroName + '… نبقى الجامد 👑', free:'أهلاً بيك في الحتة يا ' + heroName, police:'المطلوب في الحتة… اركب البوكس 🚓', cash:'دوّر على رزم الفلوس 💵', ahwa:'الزباين جايين… جهّز النَصبة ☕', foul:'افتح العربية… الزباين جايين 🧆', domino:'اقعد يا ' + heroName, tawla:'عم رجب مستنيك على الطاولة 🎯' }[id], 'info', 2.6);
+  banner({ story: SAVE.started && SAVE.m ? 'رجعت الحتة يا ' + heroName : 'يلا يا ' + heroName + '… نبقى الجامد', free:'أهلاً بيك في الحتة يا ' + heroName, police:'المطلوب في الحتة… اركب البوكس', cash:'دوّر على رزم الفلوس', ahwa:'الزباين جايين… جهّز النَصبة', foul:'افتح العربية… الزباين جايين', domino:'اقعد يا ' + heroName, tawla:'عم رجب مستنيك على الطاولة' }[id], 'info', 2.6);
 }
-function bestScore(key, v){ const b = parseFloat(store.get('ty_best_'+key)||'0'); if (v > b){ store.set('ty_best_'+key, String(v)); return 'رقم قياسي جديد! 🏆'; } return `أحسن غلة: ${egp(b)}`; }
+function bestScore(key, v){ const b = parseFloat(store.get('ty_best_'+key)||'0'); if (v > b){ store.set('ty_best_'+key, String(v)); return 'رقم قياسي جديد!'; } return `أحسن غلة: ${egp(b)}`; }
 function endMode(title, text, best=''){
   if (state !== 'play') return; state = 'end';
   if (sirenGain) sirenGain.gain.value = 0;
@@ -1159,7 +1210,7 @@ function serveAhwa(c){
   g.position.set(TABLES[s.ti][0] + (s.x < TABLES[s.ti][0] ? -.25 : .25), .93, TABLES[s.ti][1]); scene.add(g);
   if (c.bubble){ removeBubble(c.bubble); c.bubble = null; }
   c.order = null; c.state = 'drinking'; c.leaveT = 9; c.glass = g;
-  banner(`+${pay} جنيه${tip ? ' (بقشيش ' + tip + ')' : ''}${cb ? ' · كومبو ×' + modeObj.combo + ' 🔥' : ''}`, wrongSugar ? 'bad' : 'ok', 1.6);
+  banner(`+${pay} جنيه${tip ? ' (بقشيش ' + tip + ')' : ''}${cb ? ' · كومبو ×' + modeObj.combo + '' : ''}`, wrongSugar ? 'bad' : 'ok', 1.6);
 }
 function updateAhwa(dt){
   const m = modeObj;
@@ -1179,10 +1230,10 @@ function updateAhwa(dt){
     if (n.state === 'customer' && n.order){
       n.patience -= dt; const f = clamp(n.patience/n.maxPat, 0, 1);
       if (n.bubble) n.bubble.el.innerHTML = `${orderLabel(n.order)}<div class="pat"><i style="width:${f*100}%;background:${f<.3?'#d33':'#3aa84a'}"></i></div>`;
-      if (n.patience <= 0){ m.angry++; removeBubble(n.bubble); n.bubble = null; n.order = null; say(n, 'إيه القهوة دي! ماشي', 2, 'angry'); leaveSeat(n); if (m.angry >= 3){ if (m.onFail) m.onFail(); else endMode('الزباين زعلوا 😤', `${heroName} وصّل ${m.served} طلب بس ٣ زباين مشيوا زعلانين.`, bestScore('ahwa', m.earned)); } }
+      if (n.patience <= 0){ m.angry++; removeBubble(n.bubble); n.bubble = null; n.order = null; say(n, 'إيه القهوة دي! ماشي', 2, 'angry'); leaveSeat(n); if (m.angry >= 3){ if (m.onFail) m.onFail(); else endMode('الزباين زعلوا', `${heroName} وصّل ${m.served} طلب بس ٣ زباين مشيوا زعلانين.`, bestScore('ahwa', m.earned)); } }
     } else if (n.state === 'drinking'){ n.leaveT -= dt; if (n.leaveT <= 0){ if (n.glass){ scene.remove(n.glass); n.glass = null; } leaveSeat(n); } }
   }
 }
 function leaveSeat(n){ modeObj.seatsTaken && modeObj.seatsTaken.delete(n.seat); n.leaving = true; n.state = 'goto'; n.g.position.y = .15; n.tx = rpick([7.5, 40.5]); n.tz = R(36, 40); n.onArrive = n2 => { n2.state = 'hidden'; n2.g.visible = false; n2.leaving = false; }; }
 // on short (landscape phone) screens the mission card is clamped; tap it to read all of it
-document.querySelector('.card.obj').addEventListener('pointerdown', e => { e.stopPropagation(); e.currentTarget.classList.toggle('open'); });
+$('radar').addEventListener('pointerdown', e => { if (modeObj.hud){ e.stopPropagation(); hudHint(modeObj.hud(), true); } });   // forgot what to do? tap the radar: the objective shows again

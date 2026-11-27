@@ -5,7 +5,7 @@ function spawnChaser(){
   for (let i=0;i<=N;i++) for (let k=0;k<=N;k++){ const d = Math.hypot(ROADS[i]-p.x, ROADS[k]-p.z); if (d > 45 && d < 90) opts.push([i,k]); }
   const n = opts.length ? rpick(opts) : [0,0];
   chaserCar.position.set(ROADS[n[0]], 0, ROADS[n[1]]); Object.assign(chaser, { node: n, mode: 'grid', active: true, lostT: 0, spawnT: 0 });
-  chaserCar.visible = true; chaserLight.intensity = 30; banner('🚨 البوليس وراك! اجري', 'police', 3);
+  chaserCar.visible = true; chaserLight.intensity = 30; banner('البوليس وراك! اجري', 'police', 3);
 }
 function updateChaser(dt){
   if (!chaser.active) return;
@@ -30,6 +30,6 @@ function updateChaser(dt){
   chaserCar.userData.red.emissiveIntensity = on ? 3 : .2; chaserCar.userData.blue.emissiveIntensity = on ? .2 : 3; chaserLight.color.setHex(on ? 0xff2040 : 0x2050ff);
   if (sirenGain) sirenGain.gain.value = clamp(.08 - dist*.001, .012, .08);
   const L = carLocal(chaserCar, p);
-  if (chaser.spawnT > 1 && Math.abs(L.along) < 2.6 && Math.abs(L.lat) < 1.35) endMode('اتمسكت! 🚔', `البوليس لحق ${heroName} بعد ما لم ${egp(modeObj.money||0)}.`);
-  else if (chaser.lostT > 7){ chaser.active = false; chaserCar.visible = false; chaserLight.intensity = 0; if (sirenGain) sirenGain.gain.value = 0; banner('هربت منهم 😎', 'ok', 2.5); }
+  if (chaser.spawnT > 1 && Math.abs(L.along) < 2.6 && Math.abs(L.lat) < 1.35) endMode('اتمسكت!', `البوليس لحق ${heroName} بعد ما لم ${egp(modeObj.money||0)}.`);
+  else if (chaser.lostT > 7){ chaser.active = false; chaserCar.visible = false; chaserLight.intensity = 0; if (sirenGain) sirenGain.gain.value = 0; banner('هربت منهم', 'ok', 2.5); }
 }

@@ -1,6 +1,6 @@
 // ================= progress across all modes: stats, achievements, gold tea glasses, photo mode =================
 const PROG_KEY = 'ty_prog';
-const PROG = (() => { try { const p = JSON.parse(store.get(PROG_KEY) || 'null'); if (p) return { glasses: p.glasses || [], ach: p.ach || {}, stats: p.stats || {}, best: p.best || {} }; } catch(e){} return { glasses: [], ach: {}, stats: {}, best: {} }; })();
+const PROG = (() => { try { const p = JSON.parse(store.get(PROG_KEY) || 'null'); if (p) return { ...p, glasses: p.glasses || [], ach: p.ach || {}, stats: p.stats || {}, best: p.best || {} }; } catch(e){} return { glasses: [], ach: {}, stats: {}, best: {} }; })();
 const saveProg = () => store.set(PROG_KEY, JSON.stringify(PROG));
 function stat(key, n=1){ PROG.stats[key] = (PROG.stats[key] || 0) + n; achCheckSoon(); }
 function bestOf(key, v, lower=false){ const b = PROG.best[key]; if (b === undefined || (lower ? v < b : v > b)){ PROG.best[key] = v; saveProg(); return true; } return false; }
@@ -39,26 +39,28 @@ function achToastTick(dt){
   const el = $('achToast');
   if (achToastTick.t > 0){ achToastTick.t -= dt; if (achToastTick.t <= 0) el.classList.remove('show'); return; }
   const a = achQueue.shift(); if (!a || CUT.on) { if (a) achQueue.unshift(a); return; }
-  el.innerHTML = `<span class="ai">${a.icon}</span><span><small>إنجاز جديد 🏆</small><b>${a.name}</b></span>`; el.classList.add('show'); achToastTick.t = 3.6;
+  el.innerHTML = `<span class="ai">${icon('trophy')}</span><span><small>إنجاز جديد</small><b>${a.name}</b></span>`; el.classList.add('show'); achToastTick.t = 3.6;
   tone(660, 660, .12, 'triangle', .15); tone(880, 880, .12, 'triangle', .15, .12); tone(1320, 1320, .3, 'triangle', .15, .24); buzz(30);
 }
 achToastTick.t = 0;
 function openAch(){
+  if (state === 'play'){ state = 'pause'; for (const k in keys) keys[k] = false; }
   const done = ACH.filter(a => PROG.ach[a.id]).length;
-  $('achHead').textContent = `🏆 الإنجازات · ${done}/${ACH.length} · كوبايات دهب ${PROG.glasses.length}/20`;
-  $('achList').innerHTML = ACH.map(a => { const got = !!PROG.ach[a.id], p = !got && a.prog ? a.prog() : null; return `<div class="ach ${got ? 'got' : ''}"><span class="ai">${got ? a.icon : '🔒'}</span><span><b>${a.name}</b><small>${a.desc}${p ? ` · ${Math.min(p[0], p[1])}/${p[1]}` : ''}</small></span></div>`; }).join('');
+  $('achHead').textContent = AR(`الإنجازات · ${done}/${ACH.length} · كوبايات دهب ${PROG.glasses.length}/20`);
+  $('achList').innerHTML = ARH(ACH.map(a => { const got = !!PROG.ach[a.id], p = !got && a.prog ? a.prog() : null; return `<div class="ach ${got ? 'got' : ''}"><span class="ai">${icon(got ? 'trophy' : 'lock')}</span><span><b>${a.name}</b><small>${a.desc}${p ? ` · ${Math.min(p[0], p[1])}/${p[1]}` : ''}</small></span></div>`; }).join(''));
   $('achOv').hidden = false;
 }
-$('achClose').onclick = () => { $('achOv').hidden = true; };
+$('achClose').onclick = () => { $('achOv').hidden = true; resumeIfFree(); };
 // ---- 20 gold tea glasses hidden around the map ----
 const goldMat = new THREE.MeshStandardMaterial({ color: 0xffc83a, metalness: 1, roughness: .22, emissive: 0x6a4500, emissiveIntensity: .55 });
 const goldTea = new THREE.MeshStandardMaterial({ color: 0x8a2a06, emissive: 0x3a1000, emissiveIntensity: .4, roughness: .3 });
 const GLASS_SPOTS = (() => {
   const rnd = mulberry32(2024), out = [];
-  const blockAt = (i, k) => blocksInfo.find(b => Math.abs(b.cx - (X0 + PITCH/2 + i*PITCH)) < 2 && Math.abs(b.cz - (Z0 + PITCH/2 + k*PITCH)) < 2);
-  const picks = [[0,0],[1,3],[2,0],[3,4],[4,1],[5,3],[6,0],[7,1],[7,4],[0,4],[3,1],[5,0],[6,4],[2,3],[4,4],[1,1]];
+  const blockAt = (i, k) => { const [cx, cz] = RELOC(X0 + PITCH/2 + i*PITCH, Z0 + PITCH/2 + k*PITCH); return blocksInfo.find(b => Math.abs(b.cx - cx) < 2 && Math.abs(b.cz - cz) < 2); };
+  const picks = [[0,0],[1,3],[2,0],[3,4],[4,1],[5,3],[6,0],[7,1],[1,4],[0,4],[3,1],[5,0],[2,4],[2,3],[4,3],[1,1]];
   for (const [i, k] of picks){ const b = blockAt(i, k); if (!b) continue; const p = perimPos(b, rnd()*4); out.push([p[0], p[1]]); }
-  out.push([96, 232], [62, 276], [142, 282], [216, -24]);
+  const lmk = k => CITY && CLM[k] ? [CLM[k].x + 8, CLM[k].z - CLM[k].x * 0 - 30] : null;
+  out.push(...[[62, 276], [142, 282], [216, -24]].map(([x, z]) => RELOC(x, z)), ...[lmk('mursi'), lmk('saad'), lmk('soldier')].filter(Boolean));
   return out.slice(0, 20).map(([x, z], id) => { const [fx, fz] = freeSpot(x, z); return { id, x: fx, z: fz }; });
 })();
 const goldGlasses = GLASS_SPOTS.map(s => {
@@ -79,14 +81,14 @@ function updateGlasses(dt, t){
     if (d < (hero.veh ? 3.2 : 1.8)){
       PROG.glasses.push(G.id); saveProg(); G.g.visible = false; const n = PROG.glasses.length;
       const pay = n >= 20 ? 500 : 25; hero.money += pay; coin(); tone(1046, 1568, .35, 'triangle', .16); buzz(40); stat('glassFound'); heroCheer();
-      banner(n >= 20 ? `👑 لقيت الطقم الدهب كله! +${pay} جنيه` : `🏆 كوباية دهب ${n}/20 · +${pay} جنيه`, 'ok', 3);
+      banner(n >= 20 ? `لقيت الطقم الدهب كله! +${pay} جنيه` : `كوباية دهب ${n}/20 · +${pay} جنيه`, 'ok', 3);
     }
   }
 }
 // ---- photo mode ----
 const PHOTO = { on: false, yaw: 0, tilt: .25, dist: 4.2, filter: 'none', pose: 0, last: null };
 const PHOTO_FILTERS = [['none', 'عادي'], ['sepia(.85) contrast(1.05)', 'قديم'], ['grayscale(1) contrast(1.15)', 'أبيض وأسود'], ['saturate(1.5) contrast(1.08)', 'ألوان'], ['sepia(.35) saturate(1.4) hue-rotate(-12deg)', 'دافي']];
-const POSES = ['واقف', 'بوكس 👊', 'بيرقص 💃', 'واقع 😵'];
+const POSES = ['واقف', 'بوكس', 'بيرقص', 'واقع'];
 function openPhoto(){
   if (state !== 'play' || CUT.on || ST.kind || RHY.on) return;
   PHOTO.on = true; PHOTO.yaw = camYaw; PHOTO.tilt = .25; PHOTO.dist = 4.2; PHOTO.pose = 0;
@@ -94,8 +96,8 @@ function openPhoto(){
 }
 function closePhoto(){ PHOTO.on = false; document.body.classList.remove('photo'); $('photoUi').hidden = true; $('photoShot').hidden = true; canvas.style.filter = ''; hero.d.downT = 0; CAM.orbit = CAM.orbitSm = camYaw; }
 function renderPhotoUi(){
-  $('phFilter').textContent = '🎨 ' + PHOTO_FILTERS.find(f => f[0] === PHOTO.filter)[1];
-  $('phPose').textContent = '🕺 ' + POSES[PHOTO.pose];
+  $('phFilter').textContent = PHOTO_FILTERS.find(f => f[0] === PHOTO.filter)[1];
+  $('phPose').textContent = POSES[PHOTO.pose];
   canvas.style.filter = PHOTO.filter === 'none' ? '' : PHOTO.filter;
 }
 $('phFilter').onclick = () => { const i = PHOTO_FILTERS.findIndex(f => f[0] === PHOTO.filter); PHOTO.filter = PHOTO_FILTERS[(i + 1) % PHOTO_FILTERS.length][0]; renderPhotoUi(); };
@@ -132,14 +134,14 @@ function takePhoto(){
   const W = canvas.width, H = canvas.height, out = document.createElement('canvas'); out.width = W; out.height = H; const g = out.getContext('2d');
   if (PHOTO.filter !== 'none') g.filter = PHOTO.filter; g.drawImage(canvas, 0, 0); g.filter = 'none';
   const s = H / 720; g.fillStyle = 'rgba(0,0,0,.45)'; g.fillRect(0, H - 64*s, W, 64*s);
-  g.font = `900 ${34*s}px Cairo, sans-serif`; g.fillStyle = '#ffc94a'; g.textAlign = 'right'; g.textBaseline = 'middle'; g.direction = 'rtl'; g.fillText('طيارة الجامد 👑', W - 22*s, H - 32*s);
+  g.font = `900 ${34*s}px Cairo, sans-serif`; g.fillStyle = '#ffc94a'; g.textAlign = 'right'; g.textBaseline = 'middle'; g.direction = 'ltr'; g.fillText('Grand Thieves Alexandria', W - 22*s, H - 32*s);
   g.font = `700 ${20*s}px Cairo, sans-serif`; g.fillStyle = '#f6efe2'; g.textAlign = 'left'; g.direction = 'ltr'; g.fillText(`${DISTRICT_NAMES[districtAt(hero.pos.x, hero.pos.z)] || ''} · ${clockText()}`, 22*s, H - 32*s);
   PHOTO.last = out.toDataURL('image/jpeg', .9);
   $('photoImg').src = PHOTO.last; $('photoShot').hidden = false;
   noise(.08, 4000, .4); flash(); stat('photos');
 }
 $('phSave').onclick = () => { const a = document.createElement('a'); a.href = PHOTO.last; a.download = `tayara-${Date.now()}.jpg`; document.body.appendChild(a); a.click(); a.remove(); };
-$('phShare').onclick = async () => { try { const blob = await (await fetch(PHOTO.last)).blob(); const file = new File([blob], 'tayara.jpg', { type: 'image/jpeg' }); if (navigator.canShare && navigator.canShare({ files: [file] })) await navigator.share({ files: [file], title: 'طيارة الجامد' }); else $('phSave').onclick(); } catch(e){} };
+$('phShare').onclick = async () => { try { const blob = await (await fetch(PHOTO.last)).blob(); const file = new File([blob], 'tayara.jpg', { type: 'image/jpeg' }); if (navigator.canShare && navigator.canShare({ files: [file] })) await navigator.share({ files: [file], title: 'Grand Thieves Alexandria' }); else $('phSave').onclick(); } catch(e){} };
 $('phBack').onclick = () => { $('photoShot').hidden = true; };
 $('phShare').hidden = !navigator.share;
 // ---- per-frame ----

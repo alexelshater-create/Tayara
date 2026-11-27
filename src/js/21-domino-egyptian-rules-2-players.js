@@ -26,9 +26,14 @@ const isMe = s => s === 0;
 const NS = () => DOM.seats.length;
 const hand = s => DOM.hands[s];
 const teamName = tm => DOM.mode === '1v1' ? (tm === 0 ? heroName : 'الحاج كامل') : (tm === 0 ? 'إحنا' : 'هما');
+// a match belongs to where it was started: a half-played game from the Games menu must not continue inside a story mission (with a bet)
+const domCtx = () => modeId + (modeId === 'story' ? ':' + SAVE.m : '');
+// the story's first domino game goes to 101, not 250 (a full match took 10–20 minutes in chapter one)
+const domTarget = () => modeId === 'story' ? 101 : 250;
 function openDomino(){
+  if (!DOM.matchOver && DOM.ctx !== domCtx()){ DOM.matchOver = true; DOM.over = true; clearTimeout(DOM.aiTimer); }
   hero.locked = true; $('domino').hidden = false; document.body.classList.add('in-domino');
-  if (DOM.matchOver){ $('dPick').hidden = false; $('dGame').hidden = true; renderDomOpts(); $('dScore').textContent = modeObj.domBet ? `الرهان ${Math.min(modeObj.domBet, Math.floor(hero.money))} جنيه` : ''; }
+  if (DOM.matchOver){ $('dPick').hidden = false; $('dGame').hidden = true; renderDomOpts(); $('dScore').textContent = modeObj.domBet ? `الرهان ${Math.min(modeObj.domBet, Math.floor(hero.money))} جنيه` : ''; $('dScore').textContent = AR($('dScore').textContent); }
   else { $('dPick').hidden = true; $('dGame').hidden = false; renderDomino(); if (!DOM.over && !isMe(DOM.turn)) scheduleAI(); }
 }
 function closeDomino(){ $('domino').hidden = true; hero.locked = false; document.body.classList.remove('in-domino'); clearTimeout(DOM.aiTimer); }
@@ -37,13 +42,14 @@ document.querySelectorAll('[data-dm]').forEach(b => b.onclick = () => newDominoM
 $('dAgain').onclick = () => { if (DOM.matchOver){ $('dPick').hidden = false; $('dGame').hidden = true; renderDomOpts(); } else newDominoRound(); };
 // match options: how good the others play, and the fun cheating mode
 function renderDomOpts(){
+  document.querySelectorAll('.dmode span').forEach(s => { s.textContent = s.textContent.replace(/لـ [٠-٩0-9]+$/, 'لـ ' + AR(domTarget())); });
   document.querySelectorAll('[data-dd]').forEach(b => b.classList.toggle('on', b.dataset.dd === DOM.diff));
-  $('dCheatMode').classList.toggle('on', DOM.cheat); $('dCheatMode').textContent = DOM.cheat ? '😈 الغش شغال (للهزار)' : '😇 من غير غش';
+  $('dCheatMode').classList.toggle('on', DOM.cheat); $('dCheatMode').textContent = DOM.cheat ? 'الغش شغال (للهزار)' : 'من غير غش';
 }
 document.querySelectorAll('[data-dd]').forEach(b => b.onclick = () => { DOM.diff = b.dataset.dd; store.set('ty_dom_diff', DOM.diff); renderDomOpts(); });
 $('dCheatMode').onclick = () => { DOM.cheat = !DOM.cheat; store.set('ty_dom_cheat', DOM.cheat ? '1' : '0'); renderDomOpts(); };
 function newDominoMatch(mode){
-  DOM.mode = mode; DOM.score = [0,0]; DOM.matchOver = false; DOM.lastWinner = null; DOM.target = 250;
+  DOM.mode = mode; DOM.ctx = domCtx(); DOM.score = [0,0]; DOM.matchOver = false; DOM.lastWinner = null; DOM.target = domTarget();
   DOM.seats = mode === '1v1'
     ? [{ name: heroName, face: CH.hero.img.face }, { name: 'الحاج كامل', face: null }]
     : [{ name: heroName, face: CH.hero.img.face }, { name: 'شمس', face: CH.wanted.img.face }, { name: 'إسلام', face: CH.islam.img.face }, { name: 'العربي', face: CH.enemy.img.face }];
@@ -74,7 +80,7 @@ function newDominoRound(){
     let st = null;
     for (let dd=6; dd>=0 && !st; dd--) for (let s=0; s<NS() && !st; s++) if (hand(s).some(t => t[0]===dd && t[1]===dd)) st = { s, t: [dd,dd] };
     if (!st){ let best = null; for (let s=0;s<NS();s++) for (const t of hand(s)) if (!best || t[0]+t[1] > best.t[0]+best.t[1]) best = { s, t }; st = best; }
-    who = st.s; DOM.mustStart = st.t; msg = isMe(who) ? `معاك ${tName(st.t)}… ابدأ بيه 👇` : `${DOM.seats[who].name} معاه ${tName(st.t)}… هو اللي هيبدأ`;
+    who = st.s; DOM.mustStart = st.t; msg = isMe(who) ? `معاك ${tName(st.t)}… ابدأ بيه` : `${DOM.seats[who].name} معاه ${tName(st.t)}… هو اللي هيبدأ`;
   }
   if (d.redeals) msg = `اتفرّقت تاني ${d.redeals === 1 ? '' : d.redeals + ' مرات '}(حد كان معاه ٥ دبش أو ٦ من باب) · ` + msg;
   DOM.turn = who; dMsg(msg); renderDomino(); if (!isMe(who)) scheduleAI(1400);
@@ -90,7 +96,7 @@ function unplace(side, prev){ if (side === 'L'){ DOM.board.shift(); DOM.start--;
 // blocked when every tile with either end number is already on the table (visible to everyone)
 const endsBlocked = (L, R, board) => ALL_TILES.filter(t => touches(t, L) || touches(t, R)).every(t => board.some(b => sameT(b, t)));
 function isBlocked(){ return DOM.board.length > 0 && endsBlocked(DOM.L, DOM.R, DOM.board); }
-function dMsg(t){ $('dMsg').textContent = t; }
+function dMsg(t){ $('dMsg').textContent = AR(t); }
 function nextTurn(){ DOM.turn = (DOM.turn + 1) % NS(); DOM.sel = null; DOM.selCheat = false; renderDomino(); if (!isMe(DOM.turn) && !DOM.over) scheduleAI(); }
 // a person thinks a bit longer when there is more to choose from
 function scheduleAI(ms){
@@ -107,13 +113,13 @@ function babText(h){
 // ---------- rendering ----------
 function renderDomino(){
   const [a, b] = DOM.score;
-  $('dScore').textContent = `${teamName(0)} ${a} — ${b} ${teamName(1)} · لـ ${DOM.target}${modeObj.domBet ? ' · الرهان ' + Math.min(modeObj.domBet, Math.floor(hero.money)) + ' ج' : ''}`;
+  $('dScore').textContent = `${teamName(0)} ${a} — ${b} ${teamName(1)} · لـ ${DOM.target}${modeObj.domBet ? ' · الرهان ' + Math.min(modeObj.domBet, Math.floor(hero.money)) + ' ج' : ''}`; $('dScore').textContent = AR($('dScore').textContent);
   for (const s of [1,2,3]){
     const el = $('seat' + s); const seat = DOM.mode === '1v1' ? (s === 2 ? 1 : null) : s;
     if (seat === null || !DOM.seats[seat]){ el.hidden = true; continue; }
     el.hidden = false; const p = DOM.seats[seat];
     el.className = `seat ${s === 2 ? 'top' : s === 1 ? 'left' : 'right'} ${teamOf(seat) === 0 ? 'mate' : 'opp'} ${DOM.turn === seat && !DOM.over ? 'active' : ''}`;
-    el.innerHTML = `${p.face ? `<img src="${p.face}" alt="">` : '<span class="noface">👴</span>'}<span class="sn">${p.name}${teamOf(seat) === 0 && seat !== 0 ? ' 🤝' : ''}</span><span class="sc">🂠 ${hand(seat).length}</span>${DOM.over ? `<span class="reveal">${hand(seat).map(t => tileHTML(t, 'mini')).join('')}</span>` : ''}`;
+    el.innerHTML = `${p.face ? `<img src="${p.face}" alt="">` : '<span class="noface"></span>'}<span class="sn">${p.name}${teamOf(seat) === 0 && seat !== 0 ? ' (معاك)' : ''}</span><span class="sc">${hand(seat).length}</span>${DOM.over ? `<span class="reveal">${hand(seat).map(t => tileHTML(t, 'mini')).join('')}</span>` : ''}`;
   }
   drawBoard();
   const myTurn = isMe(DOM.turn) && !DOM.over;
@@ -126,7 +132,7 @@ function renderDomino(){
   $('dBab').innerHTML = babText(hand(0));
   const showSides = DOM.sel !== null;
   $('dLeft').hidden = $('dRight').hidden = !showSides; $('dCancel').hidden = !showSides;
-  if (showSides){ $('dLeft').textContent = `⬅️ على الـ ${NUMN[DOM.L]}`; $('dRight').textContent = `على الـ ${NUMN[DOM.R]} ➡️`; }
+  if (showSides){ $('dLeft').textContent = `على الـ ${NUMN[DOM.L]}`; $('dRight').textContent = `على الـ ${NUMN[DOM.R]}`; }
   $('dAgain').hidden = !DOM.over; $('dAgain').textContent = DOM.matchOver ? 'ماتش جديد' : 'دور جديد';
 }
 // board drawn on a canvas as a real snake: it turns at the edges, doubles lie crosswise
@@ -205,7 +211,7 @@ function playerPick(i){
   if (!fits(t)){
     if (!DOM.board.length){ dMsg(`لازم تبدأ بـ ${tName(DOM.mustStart)}`); return renderDomino(); }
     if (!DOM.cheat){ dMsg(`${tName(t)} مش راكب على الـ${NUMN[DOM.L]} ولا الـ${NUMN[DOM.R]}`); return renderDomino(); }
-    DOM.sel = i; DOM.selCheat = true; dMsg(`${tName(t)} مش راكب… لو نزلته يبقى غش 😈`); return renderDomino();
+    DOM.sel = i; DOM.selCheat = true; dMsg(`${tName(t)} مش راكب… لو نزلته يبقى غش`); return renderDomino();
   }
   if (!DOM.board.length) return commitPlayer(i, 'R');
   const l = touches(t, DOM.L), r = touches(t, DOM.R);
@@ -222,8 +228,8 @@ function commitPlayer(i, side, cheat=false){
   if (first) DOM.endBy = { L: 0, R: 0 }; else DOM.endBy[s] = 0;
   tileClack(); buzz(10);
   if (cheat){
-    if (Math.random() < .6){ unplace(s, prev); hand(0).splice(i, 0, t); DOM.score[1] += 50; tone(300,150,.4,'sawtooth',.1); buzz(60); dMsg(`🚨 اتمسكت بتغش! +٥٠ لـ ${teamName(1)}`); speak('بتغش؟'); renderDomino(); checkMatch(); return; }
-    dMsg(`نزّلت ${tName(t)} غش… محدش خد باله 🤫`);
+    if (Math.random() < .6){ unplace(s, prev); hand(0).splice(i, 0, t); DOM.score[1] += 50; tone(300,150,.4,'sawtooth',.1); buzz(60); dMsg(`اتمسكت بتغش! +٥٠ لـ ${teamName(1)}`); speak('بتغش؟'); renderDomino(); checkMatch(); return; }
+    dMsg(`نزّلت ${tName(t)} غش… محدش خد باله`);
   } else dMsg(`نزّلت ${tName(t)}`);
   afterPlay(0);
 }
@@ -231,7 +237,7 @@ $('dDraw').onclick = () => {
   if (!isMe(DOM.turn) || !DOM.bone.length) return;
   DOM.weak[0] = [...new Set([...DOM.weak[0], DOM.L, DOM.R])];
   const t = DOM.bone.pop(); hand(0).push(t); hand(0).sort((a,b) => (b[0]+b[1]) - (a[0]+a[1]));
-  dMsg(fits(t) ? `سحبت ${tName(t)}… ينفع ينزل ✔️` : `سحبت ${tName(t)}… اسحب تاني`); tone(500,600,.05,'triangle',.08); renderDomino();
+  dMsg(fits(t) ? `سحبت ${tName(t)}… ينفع ينزل ✓` : `سحبت ${tName(t)}… اسحب تاني`); tone(500,600,.05,'triangle',.08); renderDomino();
 };
 $('dPass').onclick = () => {
   if (!isMe(DOM.turn) || DOM.over) return;
@@ -239,8 +245,8 @@ $('dPass').onclick = () => {
   if (!canPlay && DOM.bone.length && DOM.mode === '1v1') return dMsg('اسحب من الكومة الأول');
   if (canPlay){
     if (!DOM.cheat) return dMsg('معاك حجر بيركب… مينفعش تفوّت');
-    if (Math.random() < .5){ DOM.score[1] += 50; buzz(60); dMsg(`🚨 فوّت وانت معاك؟! اتمسكت… +٥٠ لـ ${teamName(1)}`); renderDomino(); if (checkMatch()) return; }
-    else dMsg('فوّت وانت معاك… محدش خد باله 🤫');
+    if (Math.random() < .5){ DOM.score[1] += 50; buzz(60); dMsg(`فوّت وانت معاك؟! اتمسكت… +٥٠ لـ ${teamName(1)}`); renderDomino(); if (checkMatch()) return; }
+    else dMsg('فوّت وانت معاك… محدش خد باله');
   } else { dMsg('فوّت'); DOM.weak[0] = [...new Set([...DOM.weak[0], DOM.L, DOM.R])]; }
   DOM.cheats = []; nextTurn();
 };
@@ -250,8 +256,8 @@ $('dCheat').onclick = () => {
   if (c){
     DOM.score[0] += 50; coin();
     if (c.type === 'tile'){ const endT = c.side === 'L' ? DOM.board[0] : DOM.board[DOM.board.length-1]; if (endT && sameT(endT, c.t)){ unplace(c.side, c.prev); hand(c.seat).push(c.t); } }
-    dMsg(`🚨 مسكت ${DOM.seats[c.seat].name} بيغش! +٥٠ لـ ${teamName(0)}`); speak('خلاص خلاص… مسكتني');
-  } else dMsg('ظلمتهم… محدش كان بيغش 😅');
+    dMsg(`مسكت ${DOM.seats[c.seat].name} بيغش! +٥٠ لـ ${teamName(0)}`); speak('خلاص خلاص… مسكتني');
+  } else dMsg('ظلمتهم… محدش كان بيغش');
   DOM.cheats = DOM.cheats.filter(x => x !== c); renderDomino(); checkMatch();
 };
 
@@ -316,7 +322,7 @@ function aiEval(seat, o, cfg, pool){
   }
   return sc + (Math.random() * 2 - 1) * cfg.noise * 3;
 }
-const TALK = ['اتلمّ يا ' + heroName, 'دي لعبتي من زمان', 'ركّز يا ابني', 'هتعمل إيه دلوقتي؟', 'شوف دي بقى', 'ماشي ماشي', 'العب يا عم', 'الحجر ده كان مستنيك'];
+const TALK = ['اتلمّ يا ' + heroName, 'دي لعبتي من زمان', 'ركّز يا ابني', 'هتعمل إيه دلوقتي؟', 'شوف دي بقى', 'ماشي ماشي', 'العب يا عم', 'خد بالك من دي'];
 function aiTurn(){
   if (DOM.over || isMe(DOM.turn) || $('domino').hidden) return;
   const seat = DOM.turn, p = DOM.seats[seat], opp = teamOf(seat) === 1, cfg = DOM_AI[DOM.diff];
@@ -334,7 +340,7 @@ function aiTurn(){
   if (first) DOM.endBy = { L: seat, R: seat }; else DOM.endBy[o.side] = seat;
   tileClack();
   const blocked = isBlocked();
-  dMsg(`${drew ? `${p.name} سحب ${drew} ونزل ` : `${p.name} نزل `}${tName(o.t)}${blocked ? ' وقال «قفلة!» 🔒' : ''}${!blocked && hand(seat).length && Math.random() < .22 ? ' · «' + rpick(TALK) + '»' : ''}`);
+  dMsg(`${drew ? `${p.name} سحب ${drew} ونزل ` : `${p.name} نزل `}${tName(o.t)}${blocked ? ' وقال «قفلة!»' : ''}${!blocked && hand(seat).length && Math.random() < .22 ? ' · «' + rpick(TALK) + '»' : ''}`);
   if (Math.random() < .5) speak(blocked ? 'قفلة' : tName(o.t));
   afterPlay(seat);
 }
@@ -346,14 +352,14 @@ function endRound(res){
   let txt = '';
   if (res.type === 'out'){
     const tm = teamOf(res.seat), raw = teamPips(1 - tm), pts = round10(raw); DOM.score[tm] += pts; DOM.lastWinner = res.seat;
-    txt = `${DOM.seats[res.seat].name} خلّص حجارته 🎉 ${raw} نقطة ← +${pts} لـ ${teamName(tm)}`;
+    txt = `${DOM.seats[res.seat].name} خلّص حجارته ${raw} نقطة ← +${pts} لـ ${teamName(tm)}`;
   } else {
     const a = teamPips(0), b = teamPips(1);
     if (a !== b){
       const w = a < b ? 0 : 1, pts = round10(w === 0 ? b : a); DOM.score[w] += pts; DOM.lastWinner = lowestSeat(w);
-      txt = `قفلة 🔒 ${teamName(0)} ${a} و${teamName(1)} ${b}… +${pts} لـ ${teamName(w)}`;
+      txt = `قفلة ${teamName(0)} ${a} و${teamName(1)} ${b}… +${pts} لـ ${teamName(w)}`;
       if (w === 0 && isMe(res.seat)) stat('qafla');
-    } else { DOM.lastWinner = null; txt = `قفلة 🔒 متعادلين (${a})… محدش ياخد حاجة، والدش يبدأ`; }
+    } else { DOM.lastWinner = null; txt = `قفلة متعادلين (${a})… محدش ياخد حاجة، والدش يبدأ`; }
   }
   const sab = sab3een(); if (sab) txt += ' · ' + sab;
   if (!checkMatch(txt)) dMsg(txt);
@@ -372,7 +378,7 @@ function checkMatch(prefix=''){
   DOM.over = true; DOM.matchOver = true; clearTimeout(DOM.aiTimer); const w = a >= b;
   if (w){ stat('domWin'); if (DOM.mode === '2v2') stat('domWin2'); }
   let betTxt = ''; if (modeObj.onDomino){ const bt = modeObj.onDomino(w); if (bt) betTxt = w ? ` · +${bt} جنيه` : ` · -${bt} جنيه`; }
-  dMsg(`${prefix ? prefix + ' — ' : ''}${w ? `🏆 كسبتوا الماتش ${a}–${b}!` : `${teamName(1)} كسب الماتش ${b}–${a} 😅`}${betTxt}`.replace('كسبتوا', DOM.mode === '1v1' ? 'كسبت' : 'كسبتوا'));
+  dMsg(`${prefix ? prefix + ' — ' : ''}${w ? `كسبتوا الماتش ${a}–${b}!` : `${teamName(1)} كسب الماتش ${b}–${a}`}${betTxt}`.replace('كسبتوا', DOM.mode === '1v1' ? 'كسبت' : 'كسبتوا'));
   if (w) coin(); speak(w ? 'ماشي… كسبتوا المرة دي' : 'اتعلم يا ابني');
   renderDomino(); return true;
 }

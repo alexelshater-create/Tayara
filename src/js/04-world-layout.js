@@ -1,18 +1,25 @@
 // ================= world layout =================
-// The map is a grid of 48 m blocks: 8 across (x) and 5 down (z).
+// Stage 14: the old map is now only «الحتة» (4 columns × 5 rows of 48 m blocks, the corniche row included), set in
+// Anfoushi inside the real city (03c-city.js). The market / restaurants / stadium / workshops columns and the made-up
+// fort and bridge are gone: their story places are in real Alexandria now (CITY.anchors).
+// Old note: the map was a grid of 48 m blocks: 8 across (x) and 5 down (z).
 // Columns 0-3 / rows 0-3 are «الحتة», columns 4-5 the market (north) and restaurants (south),
 // columns 6-7 the stadium area (north) and workshops (south). Row 4 is the corniche on the sea (Alexandria, بحري);
 // a bridge runs out over the water to the fort (FAR, see 04b-alexandria.js).
-const PITCH = 48, NXB = 8, NZB = 5, X0 = -96, Z0 = -96;
+const PITCH = 48, NXB = 4, NZB = 5, X0 = -96, Z0 = -96;
 const ROADS_X = [...Array(NXB+1)].map((_,i) => X0 + i*PITCH);   // north-south roads: -96 … 288
 const ROADS_Z = [...Array(NZB+1)].map((_,k) => Z0 + k*PITCH);   // east-west roads:  -96 … 144
 const XMAX = ROADS_X[NXB], ZMAX = ROADS_Z[NZB];
 const N = 4, HALF = 96, ROADS = ROADS_X.slice(0, 5);             // legacy names used by the old cash mode
 const BW = PITCH - 12, LIMIT = HALF + 5.5;
 const NILE_Z = ZMAX + 10;                                        // the river bank (promenade railing)
-const BRIDGE = { x: 96, z1: 262, w: 13 };
-const FAR = { x0: 50, x1: 142, z0: 258, z1: 312 };   // the fort's spit of land
-const PIER = { x0: 269, x1: 275, z0: NILE_Z - 1, z1: 192 };   // the harbour pier (04b)
+// the old bridge and fort are gone (the real Qaitbay is in the city): kept as empty shapes so old checks stay false
+const BRIDGE = { x: 1e6, z1: NILE_Z, w: 0 };
+const FAR = { x0: 1e6, x1: 1e6, z0: 1e6, z1: 1e6 };
+const PIER = { x0: -67, x1: -61, z0: NILE_Z - 1, z1: 192 };   // the harbour pier: from the «حتة» corniche's port into Anfoushi bay (04b)
+// two public stairs from the corniche down into the sea (walk down them to swim); the railing, the sea wall and the rocks have a gap there
+const SEA_STAIRS = [30].map(x => ({ x, z0: NILE_Z - .5, z1: NILE_Z + 5.2, y0: .15, y1: -2.35, hw: 1.5 }));
+const nearSeaStairs = (x, r) => SEA_STAIRS.some(s => Math.abs(x - s.x) < r);
 function inWorld(x, z){
   if (x > X0 - 5.5 && x < XMAX + 5.5 && z > Z0 - 5.5 && z < NILE_Z - .4) return true;
   if (Math.abs(x - BRIDGE.x) < BRIDGE.w/2 - .6 && z >= NILE_Z - 1 && z <= BRIDGE.z1 + 1) return true;
@@ -43,22 +50,25 @@ const STOPS = [
   { id: 'works', name: 'منطقة الورش', pos: new THREE.Vector3(248, .15, 88.4) },
   { id: 'corniche', name: 'الكورنيش', pos: new THREE.Vector3(170, .15, 151.6) },
 ];
+for (const k in SPOT) relocV(SPOT[k]); for (const s of STOPS) relocV(s.pos);   // stage 14: the moved places' spots
 const TABLES = [[12,26.5],[17,26.5],[22,26.5],[12,32],[17,32],[22,32]];
 const SEATS = TABLES.flatMap(([x,z],ti) => [{x:x-.85,z,ry:Math.PI/2,ti},{x:x+.85,z,ry:-Math.PI/2,ti}]);
 
 // ground, asphalt and the river
 const groundMat = new THREE.MeshStandardMaterial({ map: grassTex, roughness: 1 });
-{ const g = new THREE.Mesh(new THREE.PlaneGeometry(1600, 900), groundMat); g.rotation.x = -Math.PI/2; g.position.set(96, -.02, NILE_Z - 450); g.receiveShadow = true; scene.add(g);
+{ const g = new THREE.Mesh(new THREE.PlaneGeometry(212, 262), groundMat); g.rotation.x = -Math.PI/2; g.position.set(0, -.02, 25); g.receiveShadow = true; scene.add(g);
 }
 asphaltTex.repeat.set((XMAX - X0 + 14)/10, (ZMAX - Z0 + 14)/10);
 const asphalt = new THREE.Mesh(new THREE.PlaneGeometry(XMAX - X0 + 14, ZMAX - Z0 + 13), new THREE.MeshStandardMaterial({ map: asphaltTex, roughness: .93, envMapIntensity: .3 }));
 asphalt.rotation.x = -Math.PI/2; asphalt.position.set((X0 + XMAX)/2, 0, (Z0 + ZMAX)/2 + .5); asphalt.receiveShadow = true; scene.add(asphalt);
 const waterTex = makeTex(256,256,(g,w,h)=>{ g.fillStyle='#1f6f8b'; g.fillRect(0,0,w,h); for (let i=0;i<1400;i++){ g.strokeStyle=`rgba(${180+Math.random()*60|0},${210+Math.random()*40|0},230,${.05+Math.random()*.12})`; g.lineWidth=1+Math.random()*2; const x=Math.random()*w, y=Math.random()*h; g.beginPath(); g.moveTo(x,y); g.quadraticCurveTo(x+8,y-3,x+16+Math.random()*14,y); g.stroke(); } }, [60, 12]);
-const water = new THREE.Mesh(new THREE.PlaneGeometry(2600, 1700), new THREE.MeshStandardMaterial({ map: waterTex, color: 0x8fd0e0, roughness: .1, metalness: .3, envMapIntensity: 1.3 }));
-waterTex.repeat.set(2600/14, 1700/14);
-water.rotation.x = -Math.PI/2; water.position.set(96, -1.1, NILE_Z + 850); water.receiveShadow = true; scene.add(water);
+const water = new THREE.Mesh(new THREE.PlaneGeometry(14000, 12000), new THREE.MeshStandardMaterial({ map: waterTex, color: 0x8fd0e0, roughness: .1, metalness: .3, envMapIntensity: 1.3 }));
+waterTex.repeat.set(14000/14, 12000/14);
+water.rotation.x = -Math.PI/2; water.position.set(-1700, -1.1, 300); water.receiveShadow = true; scene.add(water);
 { const bankMat = new THREE.MeshStandardMaterial({ color: 0x8f8573, roughness: .95 });
-  for (const z of [NILE_Z + .2]){ const wall = new THREE.Mesh(new THREE.BoxGeometry(1600, 1.4, .6), bankMat); wall.position.set(96, -.55, z); scene.add(wall); } }
+  // the sea wall, cut where the stairs go down
+  const cuts = [-102, ...SEA_STAIRS.flatMap(s => [s.x - 1.8, s.x + 1.8]), 102];
+  for (let i = 0; i < cuts.length; i += 2){ const a = cuts[i], b = cuts[i + 1], wall = new THREE.Mesh(new THREE.BoxGeometry(b - a, 1.4, .6), bankMat); wall.position.set((a + b) / 2, -.55, NILE_Z + .2); scene.add(wall); } }
 
 const obstacles = [], buildings = [], blocksInfo = [];
 const treeList = [], lampList = [], whiteMarks = [], yellowMarks = [], parkedSpots = [];
@@ -71,8 +81,53 @@ function instanced(geo, mat, list, cast=true, fn){
   list.forEach((t,i)=>{ const tr = fn ? fn(t) : t; _e.set(tr.rx||0, tr.ry||0, 0); _q.setFromEuler(_e); _m.compose(_v.set(tr.x, tr.y||0, tr.z), _q, _s.set(tr.sx??1, tr.sy??1, tr.sz??1)); im.setMatrixAt(i, _m); });
   im.castShadow = cast; im.receiveShadow = true; scene.add(im); return im;
 }
-const slabMats = (() => { const side = new THREE.MeshStandardMaterial({ map: curbTex, roughness: .8 }); const top = new THREE.MeshStandardMaterial({ map: paveTex, roughness: .95, envMapIntensity: .3 }); return [side, side, top, top, side, side]; })();
-const slabGeo = new THREE.BoxGeometry(BW, .15, BW);
+// One InstancedMesh that covers the whole city is drawn in full every frame (and again for the sun's shadow),
+// because its bounds are the whole city. chunkInstances() cuts each big one into squares of CHUNK m, so only the
+// squares in front of the camera (and inside the shadow box) are drawn, and small things (benches, tyres, road
+// marks, signs) stop being drawn once they are too far to see. Meshes that other code changes later (count,
+// visibility) are marked keep and left whole.
+const CHUNK = 64, CHUNKS = [];
+function keepWhole(im){ if (im) im.userData.keepWhole = true; return im; }
+function chunkInstances(){
+  const m4 = new THREE.Matrix4(), p = new THREE.Vector3(), q = new THREE.Quaternion(), s = new THREE.Vector3(), c = new THREE.Color();
+  for (const im of scene.children.filter(o => o.isInstancedMesh && !o.userData.keepWhole && o.count >= 12)){
+    if (!im.geometry.boundingSphere) im.geometry.computeBoundingSphere();
+    const gr = im.geometry.boundingSphere.radius, cells = new Map();
+    for (let i = 0; i < im.count; i++){ im.getMatrixAt(i, m4); p.setFromMatrixPosition(m4); const k = Math.floor(p.x / CHUNK) + ',' + Math.floor(p.z / CHUNK); if (!cells.has(k)) cells.set(k, []); cells.get(k).push(i); }
+    for (const idx of cells.values()){
+      const ch = cells.size < 2 ? im : new THREE.InstancedMesh(im.geometry, im.material, idx.length);
+      let size = 0;
+      idx.forEach((i, j) => { im.getMatrixAt(i, m4); m4.decompose(p, q, s); size = Math.max(size, gr * Math.max(s.x, s.y, s.z)); if (ch === im) return; ch.setMatrixAt(j, m4); if (im.instanceColor){ im.getColorAt(i, c); ch.setColorAt(j, c); } });
+      if (ch !== im){ ch.castShadow = im.castShadow; ch.receiveShadow = im.receiveShadow; ch.renderOrder = im.renderOrder; ch.visible = im.visible; scene.add(ch); }
+      ch.computeBoundingSphere();
+      const far = size < 1.3 ? 90 : size < 4 ? 160 : 0;      // far enough that the fog hides the pop; 0 = only the camera's own far plane
+      if (far) CHUNKS.push({ im: ch, x: ch.boundingSphere.center.x, z: ch.boundingSphere.center.z, r: ch.boundingSphere.radius, far });
+    }
+    if (cells.size >= 2){ scene.remove(im); im.dispose(); }
+  }
+}
+// called every few frames from the main loop: hide the far chunks of small things
+// parked and passing cars further than FAR_CARS aren't drawn (a car that far is a few pixels). Only what this
+// hid is shown again, so a car the story hides stays hidden.
+const FAR_CULL = [], FAR_CARS = GFX === 'low' ? 90 : 130;
+let chunkTick = 0;
+function cullChunks(cx, cz, now){
+  if (!now && ++chunkTick % 6) return;
+  for (const k of CHUNKS){ const d = Math.hypot(k.x - cx, k.z - cz) - k.r; k.im.visible = d < k.far; }
+  for (const c of FAR_CULL){
+    const o = c.mesh, near = (c.v && hero.veh === c.v) || Math.hypot(o.position.x - cx, o.position.z - cz) < FAR_CARS;
+    if (!near && o.visible){ o.visible = false; o.userData.farHidden = true; } else if (near && o.userData.farHidden){ o.visible = true; o.userData.farHidden = false; }
+  }
+}
+const slabMats = (() => { const side = new THREE.MeshStandardMaterial({ map: curbTex, roughness: .8 }); const top = new THREE.MeshStandardMaterial({ map: paveTex, roughness: .95, envMapIntensity: .3 }); return [side, top]; })();
+// a box with 6 face groups is drawn 6 times; with the 4 sides together and only the top kept (the bottom is never
+// seen) it is drawn twice: material 0 = sides, material 1 = top
+function sidesAndTop(geo){
+  const ix = geo.index.array, sides = [], top = [];
+  for (let f = 0; f < 6; f++){ const part = Array.from(ix.slice(f*6, f*6+6)); if (f === 2) top.push(...part); else if (f !== 3) sides.push(...part); }
+  geo.setIndex(sides.concat(top)); geo.clearGroups(); geo.addGroup(0, sides.length, 0); geo.addGroup(sides.length, top.length, 1); return geo;
+}
+const slabGeo = sidesAndTop(new THREE.BoxGeometry(BW, .15, BW));
 
 // ---- merged-geometry helper with vertex colors ----
 const _col = new THREE.Color();
@@ -81,6 +136,7 @@ function box(list, w,h,d, x,y,z, color, ry=0){ const g = new THREE.BoxGeometry(w
 function cyl(list, rt,rb,h, x,y,z, color, rx=0, seg=12){ const g = new THREE.CylinderGeometry(rt,rb,h,seg); if (rx) g.rotateX(rx); g.translate(x,y,z); list.push(colored(g,color)); }
 
 const BAND_H = 3.6, BASE = .15 + BAND_H;
+const roofBits = [];   // water tanks and boxes on the roofs: solid (pushed into obstacles in 19w)
 function addBuilding(cx, cz, w, d, floors, styleIdx, opts={}){
   const S = FSTY[styleIdx], h = floors*3.2;
   const grp = new THREE.Group(); grp.position.set(cx, 0, cz); scene.add(grp);
@@ -89,7 +145,8 @@ function addBuilding(cx, cz, w, d, floors, styleIdx, opts={}){
   for (let i=0;i<24;i++){ let a=1,b=1; if (i<8){ a=d/16; b=h/12.8; } else if (i<16){ a=w/10; b=d/10; } else { a=w/16; b=h/12.8; } uv.setXY(i, uv.getX(i)*a, uv.getY(i)*b); }
   const fm = new THREE.MeshStandardMaterial({ map: facadeTex[styleIdx], roughness: .9, envMapIntensity: .3 });
   const rm = new THREE.MeshStandardMaterial({ map: roofTex, roughness: .95, envMapIntensity: .25 });
-  const main = new THREE.Mesh(geo, [fm,fm,rm,rm,fm,fm]); main.position.y = BASE + h/2; main.castShadow = main.receiveShadow = true; grp.add(main);
+  sidesAndTop(geo);   // walls + roof: 2 draws instead of 6
+  const main = new THREE.Mesh(geo, [fm,rm]); main.position.y = BASE + h/2; main.castShadow = main.receiveShadow = true; grp.add(main);
   // shop band
   const bgeo = new THREE.BoxGeometry(w+.14, BAND_H, d+.14); const buv = bgeo.attributes.uv; const off = Math.floor(rng()*3)/3;
   for (let i=0;i<24;i++){ let a=1; if (i<8) a=d/12; else if (i<16) a=0; else a=w/12; buv.setXY(i, buv.getX(i)*a + off, buv.getY(i)); }
@@ -116,16 +173,16 @@ function addBuilding(cx, cz, w, d, floors, styleIdx, opts={}){
   }
   for (const fx of [1,-1]) for (let f=1; f<floors; f++) if (rng()<.35) box(parts, .4, .5, .8, fx*(w/2+.2), BASE + f*3.2 + 2.6, R(-d/2+2, d/2-2), '#e8e6e0');
   const nt = 1 + Math.floor(rng()*3);
-  for (let i=0;i<nt;i++) cyl(parts, .55, .55, 1.2, R(-w/2+1.5, w/2-1.5), BASE+h+.75, R(-d/2+1.5, d/2-1.5), rng()<.5?'#1d1d1d':'#2f5c8a');
+  for (let i=0;i<nt;i++){ const tx = R(-w/2+1.5, w/2-1.5), tz = R(-d/2+1.5, d/2-1.5); cyl(parts, .55, .55, 1.2, tx, BASE+h+.75, tz, rng()<.5?'#1d1d1d':'#2f5c8a'); roofBits.push({ minX: cx+tx-.55, maxX: cx+tx+.55, minZ: cz+tz-.55, maxZ: cz+tz+.55, h: BASE+h+1.35-.15 }); }
   const nd = 1 + Math.floor(rng()*4);
   for (let i=0;i<nd;i++){ const g = new THREE.CylinderGeometry(.5,.08,.16,14); g.rotateX(-.9); g.translate(R(-w/2+1, w/2-1), BASE+h+.7, R(-d/2+1, d/2-1)); parts.push(colored(g,'#dcdad4')); }
-  for (let i=0;i<2;i++) box(parts, R(1,2.2), R(.6,1.4), R(1,2.2), R(-w/2+1.5,w/2-1.5), BASE+h+.6, R(-d/2+1.5,d/2-1.5), '#8f8a80');
+  for (let i=0;i<2;i++){ const bw = R(1,2.2), bh = R(.6,1.4), bd = R(1,2.2), bx = R(-w/2+1.5,w/2-1.5), bz = R(-d/2+1.5,d/2-1.5); box(parts, bw, bh, bd, bx, BASE+h+.6, bz, '#8f8a80'); roofBits.push({ minX: cx+bx-bw/2, maxX: cx+bx+bw/2, minZ: cz+bz-bd/2, maxZ: cz+bz+bd/2, h: BASE+h+.6+bh/2-.15 }); }
   const dm = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .85, envMapIntensity: .3 });
   const det = new THREE.Mesh(mergeGeometries(parts), dm); det.castShadow = true; det.receiveShadow = true; grp.add(det);
   grp.updateMatrixWorld(true);
   const b = { grp, mats:[fm,rm,bm,dm], box:new THREE.Box3().setFromObject(grp), opacity:1, cx, cz, w, d, faces: opts.faces || [], floors };
   buildings.push(b);
-  obstacles.push({ minX:cx-w/2-.1, maxX:cx+w/2+.1, minZ:cz-d/2-.1, maxZ:cz+d/2+.1, building:true });
+  obstacles.push({ minX:cx-w/2-.1, maxX:cx+w/2+.1, minZ:cz-d/2-.1, maxZ:cz+d/2+.1, building:true, bref: b });
   // street-facing faces: doors + "no entry" plates, posters, shop signs
   const faces = opts.faces || [];
   for (const f of faces){
@@ -139,7 +196,7 @@ function addBuilding(cx, cz, w, d, floors, styleIdx, opts={}){
       return { x:cx-w/2-o-.07, y, z:cz+u, ry };
     };
     const du = opts.doorU ?? R(-along/2+1.5, along/2-1.5);
-    if (!opts.noDoor){ doors.push(place(du, .15+1.12)); noEntry.push(place(du, 2.62, .1)); }
+    if (!opts.noDoor){ doors.push(place(du, .15+1.12)); noEntry.push(place(du, 2.62, .1)); if (!b.door){ b.door = place(du, .15); b.doorFace = f; } }
     if (rng() < .75 && !opts.noPoster){ let pu = du + (rng()<.5?-2.2:2.2); if (Math.abs(pu) > along/2-.8) pu = du - Math.sign(pu)*2.2; posters.push(place(pu, 1.75, .1)); }
     const pool = opts.signPool || signs; if (!opts.noSign && along > 6.5) pool[Math.floor(rng()*pool.length)].push(place(R(-along/2+3, along/2-3), 3.32, .12));
   }
@@ -171,14 +228,16 @@ function signBoard(tex, x, y, z, w, h, ry=0, glow=.35){ const m = new THREE.Mesh
 const glowSigns = [];
 
 // ---- blocks ----
-for (let j=0;j<NXB;j++) for (let k=0;k<NZB;k++){
-  const cx = X0 + PITCH/2 + j*PITCH, cz = Z0 + PITCH/2 + k*PITCH, dist = blockDistrict(j, k);
+// one block of the old map (its cell j, k decides what it is); the moved ones (market, restaurants, stadium, workshops) are built
+// at their real places (CITY.remote) with the same insides
+function buildBlock(j, k, cx, cz){
+  const dist = blockDistrict(j, k);
   let type = 'city'; const r = rng();
   if (dist === 'hara'){ if (j===2 && k===2) type = 'cafe'; else if (j===1 && k===3) type = 'house'; else if (j===0 && k===2) type = 'wedding'; else if (r < .1) type = 'park'; else if (r < .17) type = 'parking'; }
   else if (dist === 'stadium' && j === 6 && k === 1) type = 'pitch';
   else if (dist === 'works' && j === 7 && k === 3) type = 'workshop';
   else if (dist === 'food' && j === 4 && k === 2) type = 'azzouz';
-  else if (dist === 'corniche') type = j === 3 ? 'fishmarket' : j === 7 ? 'port' : 'corniche';
+  else if (dist === 'corniche') type = j === 3 ? 'fishmarket' : j === 0 ? 'port' : 'corniche';
   else if (dist === 'stadium' && j === 6 && k === 0) type = 'showroom';
   else if (dist === 'stadium' && j === 7 && k === 0) type = 'villa';
   else type = dist;
@@ -245,7 +304,7 @@ for (let j=0;j<NXB;j++) for (let k=0;k<NZB;k++){
   } else if (type === 'food' || type === 'azzouz'){
     if (type === 'azzouz'){
       addBuilding(120, 33.5, 13, 11, 4, 3, { bandTex: azzouzBand, faces: ['pz'], doorU: 0, noSign: true, noPoster: true });
-      glowSigns.push(signBoard(bigSign('🍕 مطعم عزوز للبيتزا','#b3121f','#fff3c4'), 120, 3.1, 39.12, 11, 1.9, 0, .5));
+      glowSigns.push(signBoard(bigSign('مطعم عزوز للبيتزا','#b3121f','#fff3c4'), 120, 3.1, 39.12, 11, 1.9, 0, .5));
       addBuilding(106.5, 33.5, 12.5, 11, 6, 0, { faces: ['pz','nx'], signPool: foodSigns });
       addBuilding(133.5, 33.5, 12.5, 11, 5, 2, { faces: ['pz','px'], signPool: foodSigns });
       rowsOf(4, 9, ALL, { skipRow: 1, signPool: foodSigns });
@@ -254,7 +313,7 @@ for (let j=0;j<NXB;j++) for (let k=0;k<NZB;k++){
   } else if (type === 'works' || type === 'workshop'){
     if (type === 'workshop'){
       addBuilding(264, 79, 18, 14, 2, 4, { bandTex: garageBand, faces: ['pz'], noDoor: true, noSign: true, noPoster: true });
-      glowSigns.push(signBoard(bigSign('ورشة الأسطى شمس 🔧','#20262c','#ffb74d'), 264, 3.1, 86.2, 10, 1.75, 0, .3));
+      glowSigns.push(signBoard(bigSign('ورشة الأسطى شمس','#20262c','#ffb74d'), 264, 3.1, 86.2, 10, 1.75, 0, .3));
       rowsOf(1, 3, [3,4,5], { bandTex: garageBand, skipRow: 1, noSign: true });
     } else rowsOf(1, 3, [3,4,5], { bandTex: garageBand, noSign: true });
     sidewalkRing(p => (rng() < .5 ? tireList : drumList).push({ ...p, y: .15 }), 3.5, .5);
@@ -284,7 +343,7 @@ for (let j=0;j<NXB;j++) for (let k=0;k<NZB;k++){
       obstacles.push({ minX: cx + sx - 3.2, maxX: cx + sx + 3.2, minZ: cz + sz - 1.1, maxZ: cz + sz + 1.1 });
     }
     const fm = new THREE.Mesh(mergeGeometries(fp), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .5, metalness: .25 })); fm.castShadow = true; fm.receiveShadow = true; scene.add(fm);
-    glowSigns.push(signBoard(bigSign('🐟 حلقة السمك','#0d3b66','#f4d35e',768,150,74), cx, 4.6, cz + 16.6, 9, 1.75, 0, .35));
+    glowSigns.push(signBoard(bigSign('حلقة السمك','#0d3b66','#f4d35e',768,150,74), cx, 4.6, cz + 16.6, 9, 1.75, 0, .35));
     for (const sx of [-4.5, 4.5]){ const pp = []; box(pp, .25, 5.2, .25, cx + sx, 2.6, cz + 16.6, '#2b2f33'); scene.add(new THREE.Mesh(mergeGeometries(pp), new THREE.MeshStandardMaterial({ vertexColors: true }))); }
   } else if (type === 'corniche'){
     // tall nicer buildings on the north half, a palm promenade on the south half
@@ -296,16 +355,30 @@ for (let j=0;j<NXB;j++) for (let k=0;k<NZB;k++){
   }
 }
 
+for (let j=0;j<NXB;j++) for (let k=0;k<NZB;k++) buildBlock(j, k, X0 + PITCH/2 + j*PITCH, Z0 + PITCH/2 + k*PITCH);
+const REMOTE = CITY && CITY.remote ? CITY.remote : [];
+for (const r of REMOTE) for (let j = r.j0; j <= r.j1; j++) for (let k = r.k0; k <= r.k1; k++) buildBlock(j, k, X0 + PITCH/2 + j*PITCH + r.dx, Z0 + PITCH/2 + k*PITCH + r.dz);
+
 // river promenade, palms and benches along the Nile, and the bridge
+{
+  // the stairs: stone steps between two low walls, down below the water
+  for (const s of SEA_STAIRS){
+    const p = [], n = 12, rise = (s.y0 - s.y1) / n, tread = (s.z1 - s.z0) / n;
+    for (let i = 0; i < n; i++){ const top = s.y0 - rise * i; box(p, s.hw * 2 + .2, top + 2.6, tread + .02, s.x, (top - 2.6) / 2, s.z0 + tread * (i + .5), i % 2 ? '#b8ab92' : '#c2b59b'); }
+    for (const sx of [-1, 1]){ const g = new THREE.BoxGeometry(.32, 3, s.z1 - s.z0 + .4); g.translate(s.x + sx * (s.hw + .26), -1.15, (s.z0 + s.z1) / 2 + .2); p.push(colored(g, '#9c907a')); }
+    const m = new THREE.Mesh(mergeGeometries(p.map(x => x.index ? x.toNonIndexed() : x)), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .95 })); m.receiveShadow = true; scene.add(m);
+  } }
 { const pv = paveTex.clone(); pv.needsUpdate = true; pv.repeat.set((XMAX - X0 + 12)/3, (NILE_Z - ZMAX - 6)/3); const pm = new THREE.MeshStandardMaterial({ map: pv, roughness: .95 }); const sideM = slabMats[0];
-  for (const [xa, xb] of [[X0 - 6, BRIDGE.x - BRIDGE.w/2], [BRIDGE.x + BRIDGE.w/2, XMAX + 6]]){ const pr = new THREE.Mesh(new THREE.BoxGeometry(xb - xa, .15, NILE_Z - ZMAX - 6), [sideM, sideM, pm, pm, sideM, sideM]); pr.position.set((xa+xb)/2, .075, (ZMAX + 6 + NILE_Z)/2); pr.receiveShadow = true; scene.add(pr); } }
-for (let x = X0 - 4; x <= XMAX + 4; x += 9){ if (Math.abs(x - BRIDGE.x) < 9) continue; palmList.push({ x, z: NILE_Z - 2.4, s: R(.95,1.2) }); if (rng() < .5) benchList.push({ x: x + 4.5, z: NILE_Z - 1.6, ry: 0, y: 0 }); }
+  for (const [xa, xb] of (BRIDGE.w > 0 ? [[X0 - 6, BRIDGE.x - BRIDGE.w/2], [BRIDGE.x + BRIDGE.w/2, XMAX + 6]] : [[X0 - 6, XMAX + 6]])){ const pr = new THREE.Mesh(new THREE.BoxGeometry(xb - xa, .15, NILE_Z - ZMAX - 6), [sideM, sideM, pm, pm, sideM, sideM]); pr.position.set((xa+xb)/2, .075, (ZMAX + 6 + NILE_Z)/2); pr.receiveShadow = true; scene.add(pr); } }
+for (let x = X0 - 4; x <= XMAX + 4; x += 9){ if (Math.abs(x - BRIDGE.x) < 9) continue; if (!nearSeaStairs(x, 2.5)) palmList.push({ x, z: NILE_Z - 2.4, s: R(.95,1.2) }); if (rng() < .5 && !nearSeaStairs(x + 4.5, 3)) benchList.push({ x: x + 4.5, z: NILE_Z - 1.6, ry: 0, y: 0 }); }
 {
   const rp = [];
-  for (let x = X0 - 6; x <= XMAX + 6; x += 2.4){ if (Math.abs(x - BRIDGE.x) < BRIDGE.w/2) continue; box(rp, .1,1,.1, x,.5,NILE_Z - .5, '#2b2f33'); }
-  box(rp, (BRIDGE.x - BRIDGE.w/2) - (X0 - 6), .08,.08, ((X0-6) + (BRIDGE.x - BRIDGE.w/2))/2, 1.0, NILE_Z - .5, '#2b2f33');
-  box(rp, (XMAX + 6) - (BRIDGE.x + BRIDGE.w/2), .08,.08, ((XMAX+6) + (BRIDGE.x + BRIDGE.w/2))/2, 1.0, NILE_Z - .5, '#2b2f33');
-  // bridge deck, kerbs, rails and pillars
+  for (let x = X0 - 6; x <= XMAX + 6; x += 2.4){ if (Math.abs(x - BRIDGE.x) < BRIDGE.w/2 || nearSeaStairs(x, 1.65)) continue; box(rp, .1,1,.1, x,.5,NILE_Z - .5, '#2b2f33'); }
+  for (const s of SEA_STAIRS) for (const sx of [-1, 1]) box(rp, .12,1,.12, s.x + sx*1.62,.5,NILE_Z - .5, '#2b2f33');   // posts either side of a stair gap
+  { const ends = [X0 - 6, ...(BRIDGE.w > 0 ? [BRIDGE.x - BRIDGE.w/2, BRIDGE.x + BRIDGE.w/2] : []), XMAX + 6, ...SEA_STAIRS.flatMap(s => [s.x - 1.62, s.x + 1.62])].sort((a, b) => a - b);
+    for (let i = 0; i < ends.length - 1; i++){ const a = ends[i], b = ends[i + 1], mid = (a + b) / 2; if (Math.abs(mid - BRIDGE.x) < BRIDGE.w/2 || nearSeaStairs(mid, 1.6)) continue; box(rp, b - a, .08,.08, mid, 1.0, NILE_Z - .5, '#2b2f33'); } }
+  // bridge deck, kerbs, rails and pillars (the old made-up bridge: gone with the real city)
+  if (BRIDGE.w > 0){
   const len = BRIDGE.z1 - NILE_Z + 4, mid = (NILE_Z - 2 + BRIDGE.z1 + 2)/2;
   box(rp, BRIDGE.w, .8, len, BRIDGE.x, -.4, mid, '#8a8780');
   for (const s of [-1,1]){
@@ -317,10 +390,11 @@ for (let x = X0 - 4; x <= XMAX + 4; x += 9){ if (Math.abs(x - BRIDGE.x) < 9) con
   for (let z = NILE_Z + 12; z < BRIDGE.z1 - 4; z += 22) for (const s of [-1,1]) box(rp, 1.6, 2.4, 1.6, BRIDGE.x + s*4, -1.6, z, '#7a776f');
   for (let z = NILE_Z + 4; z < BRIDGE.z1; z += 2.5) whiteMarks.push({ x: BRIDGE.x, y: .012, z, sx: .14, sy: 1, sz: 1.3 });
   for (let z = NILE_Z + 10; z < BRIDGE.z1; z += 24) for (const s of [-1,1]) lampList.push({ x: BRIDGE.x + s*(BRIDGE.w/2 - .4), z, ry: s > 0 ? -Math.PI/2 : Math.PI/2 });
+  }
   const rm = new THREE.Mesh(mergeGeometries(rp), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .7, metalness: .2 })); rm.receiveShadow = true; rm.castShadow = true; scene.add(rm);
-  glowSigns.push(signBoard(bigSign('كوبري القلعة','#0d3b66','#f4d35e',768,140,70), BRIDGE.x, 5.2, NILE_Z - 1.2, 6, 1.1, 0, .3));
+  if (BRIDGE.w > 0){ glowSigns.push(signBoard(bigSign('كوبري القلعة','#0d3b66','#f4d35e',768,140,70), BRIDGE.x, 5.2, NILE_Z - 1.2, 6, 1.1, 0, .3));
   const gantry = []; for (const s of [-1,1]) box(gantry, .25, 5.4, .25, BRIDGE.x + s*3.2, 2.7, NILE_Z - 1.3, '#3c4652'); box(gantry, 6.8, .25, .25, BRIDGE.x, 4.6, NILE_Z - 1.3, '#3c4652');
-  scene.add(new THREE.Mesh(mergeGeometries(gantry), new THREE.MeshStandardMaterial({ vertexColors: true, metalness: .5, roughness: .4 })));
+  scene.add(new THREE.Mesh(mergeGeometries(gantry), new THREE.MeshStandardMaterial({ vertexColors: true, metalness: .5, roughness: .4 }))); }
 }
 // fishing boats on the sea (the array keeps its old name: 24 moves and rocks them)
 const feluccas = [];
@@ -333,8 +407,7 @@ for (let i=0;i<9;i++){
   const hull = new THREE.Mesh(mergeGeometries(p), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .6 })); hull.castShadow = true; g.add(hull);
   // most boats sit at anchor off the corniche; a few chug slowly along
   const moving = i < 3;
-  g.position.set(R(-60, 260), -1.0, moving ? R(NILE_Z + 40, NILE_Z + 120) : R(NILE_Z + 14, NILE_Z + 60));
-  if (Math.abs(g.position.x - BRIDGE.x) < 14) g.position.x += 30;
+  g.position.set(moving ? R(-260, 60) : R(-120, 90), -1.0, moving ? R(NILE_Z + 60, NILE_Z + 220) : R(NILE_Z + 14, NILE_Z + 70));
   g.rotation.y = moving ? Math.PI/2 * (rng() < .5 ? 1 : -1) : R(0, 6.28); scene.add(g); feluccas.push({ g, sp: moving ? R(1.2, 2.2) * (g.rotation.y > 0 ? 1 : -1) : 0, ph: R(0, 6) });
 }
 
@@ -377,6 +450,7 @@ signs.forEach((list,i) => instanced(planeGeo, new THREE.MeshStandardMaterial({ m
 foodSigns.forEach((list,i) => instanced(planeGeo, new THREE.MeshStandardMaterial({ map: foodSignTex[i], roughness: .6, emissive: 0xffffff, emissiveMap: foodSignTex[i], emissiveIntensity: .18 }), list, false, t => ({ ...t, sx:5.2, sy:.82 })));
 // order the plates so that the ones near the café/foul cart come first
 { const o = noEntry.map((p,i) => ({ i, d: Math.hypot(p.x - 30, p.z - 30) })).sort((a,b) => a.d - b.d); const m4 = new THREE.Matrix4(), tmp = []; o.forEach(({i}) => { noEntryIM.getMatrixAt(i, m4); tmp.push(m4.clone()); }); tmp.forEach((m,i) => noEntryIM.setMatrixAt(i, m)); noEntryIM.instanceMatrix.needsUpdate = true; }
+keepWhole(noEntryIM); keepWhole(posterIM);
 function setNoEntryShown(f){ noEntryIM.count = Math.round(noEntry.length * clamp(f, 0, 1)); }
 function setPostersShown(on){ posterIM.visible = on; }
 
@@ -403,6 +477,7 @@ const leafIM = instanced(leafGeo, new THREE.MeshStandardMaterial({ color: 0xffff
 { // benches
   const bp = []; box(bp, 1.8,.08,.5, 0,.48,0, '#7a4f2c'); box(bp, 1.8,.45,.06, 0,.75,-.24, '#7a4f2c'); for (const x of [-.8,.8]) box(bp, .08,.48,.45, x,.24,0, '#333');
   instanced(mergeGeometries(bp), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .7 }), benchList);
+  benchList.forEach(b => { const along = Math.abs(Math.sin(b.ry || 0)) > .5; obstacles.push(along ? { minX:b.x-.28, maxX:b.x+.28, minZ:b.z-.92, maxZ:b.z+.92, h: .52 } : { minX:b.x-.92, maxX:b.x+.92, minZ:b.z-.28, maxZ:b.z+.28, h: .52 }); });   // you can hop onto a bench
 }
 { // market stalls: fruit, vegetables, clothes
   const mk = (top) => { const sp = []; box(sp, 1.9,.85,1.0, 0,.43,0, '#7a5230'); box(sp, 2.0,.06,1.1, 0,.88,0, '#a07040'); for (const x of [-.9,.9]) box(sp, .07,1.9,.07, x,1.8,-.45, '#5a3a20');
@@ -418,16 +493,18 @@ const leafIM = instanced(leafGeo, new THREE.MeshStandardMaterial({ color: 0xffff
   const dr = new THREE.CylinderGeometry(.32,.32,.9,14); dr.translate(0,.45,0);
   const dIM = instanced(dr, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .6, metalness: .4 }), drumList);
   if (dIM){ const c = new THREE.Color(); drumList.forEach((d,i) => { c.set(pick(['#1e5fa8','#b71c1c','#2e7d32','#f9a825'])); dIM.setColorAt(i, c); }); }
-  [...tireList, ...drumList].forEach(p => obstacles.push({ minX:p.x-.45, maxX:p.x+.45, minZ:p.z-.45, maxZ:p.z+.45 }));
+  tireList.forEach(p => obstacles.push({ minX:p.x-.45, maxX:p.x+.45, minZ:p.z-.45, maxZ:p.z+.45 }));
+  drumList.forEach(p => obstacles.push({ minX:p.x-.4, maxX:p.x+.4, minZ:p.z-.4, maxZ:p.z+.4, h: .9 }));
 }
 { // restaurant pavement tables
-  const tp = []; cyl(tp, .45,.45,.04, 0,.78,0, '#e8e2d4', 0, 16); cyl(tp, .04,.04,.72, 0,.4,0, '#555'); box(tp, .4,.05,.4, .75,.45,0, '#c0392b'); box(tp, .4,.05,.4, -.75,.45,0, '#f2f0ea');
+  const tp = []; cyl(tp, .45,.45,.04, 0,.78,0, '#e8e2d4', 0, 16); cyl(tp, .04,.04,.72, 0,.4,0, '#555');
   instanced(mergeGeometries(tp), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .6 }), outTables, true, t => ({ ...t, y: .15 }));
-  outTables.forEach(p => obstacles.push({ minX:p.x-.5, maxX:p.x+.5, minZ:p.z-.5, maxZ:p.z+.5 }));
+  outTables.forEach(p => obstacles.push({ minX:p.x-.5, maxX:p.x+.5, minZ:p.z-.5, maxZ:p.z+.5, h: .8 }));
 }
 const poleGeo = new THREE.CylinderGeometry(.07, .1, 6.2, 8); poleGeo.translate(0, 3.25, 0);
 const armGeo = new THREE.BoxGeometry(.12, .12, 1.6); armGeo.translate(0, 6.35, .7);
 const headGeo = new THREE.BoxGeometry(.32, .14, .7); headGeo.translate(0, 6.25, 1.35);
+for (let i = lampList.length - 1; i >= 0; i--) if (Math.hypot(lampList[i].x - 264, lampList[i].z + 54.7) < 3.5) lampList.splice(i, 1);
 instanced(mergeGeometries([poleGeo, armGeo]), new THREE.MeshStandardMaterial({ color: 0x3a3d40, metalness: .7, roughness: .45 }), lampList);
 const lampHeadMat = new THREE.MeshStandardMaterial({ color: 0x222222, emissive: 0xfff2cc, emissiveIntensity: .35 });
 instanced(headGeo, lampHeadMat, lampList, false);
@@ -459,12 +536,13 @@ const tableList = TABLES.map(([x,z]) => ({ x, z })).concat([{ x: SPOT.domino.x, 
   const foot = new THREE.CylinderGeometry(.3,.3,.04,14); foot.translate(0,.17,0);
   const oldTop = instanced(mergeGeometries([top]), new THREE.MeshStandardMaterial({ color: 0xd9d4c7, roughness: .5, metalness: .2 }), tableList);
   const oldBase = instanced(mergeGeometries([leg, foot]), new THREE.MeshStandardMaterial({ color: 0x4a4a4a, metalness: .6, roughness: .4 }), tableList);
-  tableList.forEach(t => obstacles.push({ minX:t.x-.5, maxX:t.x+.5, minZ:t.z-.5, maxZ:t.z+.5 }));
+  tableList.forEach(t => obstacles.push({ minX:t.x-.5, maxX:t.x+.5, minZ:t.z-.5, maxZ:t.z+.5, h: .9 }));
   const chairParts = []; box(chairParts, .44,.05,.44, 0,.47,0, '#ffffff'); box(chairParts, .44,.48,.05, 0,.72,-.2, '#ffffff');
   for (const [a,b] of [[-.19,-.19],[.19,-.19],[-.19,.19],[.19,.19]]) box(chairParts, .04,.47,.04, a,.235,b, '#ffffff');
   const chairGeo = mergeGeometries(chairParts);
   const chairs = SEATS.map(s => ({ x:s.x, z:s.z, ry:s.ry, y:.15 })).concat([{ x:SPOT.domino.x-.85, z:SPOT.domino.z, ry:Math.PI/2, y:.15 }, { x:SPOT.domino.x+.85, z:SPOT.domino.z, ry:-Math.PI/2, y:.15 }]);
   const chairIM = instanced(chairGeo, new THREE.MeshStandardMaterial({ vertexColors: true, color: 0xffffff, roughness: .6 }), chairs);
+  keepWhole(chairIM); keepWhole(oldTop); keepWhole(oldBase);
   const cc = new THREE.Color(); chairs.forEach((c,i) => { cc.set(i%3===0 ? '#c9302c' : '#f2f0ea'); chairIM.setColorAt(i, cc); });
   // the café's real furniture (assets/props/cafe-set.glb: green bistro chairs, marble tables on iron feet) replaces the simple shapes once it has loaded
   (async () => { try {

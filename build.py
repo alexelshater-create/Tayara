@@ -17,6 +17,7 @@ game = '\n'.join(f'// ---- {os.path.basename(p)} ----\n' + read(p) for p in part
 with open(os.path.join(ROOT, 'game.js'), 'w', encoding='utf-8') as f:
     f.write(game)
 shutil.copyfile(os.path.join(SRC, 'styles.css'), os.path.join(ROOT, 'styles.css'))
+shutil.copyfile(os.path.join(SRC, 'boot.js'), os.path.join(ROOT, 'boot.js'))   # logo → intro → menu → loading screen, runs before game.js
 
 html = f'''<!doctype html>
 <html lang="ar" dir="rtl">
@@ -24,13 +25,15 @@ html = f'''<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="theme-color" content="#0d0b09">
-<title>طيارة الجامد</title>
-<meta name="description" content="طيارة الجامد: لعبة 3D في شوارع مصر. قصة، سواقة، قهوة قصر الملوك، فول وفلافل ودومنو.">
+<title>Grand Thieves Alexandria</title>
+<meta name="description" content="Grand Thieves Alexandria: لعبة 3D في شوارع إسكندرية. قصة، سواقة، بوليس، خناقات، قهوة قصر الملوك، فول وفلافل ودومنو.">
+<link rel="icon" href="assets/brand/logo.png">
 <link rel="stylesheet" href="vendor/fonts/fonts.css">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 {read(os.path.join(SRC, 'body.html'))}
+<script src="boot.js"></script>
 <script type="importmap">{{"imports":{{"three":"./vendor/three/three.module.min.js","three/addons/":"./vendor/three/addons/"}}}}</script>
 <script type="module" src="game.js"></script>
 </body>
