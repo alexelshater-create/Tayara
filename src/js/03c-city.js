@@ -97,6 +97,7 @@ const cityPaveTex = makeTex(256, 256, (g, w, h) => {
 const cityCurbTex = makeTex(64, 16, (g) => { g.fillStyle = '#efede6'; g.fillRect(0, 0, 32, 16); g.fillStyle = '#1d1d1d'; g.fillRect(32, 0, 32, 16); });
 // the city facades get Alexandria's balconies painted on (a slab, wrought-iron or concrete railing, the shadow under it)
 function balconyTex(src, i){
+  if (!LOW) return src;   // stage 18: real 3D balconies above «خفيف» (19zzzzz-buildings3d.js); the painted ones stay on weak phones
   const S = FSTY[i], im = src.image, c = document.createElement('canvas'); c.width = im.width; c.height = im.height; const g = c.getContext('2d'); g.drawImage(im, 0, 0);
   const bw = 128, fh = 128, iron = i % 3 !== 0;
   for (let fy = 0; fy < 4; fy++) for (let bx = 0; bx < 4; bx++){

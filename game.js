@@ -87,7 +87,7 @@ function applyGfx(){
   const sh = q !== 'low', st = q === 'high' ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;   // the soft kind samples much more: عالي only
   if (renderer.shadowMap.enabled !== sh || renderer.shadowMap.type !== st){ renderer.shadowMap.enabled = sh; renderer.shadowMap.type = st; scene.traverse(o => { if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { m.needsUpdate = true; }); }); }
   sun.castShadow = sh;
-  const ms = q === 'high' ? 2048 : 1024, ext = q === 'high' ? 45 : 30;
+  const ms = q === 'high' ? 2048 : 1024, ext = q === 'high' ? 60 : 40;   // stage 17: the sun's shadows reach further (the street across, the next block)
   if (sun.shadow.mapSize.x !== ms){ sun.shadow.mapSize.set(ms, ms); if (sun.shadow.map){ sun.shadow.map.dispose(); sun.shadow.map = null; } }
   Object.assign(sun.shadow.camera, { left: -ext, right: ext, top: ext, bottom: -ext }); sun.shadow.camera.updateProjectionMatrix();
   scene.fog.near = q === 'low' ? 40 : 55; scene.fog.far = q === 'low' ? 150 : 205;
@@ -331,6 +331,7 @@ const cityPaveTex = makeTex(256, 256, (g, w, h) => {
 const cityCurbTex = makeTex(64, 16, (g) => { g.fillStyle = '#efede6'; g.fillRect(0, 0, 32, 16); g.fillStyle = '#1d1d1d'; g.fillRect(32, 0, 32, 16); });
 // the city facades get Alexandria's balconies painted on (a slab, wrought-iron or concrete railing, the shadow under it)
 function balconyTex(src, i){
+  if (!LOW) return src;   // stage 18: real 3D balconies above «خفيف» (19zzzzz-buildings3d.js); the painted ones stay on weak phones
   const S = FSTY[i], im = src.image, c = document.createElement('canvas'); c.width = im.width; c.height = im.height; const g = c.getContext('2d'); g.drawImage(im, 0, 0);
   const bw = 128, fh = 128, iron = i % 3 !== 0;
   for (let fy = 0; fy < 4; fy++) for (let bx = 0; bx < 4; bx++){
@@ -1281,7 +1282,7 @@ const HOUSE = { inside: false, room: { x0: 5593.5, x1: 5600.5, z0: 5597, z1: 560
 const TOD = { h: 15, last: -1 };
 const nightAmount = h => (h >= 7 && h <= 17) ? 0 : (h >= 20 || h <= 4.5) ? 1 : h > 17 ? (h - 17)/3 : 1 - (h - 4.5)/2.5;
 const duskAmount = h => Math.max(0, 1 - Math.abs(h - 18.2)/1.5, 1 - Math.abs(h - 6)/1.2);
-const DAYC = { sun: new THREE.Color(0xffe3bd), dusk: new THREE.Color(0xff9a5a), moon: new THREE.Color(0x9fb4ff), fogDay: new THREE.Color(0xcdd6da), fogDusk: new THREE.Color(0xd8a58a), fogNight: new THREE.Color(0x182033), hemiDay: new THREE.Color(0xd9e4f0), hemiNight: new THREE.Color(0x3a4a78) };
+const DAYC = { sun: new THREE.Color(0xffe3bd), dusk: new THREE.Color(0xffb070), moon: new THREE.Color(0x9fb4ff), fogDay: new THREE.Color(0xcdd6da), fogDusk: new THREE.Color(0xd8a58a), fogNight: new THREE.Color(0x182033), hemiDay: new THREE.Color(0xd9e4f0), hemiNight: new THREE.Color(0x3a4a78) };
 const glowBase = new Map();
 function applyTimeOfDay(h){
   TOD.h = ((h % 24) + 24) % 24; h = TOD.h;
@@ -1303,6 +1304,171 @@ function applyTimeOfDay(h){
 }
 function clockText(h=TOD.h){ const hh = Math.floor(h), mm = Math.floor((h - hh)*60/10)*10, ap = hh < 12 ? 'ص' : 'م', h12 = ((hh + 11) % 12) + 1; return `${h12}:${String(mm).padStart(2,'0')} ${ap}`; }
 const isNight = () => nightAmount(TOD.h) > .6;
+
+// ---- 04d-graphics.js ----
+// ================= stage 17: the look — real skies, light by the hour, the sea, real ground, windows at night, a gentle grade =================
+// Skies and light: three photographed skies (Poly Haven, CC0) — a partly cloudy day, a sunset, a night — blended by the hour as
+// the background and as the light everything reflects. Ground: real photographed asphalt, pavement tiles, sand, stone (CC0).
+// The sea: moving waves that reflect the sky, turquoise over the shallows, foam along the shore (assets/city/shore.png).
+// Everything heavy stays off on «خفيف».
+const GFXU = { uTime: { value: 0 }, uNight: { value: 0 } };
+
+// ---- the grade: a touch more contrast and warmth after the filmic tone mapping (no extra pass: it's in every material) ----
+THREE.ShaderChunk.tonemapping_fragment = `
+#if defined( TONE_MAPPING )
+  gl_FragColor.rgb = toneMapping( gl_FragColor.rgb );
+  { vec3 c = max( gl_FragColor.rgb, 0.0 );
+    float l = dot( c, vec3( .2126, .7152, .0722 ) );
+    c = max( mix( vec3( l ), c, 1.08 ), 0.0 );                // a little more colour (never below zero: pow() of a negative is NaN)
+    c = pow( c / .18 + 1e-6, vec3( 1.06 ) ) * .18;                   // a little more contrast round mid grey
+    c *= vec3( 1.025, 1.0, .965 );                            // warm, like the Mediterranean light
+    gl_FragColor.rgb = clamp( c, 0.0, 1.0 ); }
+#endif
+`;
+
+// ---- real ground: photographed textures (diffuse; normal + roughness above «خفيف») ----
+const GTL = new THREE.TextureLoader();
+function GT(name, rx, ry, srgb = true){ const t = GTL.load(`assets/tex/${name}.webp`); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rx, ry); t.anisotropy = LOW ? 2 : 8; if (srgb) t.colorSpace = THREE.SRGBColorSpace; return t; }
+function PBR(mat, base, rx, ry, o = {}){
+  if (!mat) return; mat.map = GT(base + '_d', rx, ry);
+  if (!LOW){ mat.normalMap = GT(base + '_n', rx, ry, false); mat.normalScale.set(o.ns ?? .8, o.ns ?? .8); mat.roughnessMap = GT(base + '_r', rx, ry, false); }
+  mat.color.set(o.tint ?? 0xffffff); mat.roughness = o.rough ?? 1; mat.needsUpdate = true;
+}
+if (typeof CMAT !== 'undefined'){
+  PBR(CMAT.road, 'asphalt', 3.4, 3.4, { tint: 0xffffff, ns: .9 });                // the road's UVs: 1 per 10 m → a texture every ~3 m
+  PBR(CMAT.walk, 'pave', 2, 2, { tint: 0xf3ece0, ns: .7 });                       // 1 per 4 m → the grey 40 cm tiles of the pavements
+  PBR(CMAT.plaza, 'concrete', 2, 2, { tint: 0xf1e7d6, ns: .7 });
+  PBR(CMAT.seawall, 'stone', .5, 1.25, { tint: 0xd8cbb3, ns: 1 });                  // the corniche's big stone blocks
+  PBR(CMAT.parapet, 'stone', .5, .33, { tint: 0xe6dcc6, ns: 1 });
+}
+if (typeof CMAT !== 'undefined' && CMAT.park){ CMAT.park.color.set(0xa8b48c); CMAT.park.needsUpdate = true; }   // the grass less lime
+if (typeof asphalt !== 'undefined'){ const s = asphalt.geometry.parameters; PBR(asphalt.material, 'asphalt', s.width / 3, s.height / 3, { tint: 0xffffff, ns: .9 }); }
+
+// ---- the facades: darker at the foot (the street's shade), and at night some windows lit warm ----
+function facadeShader(mat){
+  if (!mat || mat.userData.gfx) return; mat.userData.gfx = true;
+  mat.onBeforeCompile = sh => {
+    sh.uniforms.uNight = GFXU.uNight;
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying float vWY;').replace('#include <project_vertex>', '#include <project_vertex>\nvWY = (modelMatrix * vec4(transformed, 1.0)).y;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
+varying float vWY;
+uniform float uNight;
+float fh1(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float fn1(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f); return mix(mix(fh1(i), fh1(i + vec2(1, 0)), f.x), mix(fh1(i + vec2(0, 1)), fh1(i + vec2(1, 1)), f.x), f.y); }`)
+      .replace('#include <color_fragment>', `#include <color_fragment>
+  diffuseColor.rgb *= mix(.78, 1., smoothstep(.15, 3.6, vWY));
+  #ifdef USE_MAP
+  { float u = vMapUv.x * 16.;   // metres along the wall
+    float streak = smoothstep(.62, .95, fn1(vec2(u * 1.7, vWY * .09))) * smoothstep(.3, .9, fn1(vec2(u * .21, 3.1)));   // rain streaks down from the sills
+    float salt = smoothstep(.55, .85, fn1(vec2(u * .35, vWY * .3) + 7.)) * .5;                                          // salt-washed, faded patches
+    float damp = (1. - smoothstep(3.7, 6.5, vWY)) * smoothstep(.4, .8, fn1(vec2(u * .5, 1.7)));                       // damp rising from the street
+    diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * .8, streak * .55);
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(dot(diffuseColor.rgb, vec3(.33))) * 1.08, salt * .35);
+    diffuseColor.rgb *= 1. - damp * .14; }
+  #endif`)
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+  #ifdef USE_MAP
+  { float lum = dot(diffuseColor.rgb, vec3(.3, .59, .11)); vec2 cell = floor(vMapUv * vec2(16., 12.8));
+    float h = fract(sin(dot(cell, vec2(12.9898, 78.233))) * 43758.5453);
+    totalEmissiveRadiance += uNight * step(lum, .2) * step(.74, h) * step(4.2, vWY) * mix(vec3(1., .79, .53), vec3(.87, .91, 1.), step(.95, h)) * (1.05 + fract(h * 7.31) * .6); }
+  #endif`);
+  };
+  mat.needsUpdate = true;
+}
+if (typeof CMAT !== 'undefined'){ for (const m of CMAT.fac) facadeShader(m); facadeShader(CMAT.band); }
+
+// ---- the sea ----
+(() => {
+  if (typeof water === 'undefined') return;
+  const nrm = GT('water_n', 1, 1, false), shore = new THREE.TextureLoader().load('assets/city/shore.png');
+  shore.flipY = false; shore.colorSpace = THREE.NoColorSpace; shore.minFilter = THREE.LinearFilter; shore.generateMipmaps = false;
+  const W = CITY ? [CITY.x0, CITY.z0, CITY.x1 - CITY.x0, CITY.z1 - CITY.z0] : [-1e5, -1e5, 2e5, 2e5];
+  const m = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: LOW ? .2 : .1, metalness: 0, envMapIntensity: .65, normalMap: nrm, normalScale: new THREE.Vector2(LOW ? .3 : .38, LOW ? .3 : .38) });
+  m.onBeforeCompile = sh => {
+    Object.assign(sh.uniforms, { uTime: GFXU.uTime, uShore: { value: shore }, uWorld: { value: new THREE.Vector4(...W) }, uPatch: { value: new THREE.Vector4(...(CITY && CITY.patch ? CITY.patch : [0, 0, 0, 0])) }, uShallow: { value: new THREE.Color(0x2c8590) }, uDeep: { value: new THREE.Color(0x114e6a) }, uNight: GFXU.uNight });
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vWP;').replace('#include <project_vertex>', '#include <project_vertex>\nvWP = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
+varying vec3 vWP; uniform float uTime; uniform sampler2D uShore; uniform vec4 uWorld; uniform vec4 uPatch; uniform vec3 uShallow; uniform vec3 uDeep; uniform float uNight;
+float hsh(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float vnoise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f); return mix(mix(hsh(i), hsh(i + vec2(1, 0)), f.x), mix(hsh(i + vec2(0, 1)), hsh(i + vec2(1, 1)), f.x), f.y); }`)
+      .replace('#include <color_fragment>', `#include <color_fragment>
+  { vec2 su = vec2((vWP.x - uWorld.x) / uWorld.z, (vWP.z - uWorld.y) / uWorld.w);
+    float d = (su.x < 0. || su.y < 0. || su.x > 1. || su.y > 1.) ? 64. : texture2D(uShore, su).r * 64.;   // metres to the shore
+    if (vWP.x > uPatch.x && vWP.x < uPatch.z && vWP.z > uPatch.y && vWP.z < uPatch.w) d = 12.;   // the old «حتة» keeps its own water (its raster is all land)
+    vec3 c = mix(uShallow, uDeep, smoothstep(.5, 11., d));
+    float n = vnoise(vWP.xz * .35 + uTime * vec2(.35, .2)) * .6 + vnoise(vWP.xz * 1.1 - uTime * .5) * .4;
+    float band = (1. - smoothstep(.0, 1.6, d + n * 1.2 - (sin(uTime * 1.3 + d * .9) * .5 + .5) * .8)) * smoothstep(.5, .8, n + .25);   // the foam comes and goes on the shore
+    c = mix(c, vec3(.9, .94, .95), clamp(band, 0., 1.) * .7 * (1. - uNight * .6));
+    diffuseColor.rgb = c * mix(1., .35, uNight); }`)
+      .replace('gl_FragColor.rgb = mix( gl_FragColor.rgb, fogColor, fogFactor );', 'gl_FragColor.rgb = mix( gl_FragColor.rgb, fogColor, fogFactor * .6 );')
+      .replace('texture2D( normalMap, vNormalMapUv ).xyz', '(texture2D( normalMap, vWP.xz / 25. + uTime * vec2(.011, .007) ).xyz + texture2D( normalMap, vWP.xz / 6. - uTime * vec2(.03, .042) ).xyz) * .5');
+  };
+  water.material = m; water.receiveShadow = !LOW;
+})();
+
+// ---- the skies: three photographed skies blended by the hour, as the background, the fog's colour and the light everything reflects ----
+const SKYX = { ready: false, dome: null, env: {}, k: {}, horizon: {}, rot: {} };
+(async () => {
+  try {
+    const { RGBELoader } = await import('three/addons/RGBELoader.js'); const L = new RGBELoader();
+    for (const k of ['day', 'dusk', 'night']){
+      const t = await L.loadAsync(`assets/sky/${k}.hdr`); t.mapping = THREE.EquirectangularReflectionMapping;
+      SKYX[k] = t; SKYX.env[k] = pmrem.fromEquirectangular(t).texture;
+      // the horizon's colour (for the fog) and where the sun is in the photo (to line it up with our sun)
+      const { width: w, height: h, data } = t.image, half = t.type === THREE.HalfFloatType, get = i => half ? THREE.DataUtils.fromHalfFloat(data[i]) : data[i];
+      let r = 0, g = 0, b = 0, n = 0, best = -1, bu = .5;
+      for (let y = Math.floor(h * .44); y < Math.floor(h * .49); y++) for (let x = 0; x < w; x += 4){ const i = (y * w + x) * 4; r += get(i); g += get(i + 1); b += get(i + 2); n++; }
+      for (let y = 0; y < Math.floor(h * .5); y += 2) for (let x = 0; x < w; x += 2){ const i = (y * w + x) * 4, l = get(i) + get(i + 1) + get(i + 2); if (l > best){ best = l; bu = x / w; } }
+      SKYX.horizon[k] = new THREE.Color(r / n, g / n, b / n);
+      if (k === 'night') SKYX.horizon[k] = new THREE.Color(0x1e2a3d).multiplyScalar(Math.max((r + g + b) / n / 3, 1e-4) / .3);   // the fog comes out at #1e2a3d after the sky's own scale (.3 / lum)
+      if (k === 'dusk'){ const c = new THREE.Color(0xe3a36c); SKYX.horizon[k].lerp(c.multiplyScalar((r + g + b) / n / 3 / ((c.r + c.g + c.b) / 3)), .55); }
+      const lum = (r + g + b) / n / 3; SKYX.k[k] = (k === 'night' ? .3 : k === 'dusk' ? .88 : .62) / Math.max(lum, 1e-4);
+      SKYX.rot[k] = (bu - .5) * Math.PI * 2;   // the sun's angle round the horizon in the photo (atan(z, x))
+    }
+    const mat = new THREE.ShaderMaterial({
+      uniforms: { tDay: { value: SKYX.day }, tDusk: { value: SKYX.dusk }, tNight: { value: SKYX.night }, w: { value: new THREE.Vector3(1, 0, 0) }, k: { value: new THREE.Vector3(SKYX.k.day, SKYX.k.dusk, SKYX.k.night) },
+        rot: { value: new THREE.Vector3() }, uFog: { value: new THREE.Color() } },
+      vertexShader: `varying vec3 vDir; void main(){ vDir = position; vec4 p = projectionMatrix * vec4(mat3(viewMatrix) * position, 1.0); gl_Position = p.xyww; }`,
+      fragmentShader: `uniform sampler2D tDay, tDusk, tNight; uniform vec3 w, k, rot; uniform vec3 uFog; varying vec3 vDir;
+        vec2 eq(vec3 d, float a){ float c = cos(a), s = sin(a); d = vec3(c * d.x - s * d.z, d.y, s * d.x + c * d.z); return vec2(atan(d.z, d.x) * .15915494 + .5, asin(clamp(d.y, -1., 1.)) * .31830988 + .5); }
+        void main(){ vec3 d = normalize(vDir);
+          vec3 c = vec3(0.);
+          if (w.x > .001) c += texture2D(tDay, eq(d, rot.x)).rgb * k.x * w.x;
+          if (w.y > .001) c += texture2D(tDusk, eq(d, rot.y)).rgb * k.y * w.y;
+          if (w.z > .001) c += texture2D(tNight, eq(d, rot.z)).rgb * vec3(.62, .78, 1.2) * k.z * w.z;   // a clean blue night, not a brown smog
+          float hz = 1. - smoothstep(-.02, .16, d.y);   // the sea haze at the horizon, the fog's colour below it
+          c = mix(c, uFog, hz * .85);
+          gl_FragColor = vec4(c, 1.);
+          #include <tonemapping_fragment>
+          #include <colorspace_fragment>
+        }`,
+      side: THREE.BackSide, depthWrite: false, depthTest: true, fog: false, toneMapped: true });
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(100, 48, 24), mat); dome.frustumCulled = false; dome.renderOrder = -10;
+    scene.add(dome); SKYX.dome = dome; sky.visible = false; SKYX.ready = true;
+    applyTimeOfDay(TOD.h);
+  } catch (e){ console.warn('skies failed, keeping the drawn sky', e); }
+})();
+{
+  const _tod = applyTimeOfDay;
+  applyTimeOfDay = function(h){
+    _tod(h);
+    const n = nightAmount(TOD.h), d = duskAmount(TOD.h); GFXU.uNight.value = n;
+    // the city at night: a bright, bluish moonlight and the glow of the streets, so the streets read
+    hemi.intensity += .32 * n; sun.intensity += .3 * n; renderer.toneMappingExposure = .86 + n * .2;
+    if (!SKYX.ready) return;
+    const wn = n, wd = Math.min(1 - wn, d * 1.15), wy = Math.max(0, 1 - wn - wd), U = SKYX.dome.material.uniforms;
+    U.w.value.set(wy, wd, wn);
+    // line the photo's sun up with ours
+    const la = Math.atan2(sunDir.z, sunDir.x);
+    U.rot.value.set(SKYX.rot.day - la, SKYX.rot.dusk - la, SKYX.rot.night - la);
+    // the fog takes the horizon's colour (so the city melts into the sky the same way at every hour)
+    const f = new THREE.Color(0, 0, 0);
+    for (const [kk, ww] of [['day', wy], ['dusk', wd], ['night', wn]]) f.add(SKYX.horizon[kk].clone().multiplyScalar(SKYX.k[kk] * ww));
+    scene.fog.color.setRGB(Math.min(1, f.r), Math.min(1, f.g), Math.min(1, f.b), THREE.LinearSRGBColorSpace); U.uFog.value.copy(scene.fog.color);
+    const envK = wn > .5 ? 'night' : wd > .45 ? 'dusk' : 'day';
+    if (scene.environment !== SKYX.env[envK]) scene.environment = SKYX.env[envK];
+  };
+}
 
 // ---- 05-vehicles.js ----
 // ================= vehicles =================
@@ -8137,7 +8303,7 @@ function exitCave(){
 const BEACHES = CITY ? await fetch('assets/city/beaches.json').then(r => r.ok ? r.json() : []).catch(() => []) : [];
 const sandTex = makeTex(256, 256, (g, w, h) => { g.fillStyle = '#b9a271'; g.fillRect(0, 0, w, h); for (let i = 0; i < 9000; i++){ g.fillStyle = `rgba(${150 + Math.random() * 80 | 0},${130 + Math.random() * 70 | 0},${80 + Math.random() * 60 | 0},.35)`; g.fillRect(Math.random() * w, Math.random() * h, 1.5, 1.5); } }, [1, 1]);
 sandTex.wrapS = sandTex.wrapT = THREE.RepeatWrapping;
-const sandMat = new THREE.MeshStandardMaterial({ map: sandTex, roughness: 1 });
+const sandMat = new THREE.MeshStandardMaterial({ map: sandTex, roughness: 1 }); PBR(sandMat, 'sand', 2.4, 2.4, { tint: 0xf4ead8, ns: .8 });   // stage 17: real photographed sand
 function buildBeach(b){
   const pos = new Float32Array(b.v.length * 3), uv = new Float32Array(b.v.length * 2);
   b.v.forEach(([x, z], k) => { pos.set([x, .17, z], k * 3); uv.set([x / 6, z / 6], k * 2); });
@@ -8240,12 +8406,14 @@ if (SETS.power){ const a = SETS.power.at(0, 30.4); glowSigns.push(signBoard(bigS
 // Every model is real size, standing on the ground at its middle, its front at glTF -Z.
 const SFM = {};
 await (async () => {
-  const names = ['lada-taxi', 'lada-car', 'peugeot-504-break', 'old-car-saratoga', 'tuktuk', 'cat', 'vendor-stall', 'foul-cart', 'street-lamp', 'palm-trees', 'fishing-boat', 'satellite-dish', 'water-tanks', 'ac-unit', 'butane-cylinder', 'vespa'];
+  const names = ['lada-taxi', 'lada-car', 'peugeot-504-break', 'old-car-saratoga', 'tuktuk', 'cat', 'vendor-stall', 'foul-cart', 'street-lamp', 'palm-trees', 'fishing-boat', 'satellite-dish', 'water-tanks', 'ac-unit', 'butane-cylinder', 'vespa',
+    // stage 18 (assets/props/sf2): today's Egyptian cars, the HiAce microbus, a motorbike, a bicycle, the street trees
+    'sf2/lanos', 'sf2/corolla', 'sf2/elantra', 'sf2/lada2107', 'sf2/sunny', 'sf2/microbus', 'sf2/motorcycle', 'sf2/bicycle', 'sf2/ficus-tree', 'sf2/mediterranean-tree', 'sf2/date-palm', 'sf2/hedge-bush'];
   try {
     const { GLTFLoader } = await import('three/addons/GLTFLoader.js'); const ld = new GLTFLoader();
-    const got = await Promise.all(names.map(n => ld.loadAsync(`assets/props/sf/${n}.glb`).catch(() => null)));
+    const got = await Promise.all(names.map(n => ld.loadAsync(`assets/props/${n.includes('/') ? n : 'sf/' + n}.glb`).catch(() => null)));
     got.forEach((g, i) => {
-      if (!g) return; const n = names[i]; g.scene.updateMatrixWorld(true);
+      if (!g) return; const n = names[i].split('/').pop(); g.scene.updateMatrixWorld(true);
       const parts = []; g.scene.traverse(o => { if (!o.isMesh) return; const geo = o.geometry.clone(); geo.applyMatrix4(o.matrixWorld); const mats = Array.isArray(o.material) ? o.material : [o.material];
         for (const m of mats){ m.side = THREE.FrontSide; if (m.map) m.map.anisotropy = 4; } parts.push({ name: o.name, geo, mat: o.material }); });
       SFM[n] = parts;
@@ -8282,8 +8450,11 @@ function sfSkin(g, model, tint){
 function sfCarFor(kind){
   if (kind === 'taxi') return ['lada-taxi', null];
   if (kind === 'tuk') return ['tuktuk', null];
+  if (kind === 'micro') return ['microbus', null];
+  // what's on Alexandria's streets: lots of Lanos, Ladas and old Corollas, Sunnys, a newer Elantra, Peugeot 504s, now and then an old Chevrolet
   const r = Math.random();
-  return r < .38 ? ['lada-car', pick(SF_PAINT)] : r < .66 ? ['peugeot-504-break', pick(SF_PAINT)] : r < .72 ? ['old-car-saratoga', null] : [null, null];
+  return r < .2 ? ['lanos', pick(SF_PAINT)] : r < .34 ? ['lada-car', pick(SF_PAINT)] : r < .46 ? ['lada2107', pick(SF_PAINT)] : r < .58 ? ['corolla', pick(SF_PAINT)] : r < .7 ? ['sunny', pick(SF_PAINT)]
+    : r < .8 ? ['elantra', pick(SF_PAINT)] : r < .92 ? ['peugeot-504-break', pick(SF_PAINT)] : r < .96 ? ['old-car-saratoga', null] : [null, null];
 }
 for (const c of traffic){ const [m, t] = sfCarFor(c.userData.kind); if (m) sfSkin(c, m, t); }
 for (const v of vehicles){
@@ -8327,7 +8498,7 @@ function cityRoofProps(list, ox, oz, grp){
 
 { const _ucr = updateCity; let t0 = 0;
   updateCity = function(px, pz){ _ucr(px, pz); const now = performance.now(); if (now - t0 < 300) return; t0 = now;
-    for (let i = CROOF.length - 1; i >= 0; i--){ const g = CROOF[i]; if (!g.parent || !g.parent.parent){ CROOF.splice(i, 1); continue; } const [cx, cz] = g.userData.c; g.visible = Math.hypot(cx - px, cz - pz) < (LOW ? 150 : 200); } }; }
+    for (let i = CROOF.length - 1; i >= 0; i--){ const g = CROOF[i]; if (!g.parent || !g.parent.parent){ CROOF.splice(i, 1); continue; } const [cx, cz] = g.userData.c; g.visible = Math.hypot(cx - px, cz - pz) < (LOW ? 90 : GFX === 'high' ? 170 : 115); } }; }
 
 // ---- 19zt-city-trams.js ----
 // ================= Alexandria's trams on their real lines (OSM railway=tram): the yellow city tram and the blue Raml tram =================
@@ -8605,7 +8776,7 @@ function buildAround(L){
   const spec = AROUND[L.k]; if (!spec) return null;
   const c = L.root.position, [r0, r1] = spec.r, R0 = Math.max(r0 * .7, L.r * .55), R1 = Math.max(r1 * .75, R0 + 30), B = L.box.clone().expandByScalar(2);
   const parts = [], used = [], grp = new THREE.Group(), obs = [], inModel = (x, z) => x > B.min.x && x < B.max.x && z > B.min.z && z < B.max.z && L.k !== 'stanley';
-  const sfl = {}, SWAP = { palm: () => Math.random() < .5 ? 'palm-trees:palm_a' : 'palm-trees:palm_b', lamp: () => 'street-lamp', stall: () => 'vendor-stall', cart: () => 'foul-cart', cat: () => 'cat', boat: () => Math.random() < .5 ? 'fishing-boat' : null };
+  const sfl = {}, SWAP = { palm: () => Math.random() < .5 ? 'palm-trees:palm_a' : 'palm-trees:palm_b', lamp: () => LOW ? null : 'street-lamp', stall: () => 'vendor-stall', cart: () => 'foul-cart', cat: () => 'cat', boat: () => Math.random() < .5 ? 'fishing-boat' : null };
   const put = (kind, x, z, ry) => { const sw = SWAP[kind.startsWith('boat') ? 'boat' : kind], sn = sw && sw();
     if (sn && SFM[sn]){ (sfl[sn] = sfl[sn] || []).push([x, kind.startsWith('boat') ? -.25 : .15, z, ry + (kind === 'lamp' ? 0 : Math.PI)]); used.push([x, z]); const sd = AR_SOLID[kind]; if (sd) obs.push({ minX: x - sd, maxX: x + sd, minZ: z - sd, maxZ: z + sd, around: L.k }); return; }
     if (!AR_GEO[kind]) return; const g = AR_GEO[kind].clone(); g.rotateY(ry); g.translate(x, kind.startsWith('boat') ? -1 : .15, z); parts.push(g); used.push([x, z]);
@@ -8771,8 +8942,7 @@ if (CITY){
 if (CITY && AR_GEO.micro){
   let n = 0;
   for (const c of [...traffic].reverse()){ if (n >= (LOW ? 2 : 3)) break; const u = c.userData; if (u.kind !== 'car') continue;   // from the end: the hour turns cars off from the front
-    for (const ch of c.children) ch.visible = false;
-    const m = new THREE.Mesh(AR_GEO.micro, arMat); m.castShadow = !LOW; c.add(m); u.kind = 'micro'; u.graph = false; u.base = R(9, 12); u.len = 2.6; n++; }
+    if (SFM.microbus){ c.userData.sf = null; sfSkin(c, 'microbus'); } else { for (const ch of c.children) ch.visible = false; const m = new THREE.Mesh(AR_GEO.micro, arMat); m.castShadow = !LOW; c.add(m); } u.kind = 'micro'; u.graph = false; u.base = R(9, 12); u.len = 2.6; n++; }
 }
 // ---------- a kiosk on some street corners (cigarettes, a drinks fridge, papers), city-wide ----------
 const CKIOSK = { byChunk: null, obs: new Set() };
@@ -8795,6 +8965,9 @@ function cityKiosks(grp, ox, oz){
   }
   if (parts.length){ const m = new THREE.Mesh(mergeGeometries(parts), arMat); m.castShadow = !LOW; m.receiveShadow = true; m.matrixAutoUpdate = false; m.updateMatrixWorld(true); grp.add(m); }
 }
+
+// the microbus you drive for the job is the real HiAce too
+if (typeof microVeh !== 'undefined' && SFM.microbus) sfSkin(microVeh.mesh, 'microbus');
 
 // ---- 19zzzz-city-finish.js ----
 // ================= the last touches of the real city: market goods on the pavement, the corniche beaches, footbridges, the rail yards =================
@@ -8935,6 +9108,252 @@ if (CITY){
     for (const F of CFOOT){ if (!F.built && Math.hypot(F.x - px, F.z - pz) < 380 && cityReady(F.x, F.z, 40)){ F.built = true; F.grp = buildFootbridge(F); return; } }
   };
 }
+
+// ---- 19zzzzz-buildings3d.js ----
+// ================= stage 18: Alexandrian buildings in 3D — balconies that stand out, cornices, roof parapets, stair rooms on the roofs =================
+// The facades' windows sit every 4 m along a wall (from where its outline starts) and every 3.2 m up from the top of the shop band
+// (03c-city.js: u = run / 16, v = (y − band) / 12.8, four windows and four floors per tile), so the balconies line up with them.
+const B3 = {
+  // one balcony: the slab, the shadow strip under it, and its railing — iron bars or a solid concrete balustrade
+  // the iron balcony: its slab (instanced, tinted) and its railing — three planes with the bars drawn in a cut-out texture
+  iron: (() => { const p = []; box(p, 2.5, .16, 1.0, 0, 0, .5, '#ffffff'); return mergeGeometries(p.map(q => q.index ? q.toNonIndexed() : q)); })(),
+  rail: (() => { const parts = [];
+    { const g = new THREE.PlaneGeometry(2.5, .95); g.translate(0, .55, .98); parts.push(g); }
+    for (const s of [-1, 1]){ const g = new THREE.PlaneGeometry(1.0, .95); const uv = g.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setX(i, uv.getX(i) * .4); g.rotateY(Math.PI / 2); g.translate(s * 1.24, .55, .5); parts.push(g); }
+    return mergeGeometries(parts); })(),
+  railMat: new THREE.MeshStandardMaterial({ map: makeTex(256, 128, (g, w, h) => { g.clearRect(0, 0, w, h); g.fillStyle = '#1e1e1e'; g.fillRect(0, 0, w, 10); g.fillRect(0, h - 8, w, 8); for (let x = 4; x < w; x += 16) g.fillRect(x, 0, 4, h); g.strokeStyle = '#1e1e1e'; g.lineWidth = 3; for (let x = 0; x < w; x += 32){ g.beginPath(); g.arc(x + 16, h * .55, 9, 0, Math.PI * 2); g.stroke(); } }),
+    transparent: false, alphaTest: .5, side: THREE.DoubleSide, roughness: .5, metalness: .5 }),
+  solid: (() => { const p = []; box(p, 2.5, .16, 1.0, 0, 0, .5, '#ffffff');
+    box(p, 2.5, .9, .12, 0, .52, .94, '#ffffff'); for (const s of [-1, 1]) box(p, .12, .9, .9, s * 1.19, .52, .45, '#f0f0f0');
+    return mergeGeometries(p.map(q => q.index ? q.toNonIndexed() : q)); })(),
+  mat: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .85, envMapIntensity: .3 }),
+  near: [],
+  OLD: new Set(['bahary', 'manshiya', 'attarin', 'karmouz', 'moharram', 'raml', 'labban']),
+};
+const b3hash = (a, b) => { let h = Math.imul(Math.round(a * 10) | 0, 73856093) ^ Math.imul(Math.round(b * 10) | 0, 19349663); h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+function cityBuildings3D(grp, ox, oz){
+  const list = grp.userData.blist; if (!list) return;
+  const iron = [], solid = [], ironTrim = [], solidTrim = [], trimCol = [], P = [], C = [], NP = [], NC = [], col = new THREE.Color();
+  const quad = (a, b, c, d, cl) => { P.push(...a, ...b, ...c, ...a, ...c, ...d); for (let i = 0; i < 6; i++) C.push(cl.r, cl.g, cl.b); };
+  const nquad = (a, b, c, d, cl) => { if (LOW) return; NP.push(...a, ...b, ...c, ...a, ...c, ...d); for (let i = 0; i < 6; i++) NC.push(cl.r, cl.g, cl.b); };
+  const boxAt = (x, y, z, w, h, d, ry, cl) => { const g = new THREE.BoxGeometry(w, h, d); g.rotateY(ry); g.translate(x, y, z); const n = g.toNonIndexed(), p = n.attributes.position.array; for (let i = 0; i < p.length; i++) P.push(p[i]); for (let i = 0; i < p.length / 3; i++) C.push(cl.r, cl.g, cl.b); };
+  for (const b of list){
+    const n = b.ring.length / 2; if (n < 3 || b.h < 5) continue;
+    const pts = []; for (let k = 0; k < n; k++) pts.push([ox + b.ring[k * 2] / 10, oz + b.ring[k * 2 + 1] / 10]);
+    let A = 0, cx = 0, cz = 0; for (let k = 0; k < n; k++){ const [x1, z1] = pts[k], [x2, z2] = pts[(k + 1) % n]; A += x1 * z2 - x2 * z1; cx += x1; cz += z1; } cx /= n; cz /= n;
+    const sgn = A > 0 ? 1 : -1, top = .15 + b.h, dk = DKEY_LIST[b.dist], pool = DSTYLE[dk] || [0, 1, 2, 3, 4], st = b.style >= 6 ? (b.style === 6 ? 3 : 4) : pool[b.style % pool.length], S = FSTY[st] || FSTY[0];
+    const trim = new THREE.Color(S.trim), wall = new THREE.Color(S.wall), old = B3.OLD.has(dk), hb = b3hash(cx, cz);
+    const ironStyle = hb < (old ? .7 : .45), stackP = old ? .55 : .3, base = .15 + BAND;
+    const floors = Math.floor((top - base - 1.2) / 3.2);
+    // the roof: a parapet round the edge (with a cornice under it) and, on bigger roofs, the stair room
+    let run = 0;
+    for (let k = 0; k < n; k++){
+      const [x1, z1] = pts[k], [x2, z2] = pts[(k + 1) % n], L = Math.hypot(x2 - x1, z2 - z1); if (L < .05) continue;
+      const nx = sgn > 0 ? (z2 - z1) / L : -(z2 - z1) / L, nz = sgn > 0 ? -(x2 - x1) / L : (x2 - x1) / L;
+      const mx = (x1 + x2) / 2, mz = (z1 + z2) / 2, street = [3, 5, 7].some(d => cityR(mx + nx * d, mz + nz * d) === 1) || [3, 5].some(d => { const v = cityR(mx + nx * d, mz + nz * d); return v === 0 || v === 4; });
+      // parapet (outer face and top) and, near you, the cornice under it
+      const o = .02, ph = old ? 1.0 : .8;
+      quad([x1 + nx * o, top, z1 + nz * o], [x2 + nx * o, top, z2 + nz * o], [x2 + nx * o, top + ph, z2 + nz * o], [x1 + nx * o, top + ph, z1 + nz * o], col.copy(wall).multiplyScalar(.96));
+      quad([x1 + nx * o, top + ph, z1 + nz * o], [x2 + nx * o, top + ph, z2 + nz * o], [x2 - nx * .2, top + ph, z2 - nz * .2], [x1 - nx * .2, top + ph, z1 - nz * .2], col.copy(trim).multiplyScalar(.95));
+      if (old || hb > .5){ const cd = .28, ch = .32;   // the cornice: a moulded ledge under the roof line
+        nquad([x1 + nx * cd, top - ch, z1 + nz * cd], [x2 + nx * cd, top - ch, z2 + nz * cd], [x2 + nx * cd, top, z2 + nz * cd], [x1 + nx * cd, top, z1 + nz * cd], trim);
+        nquad([x1 + nx * o, top - ch, z1 + nz * o], [x2 + nx * o, top - ch, z2 + nz * o], [x2 + nx * cd, top - ch, z2 + nz * cd], [x1 + nx * cd, top - ch, z1 + nz * cd], col.copy(trim).multiplyScalar(.55));
+        nquad([x1 + nx * cd, top, z1 + nz * cd], [x2 + nx * cd, top, z2 + nz * cd], [x2 + nx * o, top, z2 + nz * o], [x1 + nx * o, top, z1 + nz * o], trim); }
+      // floor ledges on the old buildings, at every floor line
+      if (old && street && floors > 0) for (let f = 1; f <= Math.min(floors, 7); f++){ const y = base + 3.2 * f - .05, d = .12;
+        nquad([x1 + nx * d, y - .12, z1 + nz * d], [x2 + nx * d, y - .12, z2 + nz * d], [x2 + nx * d, y, z2 + nz * d], [x1 + nx * d, y, z1 + nz * d], trim);
+        nquad([x1 + nx * d, y, z1 + nz * d], [x2 + nx * d, y, z2 + nz * d], [x2 + nx * o, y, z2 + nz * o], [x1 + nx * o, y, z1 + nz * o], trim); }
+      // balconies over the windows that look onto a street (the window columns are at run ≡ 2 m, every 4 m)
+      if (street && floors > 0 && L > 3 && !LOW){
+        let s0 = ((2 - run) % 4 + 4) % 4; if (s0 < 1.3) s0 += 4;
+        for (let s = s0; s < L - 1.3; s += 4){
+          const wx = x1 + (x2 - x1) * s / L, wz = z1 + (z2 - z1) * s / L, colH = b3hash(wx, wz);
+          if (colH > stackP) continue;   // this window column has balconies all the way up (Alexandrian blocks stack them)
+          const yaw = Math.atan2(nx, nz);
+          for (let f = 0; f < floors; f++){ if (f === 0 && !old && colH > stackP * .5) continue;
+            const y = base + .5 + 3.2 * f; if (ironStyle){ iron.push([wx + nx * .02, y, wz + nz * .02, yaw]); ironTrim.push(trim); } else { solid.push([wx + nx * .02, y, wz + nz * .02, yaw]); solidTrim.push(trim); } }
+        }
+      }
+      run += L;
+    }
+    // the stair room (and sometimes a little rooftop room) on the roof
+    if (Math.abs(A) / 2 > 110 && hb > .45){ const [vx, vz] = pts[Math.floor(hb * 997) % n], x = cx + (vx - cx) * .35, z = cz + (vz - cz) * .35;
+      boxAt(x, top + 1.35, z, 2.8, 2.7, 2.8, hb * 6.28, col.copy(wall).multiplyScalar(.92)); boxAt(x, top + 2.75, z, 3.0, .14, 3.0, hb * 6.28, trim); }
+  }
+  const g = new THREE.Group(); g.name = 'b3d';
+  if (NP.length){ const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(NP, 3)); geo.setAttribute('color', new THREE.Float32BufferAttribute(NC, 3)); geo.computeVertexNormals(); const m = new THREE.Mesh(geo, B3.mat); m.receiveShadow = true; g.add(m); }
+  if (P.length){ const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); geo.setAttribute('color', new THREE.Float32BufferAttribute(C, 3)); geo.computeVertexNormals();
+    const m = new THREE.Mesh(geo, B3.mat); m.castShadow = GFX === 'high'; m.receiveShadow = !LOW; grp.add(m); }   // parapets, cornices, ledges: always (they're cheap and they make the skyline)
+  const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), Y = new THREE.Vector3(0, 1, 0), V = new THREE.Vector3(), Sc = new THREE.Vector3(1, 1, 1);
+  const ironCol = ironTrim, solidCol = solidTrim;
+  for (const [geo, L, cols, mat] of [[B3.iron, iron, ironCol, B3.mat], [B3.rail, iron, null, B3.railMat], [B3.solid, solid, solidCol, B3.mat]]){
+    if (!L.length) continue; const im = new THREE.InstancedMesh(geo, mat, L.length); im.castShadow = GFX === 'high' && mat !== B3.railMat; im.receiveShadow = !LOW;
+    L.forEach(([x, y, z, ry], i) => { Q.setFromAxisAngle(Y, ry); M.compose(V.set(x, y, z), Q, Sc); im.setMatrixAt(i, M); if (cols) im.setColorAt(i, cols[i]); });
+    im.computeBoundingSphere(); g.add(im);
+  }
+  if (g.children.length){ g.userData.c = [ox + CITY.chunk / 2, oz + CITY.chunk / 2]; grp.add(g); B3.near.push(g); }   // the balconies only near you (they're small from further away)
+}
+if (CITY){ const _bl3 = cityBaseLayer; cityBaseLayer = function(grp, ox, oz){ _bl3(grp, ox, oz); try { cityBuildings3D(grp, ox, oz); } catch (e){ console.warn('b3d', e); } }; }
+
+{ const _ucB3 = updateCity; let tB3 = 0;
+  updateCity = function(px, pz){ _ucB3(px, pz); const now = performance.now(); if (now - tB3 < 300) return; tB3 = now;
+    const R = GFX === 'high' ? 170 : 125;
+    for (let i = B3.near.length - 1; i >= 0; i--){ const g = B3.near[i]; if (!g.parent || !g.parent.parent){ B3.near.splice(i, 1); continue; } const [cx, cz] = g.userData.c; g.visible = Math.hypot(cx - px, cz - pz) < R; } }; }
+
+// ---- 19zzzzz-friends.js ----
+// ================= stage 18: the six friends join the city (their story roles come in the story stages) =================
+// Each stands where his part of the story happens, in his own 3D model (tools/friends → assets/models, rigged like the others).
+// They load after the game starts (not on the loading screen), one by one, and are only drawn when you are near.
+const FRIENDS = [
+  { m: 'ali-eslam', name: 'علي إسلام', line: 'الميكروباص ده بتاعي… كاوتش ماحدش يزاحمه', at: () => { const L = LM.list.find(l => l.k === 'misrst'); return L && [L.root.position.x - 22, L.root.position.z - 34]; } },
+  { m: 'monzer', name: 'منذر', line: 'أنا محاسب في البنك… ماليش في المشاكل', at: () => SETS.bank && (p => [p.x, p.z])(SETS.bank.at(4, 12.5)) },
+  { m: 'shater', name: 'عبدالرحمن الشاطر', line: 'مدير بنك الثغر… محتاج حاجة يا حبيبي؟', at: () => SETS.bank && (p => [p.x, p.z])(SETS.bank.at(-3, 12.2)) },
+  { m: 'ataallah', name: 'عطا الله', line: 'عايز ورق؟ كله يتعمل في العطارين', at: () => { const d = CITY && CITY.districts.find(d => d.k === 'attarin'); return d && [d.x + 18, d.z + 8]; } },
+  { m: 'ali-almany', name: 'علي الألماني', line: 'هي الدنيا فلوس وبس… وأنا عليا ديون', at: () => { const L = LM.list.find(l => l.k === 'ramlst'); return L && [L.root.position.x + 26, L.root.position.z + 10]; } },
+  { m: 'ahmed', name: 'أحمد عبدالخالق', line: 'اللانش ده بيطير على المية… جرّب', at: () => { const L = LM.list.find(l => l.k === 'qaitbay'); return L && [QAIT_GATE[0] + 14, QAIT_GATE[1] - 12]; } },
+];
+(async () => {
+  if (!CITY || store.get('chars2d') === '1') return;
+  for (let i = 0; i < 300 && (typeof LM === 'undefined' || LM.list.length < 10); i++) await new Promise(r => setTimeout(r, 500));   // after the landmarks
+  for (const F of FRIENDS){
+    try {
+      if (!MODELS3D[F.m]){ const r = await loadModel3D(F.m); if (!r) continue; MODELS3D[F.m] = r; }
+      const p = F.at(); if (!p) continue;
+      const [x, z] = freeSpot(p[0], p[1]); const n = makeNPC(); n.name = F.name; n.role = 'friend'; n.state = 'stand'; n.friend = F;
+      n.g.position.set(x, groundY(x, z), z); n.yaw = Math.random() * 6.28; npcWear3D(n, F.m); F.n = n;
+    } catch (e){ console.warn('friend', F.m, e); }
+    await new Promise(r => setTimeout(r, 300));
+  }
+})();
+let friendsT = 0;
+function updateFriends(dt){
+  friendsT -= dt; if (friendsT > 0) return; friendsT = .5;
+  const h = heroAt();
+  for (const F of FRIENDS){ const n = F.n; if (!n) continue;
+    const d = Math.hypot(n.g.position.x - h.x, n.g.position.z - h.z), show = d < 140 && !HOUSE.inside;
+    if (n.state === 'stand' || n.state === 'hidden'){ n.state = show ? 'stand' : 'hidden'; n.g.visible = show; }
+    if (show && n.state === 'stand' && d < 7){ n.yaw = Math.atan2(h.x - n.g.position.x, h.z - n.g.position.z);
+      if (!F.saidT || performance.now() - F.saidT > 14000){ F.saidT = performance.now(); say(n, `${F.name}: ${F.line}`, 3.2); } }
+  }
+}
+{ const _ucF = updateCity; updateCity = function(px, pz){ _ucF(px, pz); try { updateFriends(1 / 60); } catch (e){} }; }
+
+// ---------- stage 18: real people in the street (Sketchfab CC-BY, rigged by the game) ----------
+const PEOPLE = ['p-casual-man-polo', 'p-young-man-jacket', 'p-man-galabeya', 'p-old-man-cap', 'p-woman-hijab-abaya', 'p-woman-hijab-suit', 'p-woman-headscarf-dress', 'p-teen-girl-hijab'];
+(async () => {
+  if (store.get('chars2d') === '1') return;
+  for (let i = 0; i < 300 && FRIENDS.some(F => F.n === undefined && !F.failed) && i < 120; i++) await new Promise(r => setTimeout(r, 500));
+  const have = [];
+  for (const m of PEOPLE){ try { if (!MODELS3D[m]){ const r = await loadModel3D(m); if (r) MODELS3D[m] = r; } if (MODELS3D[m]) have.push(m); } catch (e){} await new Promise(r => setTimeout(r, 200)); }
+  if (!have.length) return;
+  // the street's walkers (not the story's people, not the ones already in the galabeya): a share of them become real people
+  const pool = npcs.filter(n => !n.r3 && !n.friend && !n.thug && (!n.role || n.role === 'walker' || n.role === 'crowd')), want = Math.min(pool.length, LOW ? 8 : GFX === 'high' ? 22 : 14);
+  for (let i = 0; i < want; i++){ const n = pool[Math.floor(i * pool.length / want)]; if (npcWear3D(n, have[i % have.length]) && n.r3) n.r3.mesh.castShadow = GFX === 'high'; }   // their shadows only on «عالي» (the soft blob stays)
+})();
+
+// ---- 19zzzzz-streetlights.js ----
+// ================= stage 17: the city's streetlights — posts along the bigger streets, warm heads and pools of light at night =================
+const SLIGHT = {
+  post: (() => { const p = []; cyl(p, .06, .09, 6.2, 0, 3.1, 0, '#2c3136', 0, 6); box(p, .06, .06, 1.6, 0, 6.1, .78, '#2c3136'); return mergeGeometries(p.map(q => q.index ? q.toNonIndexed() : q)); })(),
+  head: (() => { const g = new THREE.BoxGeometry(.32, .14, .55); g.translate(0, 6.02, 1.5); return g; })(),
+  pool: (() => { const g = new THREE.PlaneGeometry(9, 9); g.rotateX(-Math.PI / 2); g.translate(0, .2, 2.2); return g; })(),
+  postMat: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .6, metalness: .4 }),
+  headMat: new THREE.MeshStandardMaterial({ color: 0xfff1d0, emissive: 0xffc77a, emissiveIntensity: .2, roughness: .4 }),
+  poolMat: new THREE.MeshBasicMaterial({ map: makeTex(128, 128, (g, w, h) => { const r = g.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2); r.addColorStop(0, 'rgba(255,194,122,.75)'); r.addColorStop(.45, 'rgba(255,180,105,.28)'); r.addColorStop(1, 'rgba(255,160,90,0)'); g.fillStyle = r; g.fillRect(0, 0, w, h); }),
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0, polygonOffset: true, polygonOffsetFactor: -3, fog: true }),
+  done: new Set(),
+};
+function cityStreetlights(grp, ox, oz){
+  if (!RG.E.length) return;
+  const C = CITY.chunk, list = [], seen = new Set();
+  for (let i = Math.floor(ox / RG.cell) - 1; i <= Math.floor((ox + C) / RG.cell) + 1; i++) for (let k = Math.floor(oz / RG.cell) - 1; k <= Math.floor((oz + C) / RG.cell) + 1; k++){
+    const l = RG.grid.get(i * 100000 + k); if (!l) continue;
+    for (const ei of l){ if (seen.has(ei)) continue; seen.add(ei); const e = RG.E[ei]; if (e.w < 4 || e.cls === 'service') continue; const step = e.w >= 8 ? 30 : 24;
+      for (let s = 8; s < e.L - 5; s += step){
+        const o = edgeAt(e, s); if (o.x < ox || o.x >= ox + C || o.z < oz || o.z >= oz + C) continue;
+        for (const side of e.ow || e.w >= 12 ? [1, -1] : [((ei + Math.round(s)) & 1) ? 1 : -1]){
+          const off = e.w / 2 + .7, x = o.x - o.fz * off * side, z = o.z + o.fx * off * side, v = cityR(x, z);
+          if (v < 2 || v >= 10 || inPatch(x, z)) continue;
+          list.push([x, z, Math.atan2(o.fz * side, -o.fx * side)]);   // the arm reaches over the road
+          const key = Math.round(x) + ',' + Math.round(z); if (!SLIGHT.done.has(key)){ SLIGHT.done.add(key); obstacles.push({ minX: x - .12, maxX: x + .12, minZ: z - .12, maxZ: z + .12 }); OG.n = -1; }
+        }
+      }
+    }
+  }
+  if (!list.length) return;
+  const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), Y = new THREE.Vector3(0, 1, 0), P = new THREE.Vector3(), S = new THREE.Vector3(1, 1, 1);
+  const mk = (geo, mat, shadow) => { const im = new THREE.InstancedMesh(geo, mat, list.length); im.castShadow = shadow; list.forEach(([x, z, ry], i) => { Q.setFromAxisAngle(Y, ry); M.compose(P.set(x, .15, z), Q, S); im.setMatrixAt(i, M); }); im.computeBoundingSphere(); grp.add(im); return im; };
+  mk(SLIGHT.post, SLIGHT.postMat, !LOW); mk(SLIGHT.head, SLIGHT.headMat, false); const pool = mk(SLIGHT.pool, SLIGHT.poolMat, false); pool.renderOrder = 2;
+}
+if (CITY){ const _bl2 = cityBaseLayer; cityBaseLayer = function(grp, ox, oz){ _bl2(grp, ox, oz); try { cityStreetlights(grp, ox, oz); } catch (e){} }; }
+{ const _todSL = applyTimeOfDay; applyTimeOfDay = function(h){ _todSL(h); const n = nightAmount(TOD.h); SLIGHT.headMat.emissiveIntensity = .2 + n * 3.2; SLIGHT.poolMat.opacity = n * .56; SLIGHT.poolMat.visible = n > .05; }; }
+
+// ---- 19zzzzz-trees.js ----
+// ================= stage 18: palms and trees across the city =================
+// Palms along the corniche (طريق الجيش) on the sea side; ficus / shade trees along the big avenues and the side streets of the
+// leafier districts (Raml, Smouha, Sidi Gaber, Shatby…). Near you the real models (Sketchfab palms; the ficus when it's there),
+// further away a light stand-in, so a whole avenue of trees costs little.
+const TREES = {
+  far: {
+    palm: (() => { const p = []; for (let i = 0; i < 4; i++){ const g = new THREE.CylinderGeometry(.16 - i * .02, .2 - i * .02, 2.2, 5); g.translate(0, 1.1 + i * 2.2, 0); p.push(colored(g, '#6b5038')); }
+      for (let f = 0; f < 6; f++){ const g = new THREE.ConeGeometry(.5, 3.6, 3); g.rotateX(Math.PI / 2 + .55); g.translate(0, .2, 1.7); g.rotateY(f / 6 * Math.PI * 2); g.translate(0, 8.6, 0); p.push(colored(g, f % 2 ? '#4d7a37' : '#5a8a3f')); }
+      return mergeGeometries(p.map(q => q.index ? q.toNonIndexed() : q)); })(),
+    tree: (() => { const p = []; { const g = new THREE.CylinderGeometry(.18, .28, 3.2, 6); g.translate(0, 1.6, 0); p.push(colored(g, '#5b4636')); }
+      for (const [x, y, z, s] of [[0, 5.0, 0, 3.0], [1.7, 4.4, .7, 2.2], [-1.6, 4.6, -.6, 2.3], [.3, 6.2, -.9, 2.0]]){ const g = new THREE.IcosahedronGeometry(s, 0); g.scale(1, .78, 1); g.translate(x, y, z); p.push(colored(g, ['#3f6b2f', '#4a7a35', '#365f2a', '#557f3a'][(x * 3 + 4 | 0) & 3])); }
+      return mergeGeometries(p.map(q => q.index ? q.toNonIndexed() : q)); })(),
+  },
+  mat: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .9 }),
+  LEAFY: new Set(['raml', 'smouha', 'sidigaber', 'shatby', 'corniche', 'moharram']),
+  groups: [], obs: new Set(),
+};
+// which model near you: the ficus from the stage-18 batch if it arrived, else the palms
+const treeNear = kind => kind === 'palm' ? (Math.random() < .5 ? 'palm-trees:palm_a' : 'palm-trees:palm_b') : (SFM['ficus'] ? 'ficus' : SFM['street-tree'] ? 'street-tree' : null);
+function cityTrees(grp, ox, oz){
+  if (!RG.E.length) return;
+  const C = CITY.chunk, palms = [], trees = [], seen = new Set();
+  for (let i = Math.floor(ox / RG.cell) - 1; i <= Math.floor((ox + C) / RG.cell) + 1; i++) for (let k = Math.floor(oz / RG.cell) - 1; k <= Math.floor((oz + C) / RG.cell) + 1; k++){
+    const l = RG.grid.get(i * 100000 + k); if (!l) continue;
+    for (const ei of l){ if (seen.has(ei)) continue; seen.add(ei); const e = RG.E[ei]; if (e.cls === 'service') continue;
+      const corniche = /الجيش|كورنيش/.test(e.name || ''), mid = edgeAt(e, e.L / 2), dist = cityDistrict(mid.x, mid.z), leafy = dist && TREES.LEAFY.has(dist.h);
+      const kind = corniche ? 'palm' : (e.cls === 'major' && e.w >= 10) ? 'tree' : (leafy && e.w >= 4.5) ? 'tree' : null; if (!kind) continue;
+      const step = corniche ? 20 : e.cls === 'major' ? 17 : 21;
+      for (let s = step / 2 + (ei % 5); s < e.L - 4; s += step){
+        const o = edgeAt(e, s); if (o.x < ox || o.x >= ox + C || o.z < oz || o.z >= oz + C) continue;
+        for (const side of corniche ? [1, -1] : e.cls === 'major' ? [1, -1] : [((ei + Math.round(s)) & 1) ? 1 : -1]){
+          const off = e.w / 2 + (corniche ? 1.6 : 1.1), x = o.x - o.fz * off * side, z = o.z + o.fx * off * side, v = cityR(x, z);
+          if (v < 2 || v >= 10 || inPatch(x, z) || staticBlocked(x, z, .6)) continue;
+          if (corniche && ![3, 6, 9].some(d => cityR(x - o.fz * d * side, z + o.fx * d * side) === 0)) continue;   // the palms stand on the sea side
+          (kind === 'palm' ? palms : trees).push([x, .15, z, (x * 13 + z * 7) % 6.28, .85 + ((x * 31 + z * 17) % 1 + 1) % 1 * .35]);
+          const key = Math.round(x) + ',' + Math.round(z); if (!TREES.obs.has(key)){ TREES.obs.add(key); obstacles.push({ minX: x - .3, maxX: x + .3, minZ: z - .3, maxZ: z + .3 }); OG.n = -1; }
+        }
+      }
+    }
+  }
+  if (!palms.length && !trees.length) return;
+  const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), Y = new THREE.Vector3(0, 1, 0), V = new THREE.Vector3(), S = new THREE.Vector3();
+  const inst = (geo, mat, L) => { const im = new THREE.InstancedMesh(geo, mat, L.length); im.castShadow = GFX === 'high'; im.receiveShadow = true; L.forEach(([x, y, z, ry, s], i) => { Q.setFromAxisAngle(Y, ry); M.compose(V.set(x, y, z), Q, S.set(s, s, s)); im.setMatrixAt(i, M); }); im.computeBoundingSphere(); return im; };
+  const far = new THREE.Group(), near = new THREE.Group();
+  if (palms.length) far.add(inst(TREES.far.palm, TREES.mat, palms));
+  if (trees.length) far.add(inst(TREES.far.tree, TREES.mat, trees));
+  // near: the real models (split the palms between the two palm shapes)
+  const addNear = (name, L) => { if (!L.length || !SFM[name]) return false; const g = sfInst(name, L.map(([x, y, z, ry, s]) => [x, y, z, ry, s]), GFX === 'high'); if (g) near.add(g); return true; };
+  // the palms: the two Sketchfab palms and the date palm, mixed; the street trees: big ficus and a smaller Mediterranean tree
+  const sc = (L, k) => L.map(([x, y, z, ry, s]) => [x, y, z, ry, s * k]);
+  addNear('palm-trees:palm_a', palms.filter((_, i) => i % 3 === 0)); addNear('palm-trees:palm_b', palms.filter((_, i) => i % 3 === 1));
+  if (!addNear('date-palm', sc(palms.filter((_, i) => i % 3 === 2), 1.15))) addNear('palm-trees:palm_a', palms.filter((_, i) => i % 3 === 2));
+  const tA = trees.filter((_, i) => i % 5 < 3), tB = trees.filter((_, i) => i % 5 >= 3);
+  const okA = addNear('ficus-tree', sc(tA, .72)), okB = addNear('mediterranean-tree', sc(tB, .9));
+  if (!okA && tA.length) near.add(inst(TREES.far.tree, TREES.mat, tA)); if (!okB && tB.length) near.add(inst(TREES.far.tree, TREES.mat, tB));
+  const hasNear = near.children.length > 0;
+  far.userData.c = near.userData.c = [ox + C / 2, oz + C / 2]; grp.add(far); if (hasNear) grp.add(near);
+  TREES.groups.push({ far, near: hasNear ? near : null, c: far.userData.c, grp });
+}
+if (CITY){ const _blT = cityBaseLayer; cityBaseLayer = function(grp, ox, oz){ _blT(grp, ox, oz); try { cityTrees(grp, ox, oz); } catch (e){ console.warn('trees', e); } }; }
+{ const _ucT = updateCity; let tT = 0;
+  updateCity = function(px, pz){ _ucT(px, pz); const now = performance.now(); if (now - tT < 300) return; tT = now;
+    const R = LOW ? 0 : GFX === 'high' ? 140 : 60;   // «خفيف»: the light stand-ins only
+    for (let i = TREES.groups.length - 1; i >= 0; i--){ const T = TREES.groups[i]; if (!T.grp.parent){ TREES.groups.splice(i, 1); continue; }
+      const d = Math.hypot(T.c[0] - px, T.c[1] - pz), nearOn = !!T.near && d < R; if (T.near) T.near.visible = nearOn; T.far.visible = !nearOn; } }; }
 
 // ---- 20-story.js ----
 // ================= story: طيارة الجامد =================
@@ -11500,7 +11919,7 @@ function update(dt, t){
   }
   updateTram(dt, t, playing); vehicleKicks(dt); updateCityLife(dt); updateCityStreets(dt);
   storyFxTick(dt, t); updateStage5(dt, t);
-  waterTex.offset.x += dt * .006; waterTex.offset.y = Math.sin(t * .35) * .03;   // the sea moves a little
+  GFXU.uTime.value += dt; waterTex.offset.x += dt * .006; waterTex.offset.y = Math.sin(t * .35) * .03;   // the sea moves a little
   npcs.forEach(n => updateNPC(n, dt)); meleeUpdate(dt); weaponsUpdate(dt); carsAliveUpdate(dt, t); streetLifeUpdate(dt, t); cityMovesUpdate(dt); deathSceneUpdate(dt); updateWorldMarks(dt); updateOpenWorld(dt, t); if (!HOUSE.inside){ const f = hero.veh ? hero.veh.pos : hero.pos; updateCity(f.x, f.z); updateLandmarks(f); updateBeaches(f); updateAround(f); updateCityTrams(dt); }
   if (playing && !CUT.on){ updateEnemy(dt); updateWanted(dt); updateThief(dt, t); }
   for (const f of feluccas){ f.g.position.x += f.sp*dt; if (f.g.position.x > 60) f.g.position.x = -260; else if (f.g.position.x < -260 && f.sp < 0) f.g.position.x = 60; f.g.position.y = -1 + Math.sin(t*.8 + f.ph)*.06; f.g.rotation.z = Math.sin(t*.6 + f.ph)*.03; }
@@ -11556,4 +11975,4 @@ renderer.setAnimationLoop(() => { const raw = clock.getDelta(), dt = Math.min(ra
   if (state === 'play'){ fpsAcc += raw; fpsN++; if (fpsN >= 150){ const avg = fpsAcc/fpsN; if (avg > 1/30 && pxr > .8){ pxr = Math.max(.8, pxr - .2); renderer.setPixelRatio(pxr); renderer.setSize(innerWidth, innerHeight); } else if (avg > 1/24 && sun.castShadow){ sun.castShadow = false; } else if (avg > 1/24 && GFX !== 'low'){ GFX = 'low'; applyGfx(); gfxWorld(); renderGfxBtns(); pxr = renderer.getPixelRatio(); }   /* still slow: light graphics for this session (not saved) */ fpsAcc = 0; fpsN = 0; } } });
 renderModes();
 loadDone(); introOnLoad();
-window.__game = { hero, enemy, wanted, vehicles, npcs, keys, get state(){ return state; }, get mode(){ return modeObj; }, startMode, action, punch, dbg: { rinfo(){ return { calls: renderer.info.render.calls, tris: renderer.info.render.triangles, geos: renderer.info.memory.geometries, tex: renderer.info.memory.textures }; }, camShot(x, y, z, lx, lz){ CUT.on = true; camera.position.set(x, y, z); lookAt.set(lx, 0, lz); camera.lookAt(lookAt); }, camOff(){ CUT.on = false; }, graphNearest, obstacles, keysDown: keys, GLASS_SPOTS, crimeTest: () => crime("assault", heroAt(), 3), spawnPoint: (a, b, c) => spawnPoint(a, b, c), MS, graphRoute, inWorld: (x, z) => inWorld(x, z), staticBlocked: (x, z, p) => staticBlocked(x, z, p), SETS, BEACHES, LM, CAVE, freeSpot, THREE, get CBEACHES(){ return CBEACHES; }, get CFOOT(){ return CFOOT; }, CTRAM, ctAt, traffic, cityDistrict, gpsPlaces: () => gpsPlaces(), setOrbit(a){ CAM.orbit = CAM.orbitSm = a; }, setCam(d, tilt){ camTarget = camDist = d; if (tilt != null) CAM.tilt = tilt; }, CITY, CGRAPH, cityR, cityDistrict, CITY_CH, CCH, enterVehicle, exitVehicle: (f) => exitVehicle(f), get nearAction(){ return nearAction; }, OWS, playAs, switchTo, openWheel2, GARAGES, OW_LEFT, OW_MADE, storeCar, takeOut, openSaves, openDone, completion, setSlot, get SLOT(){ return SLOT; }, SW, tayaraD, get SAVE(){ return SAVE; }, owMissionAction, CLIPS, get clipsReady(){ return CLIPS_READY; }, get cam(){ return { yaw: camYaw, p: camera.position.clone(), l: lookAt.clone() }; }, GM, GPS, openMap, gpsPlaces, get state(){ return state; }, DSC, deathScene, heroDamage, busted, hudHint, hudCounter, subtitle, say, banner, setObjective, CMOVE, MOVE, ledgeAt, startPipe, takeStairs, toggleHideCar, polSightR, roofTop, buildings, OG, heroGround, LIFE, BREAK, startEvent, endEvent, streetDrama, shopsPanic, greet, provoke, npcLaunch, thiefChase, startFilming, CHAIRM, streetLifeUpdate, CARANIM, animEnter, animExit, animJack, carDamaged, explode, crackGlass, DEBRIS, heroMoto, carjackTarget, SAMP, playS, GSND, playGun, ROADS_X, ROADS_Z, spawnPoint, aiDrive, copSpawn, copHit, roadBlock, polUnit, onScreen, crossTarget, SHELLM, WMODEL, AIM_RAISE, GW, GUN, AMMO, BLOOD, FX, MOLO, fireGun, gunPress, gunRelease, throwMolotov, startReload, buyAmmo, openWheel, closeWheel, aimTarget, traceShot, MEL, STRIKES, FSTYLE, PROPS, attackPress, attackRelease, blockPress, blockRelease, grabPress, meleeHitNPC, styleOf, pickProp, updateNPC, showActor, hideActor, shadiaD, haidyD, kamelD, POL, crime, wantedUp, polEnd, busted, carjack, carjackTarget, isTheft, TL, tlPhase, tlFor, CROWD, CROSSERS, traffic, crowdWanted, trafficWanted, TOD, applyTimeOfDay, MOVE, wantJump, SEA_STAIRS, heroGround, joy, NILE_Z, WATER_Y, get camYaw(){ return camYaw; }, WEAP, setWeapon, POL, GPS, gpsSet, gpsPlaces, openPhone, closePhone, PHONE, ACTS, actStart, TUTS, inSea, vCircles, CUT, MS, curM, NARR, setRain, giveStick, launches, arabiCar, setCam: (d, tl) => { camTarget = camDist = d; CAM.tilt = tl; }, tram, TRAMR, SHOPS, enterShop, exitShop, FORT, VILLA, traffic, vehicles, heroCar, copCar, enterVehicle, CAM, pedal, joy, dom: { DOM, round10, newDominoMatch, newDominoRound, commitPlayer, aiLegal, aiEval, unseenBy, DOM_AI, aiTurn, babCounts, isBlocked, hand: s => DOM.hands[s] }, say, failMission, skipMission, uiBack, startReplay, ST2, REPLAY, EASY, get SAVE(){ return SAVE; }, get DIFF(){ return DIFF; }, RIG_MS, renderer, scene, camera, SFX, spawnThugs, npcWear3D, playIntroSeq, endIntro, makePosterImage, introLayout, VOICE, playVoice, vHash, voiceLeft, heroCheer, cats, mesa, PROG_R: () => PROG.ramadan, nightVisuals, openGarage, applyGarage, GARAGE_POS, TW, openTawla, twRoll, twPlayerMove, twStartGame, closeTawla, sequences, TAWLA_SPOT, ACT, ACTS, actStart, actEnd, kameenSpawn, pigeons, RAMPS, parkCar, LOT, PEN, COOP, PROG, ACH, achCheck, openAch, openPhoto, closePhoto, takePhoto, PHOTO, goldGlasses, staticBlocked, blocked, obstacles, freeSpot, SPOT, STOPS, ST, AH, FL, DOM, ahwaTap, ahwaHold, foulTap, stationBtn, enterStation, exitStation, openDomino, playerPick, SA, SF, get SAVE(){ return SAVE; }, startJob, endJob, race, buyVehicle, MS, ST2, CUT, JOB, RHY, HOUSE, TOD, boss, pickups, checkpoints, idx, curM, finishMission, failMission, applyStoryWorld, playCut, dlgTap, applyTimeOfDay, enterHouse, exitHouse, houseAction, openTransit, ride, startPizzaJob, startTukJob, endJob2, playWedding, rhyHit, pizzaMoto, tukVeh, arabiMoto, heroMoto, storyAction, openShop, renderModes, thief, thiefStart, thiefCaught, islamD, CAM }, step(n=60){ for (let i=0;i<n;i++){ elapsed += 1/60; update(1/60, elapsed); } renderer.render(scene, camera); } };
+window.__game = { hero, enemy, wanted, vehicles, npcs, keys, get state(){ return state; }, get mode(){ return modeObj; }, startMode, action, punch, dbg: { rinfo(){ return { calls: renderer.info.render.calls, tris: renderer.info.render.triangles, geos: renderer.info.memory.geometries, tex: renderer.info.memory.textures }; }, camShot(x, y, z, lx, lz){ CUT.on = true; camera.position.set(x, y, z); lookAt.set(lx, 0, lz); camera.lookAt(lookAt); }, camOff(){ CUT.on = false; }, graphNearest, obstacles, keysDown: keys, GLASS_SPOTS, crimeTest: () => crime("assault", heroAt(), 3), spawnPoint: (a, b, c) => spawnPoint(a, b, c), MS, graphRoute, inWorld: (x, z) => inWorld(x, z), staticBlocked: (x, z, p) => staticBlocked(x, z, p), SETS, BEACHES, LM, CAVE, freeSpot, THREE, get FRIENDS(){ return FRIENDS; }, setTime(h){ applyTimeOfDay(h); }, SKYX, get CBEACHES(){ return CBEACHES; }, get CFOOT(){ return CFOOT; }, CTRAM, ctAt, traffic, cityDistrict, gpsPlaces: () => gpsPlaces(), setOrbit(a){ CAM.orbit = CAM.orbitSm = a; }, setCam(d, tilt){ camTarget = camDist = d; if (tilt != null) CAM.tilt = tilt; }, CITY, CGRAPH, cityR, cityDistrict, CITY_CH, CCH, enterVehicle, exitVehicle: (f) => exitVehicle(f), get nearAction(){ return nearAction; }, OWS, playAs, switchTo, openWheel2, GARAGES, OW_LEFT, OW_MADE, storeCar, takeOut, openSaves, openDone, completion, setSlot, get SLOT(){ return SLOT; }, SW, tayaraD, get SAVE(){ return SAVE; }, owMissionAction, CLIPS, get clipsReady(){ return CLIPS_READY; }, get cam(){ return { yaw: camYaw, p: camera.position.clone(), l: lookAt.clone() }; }, GM, GPS, openMap, gpsPlaces, get state(){ return state; }, DSC, deathScene, heroDamage, busted, hudHint, hudCounter, subtitle, say, banner, setObjective, CMOVE, MOVE, ledgeAt, startPipe, takeStairs, toggleHideCar, polSightR, roofTop, buildings, OG, heroGround, LIFE, BREAK, startEvent, endEvent, streetDrama, shopsPanic, greet, provoke, npcLaunch, thiefChase, startFilming, CHAIRM, streetLifeUpdate, CARANIM, animEnter, animExit, animJack, carDamaged, explode, crackGlass, DEBRIS, heroMoto, carjackTarget, SAMP, playS, GSND, playGun, ROADS_X, ROADS_Z, spawnPoint, aiDrive, copSpawn, copHit, roadBlock, polUnit, onScreen, crossTarget, SHELLM, WMODEL, AIM_RAISE, GW, GUN, AMMO, BLOOD, FX, MOLO, fireGun, gunPress, gunRelease, throwMolotov, startReload, buyAmmo, openWheel, closeWheel, aimTarget, traceShot, MEL, STRIKES, FSTYLE, PROPS, attackPress, attackRelease, blockPress, blockRelease, grabPress, meleeHitNPC, styleOf, pickProp, updateNPC, showActor, hideActor, shadiaD, haidyD, kamelD, POL, crime, wantedUp, polEnd, busted, carjack, carjackTarget, isTheft, TL, tlPhase, tlFor, CROWD, CROSSERS, traffic, crowdWanted, trafficWanted, TOD, applyTimeOfDay, MOVE, wantJump, SEA_STAIRS, heroGround, joy, NILE_Z, WATER_Y, get camYaw(){ return camYaw; }, WEAP, setWeapon, POL, GPS, gpsSet, gpsPlaces, openPhone, closePhone, PHONE, ACTS, actStart, TUTS, inSea, vCircles, CUT, MS, curM, NARR, setRain, giveStick, launches, arabiCar, setCam: (d, tl) => { camTarget = camDist = d; CAM.tilt = tl; }, tram, TRAMR, SHOPS, enterShop, exitShop, FORT, VILLA, traffic, vehicles, heroCar, copCar, enterVehicle, CAM, pedal, joy, dom: { DOM, round10, newDominoMatch, newDominoRound, commitPlayer, aiLegal, aiEval, unseenBy, DOM_AI, aiTurn, babCounts, isBlocked, hand: s => DOM.hands[s] }, say, failMission, skipMission, uiBack, startReplay, ST2, REPLAY, EASY, get SAVE(){ return SAVE; }, get DIFF(){ return DIFF; }, RIG_MS, renderer, scene, camera, SFX, spawnThugs, npcWear3D, playIntroSeq, endIntro, makePosterImage, introLayout, VOICE, playVoice, vHash, voiceLeft, heroCheer, cats, mesa, PROG_R: () => PROG.ramadan, nightVisuals, openGarage, applyGarage, GARAGE_POS, TW, openTawla, twRoll, twPlayerMove, twStartGame, closeTawla, sequences, TAWLA_SPOT, ACT, ACTS, actStart, actEnd, kameenSpawn, pigeons, RAMPS, parkCar, LOT, PEN, COOP, PROG, ACH, achCheck, openAch, openPhoto, closePhoto, takePhoto, PHOTO, goldGlasses, staticBlocked, blocked, obstacles, freeSpot, SPOT, STOPS, ST, AH, FL, DOM, ahwaTap, ahwaHold, foulTap, stationBtn, enterStation, exitStation, openDomino, playerPick, SA, SF, get SAVE(){ return SAVE; }, startJob, endJob, race, buyVehicle, MS, ST2, CUT, JOB, RHY, HOUSE, TOD, boss, pickups, checkpoints, idx, curM, finishMission, failMission, applyStoryWorld, playCut, dlgTap, applyTimeOfDay, enterHouse, exitHouse, houseAction, openTransit, ride, startPizzaJob, startTukJob, endJob2, playWedding, rhyHit, pizzaMoto, tukVeh, arabiMoto, heroMoto, storyAction, openShop, renderModes, thief, thiefStart, thiefCaught, islamD, CAM }, step(n=60){ for (let i=0;i<n;i++){ elapsed += 1/60; update(1/60, elapsed); } renderer.render(scene, camera); } };

@@ -34,7 +34,7 @@ function applyGfx(){
   const sh = q !== 'low', st = q === 'high' ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;   // the soft kind samples much more: عالي only
   if (renderer.shadowMap.enabled !== sh || renderer.shadowMap.type !== st){ renderer.shadowMap.enabled = sh; renderer.shadowMap.type = st; scene.traverse(o => { if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { m.needsUpdate = true; }); }); }
   sun.castShadow = sh;
-  const ms = q === 'high' ? 2048 : 1024, ext = q === 'high' ? 45 : 30;
+  const ms = q === 'high' ? 2048 : 1024, ext = q === 'high' ? 60 : 40;   // stage 17: the sun's shadows reach further (the street across, the next block)
   if (sun.shadow.mapSize.x !== ms){ sun.shadow.mapSize.set(ms, ms); if (sun.shadow.map){ sun.shadow.map.dispose(); sun.shadow.map = null; } }
   Object.assign(sun.shadow.camera, { left: -ext, right: ext, top: ext, bottom: -ext }); sun.shadow.camera.updateProjectionMatrix();
   scene.fog.near = q === 'low' ? 40 : 55; scene.fog.far = q === 'low' ? 150 : 205;

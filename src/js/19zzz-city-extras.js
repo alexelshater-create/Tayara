@@ -92,8 +92,7 @@ if (CITY){
 if (CITY && AR_GEO.micro){
   let n = 0;
   for (const c of [...traffic].reverse()){ if (n >= (LOW ? 2 : 3)) break; const u = c.userData; if (u.kind !== 'car') continue;   // from the end: the hour turns cars off from the front
-    for (const ch of c.children) ch.visible = false;
-    const m = new THREE.Mesh(AR_GEO.micro, arMat); m.castShadow = !LOW; c.add(m); u.kind = 'micro'; u.graph = false; u.base = R(9, 12); u.len = 2.6; n++; }
+    if (SFM.microbus){ c.userData.sf = null; sfSkin(c, 'microbus'); } else { for (const ch of c.children) ch.visible = false; const m = new THREE.Mesh(AR_GEO.micro, arMat); m.castShadow = !LOW; c.add(m); } u.kind = 'micro'; u.graph = false; u.base = R(9, 12); u.len = 2.6; n++; }
 }
 // ---------- a kiosk on some street corners (cigarettes, a drinks fridge, papers), city-wide ----------
 const CKIOSK = { byChunk: null, obs: new Set() };
@@ -116,3 +115,6 @@ function cityKiosks(grp, ox, oz){
   }
   if (parts.length){ const m = new THREE.Mesh(mergeGeometries(parts), arMat); m.castShadow = !LOW; m.receiveShadow = true; m.matrixAutoUpdate = false; m.updateMatrixWorld(true); grp.add(m); }
 }
+
+// the microbus you drive for the job is the real HiAce too
+if (typeof microVeh !== 'undefined' && SFM.microbus) sfSkin(microVeh.mesh, 'microbus');

@@ -68,7 +68,7 @@ function buildAround(L){
   const spec = AROUND[L.k]; if (!spec) return null;
   const c = L.root.position, [r0, r1] = spec.r, R0 = Math.max(r0 * .7, L.r * .55), R1 = Math.max(r1 * .75, R0 + 30), B = L.box.clone().expandByScalar(2);
   const parts = [], used = [], grp = new THREE.Group(), obs = [], inModel = (x, z) => x > B.min.x && x < B.max.x && z > B.min.z && z < B.max.z && L.k !== 'stanley';
-  const sfl = {}, SWAP = { palm: () => Math.random() < .5 ? 'palm-trees:palm_a' : 'palm-trees:palm_b', lamp: () => 'street-lamp', stall: () => 'vendor-stall', cart: () => 'foul-cart', cat: () => 'cat', boat: () => Math.random() < .5 ? 'fishing-boat' : null };
+  const sfl = {}, SWAP = { palm: () => Math.random() < .5 ? 'palm-trees:palm_a' : 'palm-trees:palm_b', lamp: () => LOW ? null : 'street-lamp', stall: () => 'vendor-stall', cart: () => 'foul-cart', cat: () => 'cat', boat: () => Math.random() < .5 ? 'fishing-boat' : null };
   const put = (kind, x, z, ry) => { const sw = SWAP[kind.startsWith('boat') ? 'boat' : kind], sn = sw && sw();
     if (sn && SFM[sn]){ (sfl[sn] = sfl[sn] || []).push([x, kind.startsWith('boat') ? -.25 : .15, z, ry + (kind === 'lamp' ? 0 : Math.PI)]); used.push([x, z]); const sd = AR_SOLID[kind]; if (sd) obs.push({ minX: x - sd, maxX: x + sd, minZ: z - sd, maxZ: z + sd, around: L.k }); return; }
     if (!AR_GEO[kind]) return; const g = AR_GEO[kind].clone(); g.rotateY(ry); g.translate(x, kind.startsWith('boat') ? -1 : .15, z); parts.push(g); used.push([x, z]);

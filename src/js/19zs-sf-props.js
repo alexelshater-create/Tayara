@@ -4,12 +4,14 @@
 // Every model is real size, standing on the ground at its middle, its front at glTF -Z.
 const SFM = {};
 await (async () => {
-  const names = ['lada-taxi', 'lada-car', 'peugeot-504-break', 'old-car-saratoga', 'tuktuk', 'cat', 'vendor-stall', 'foul-cart', 'street-lamp', 'palm-trees', 'fishing-boat', 'satellite-dish', 'water-tanks', 'ac-unit', 'butane-cylinder', 'vespa'];
+  const names = ['lada-taxi', 'lada-car', 'peugeot-504-break', 'old-car-saratoga', 'tuktuk', 'cat', 'vendor-stall', 'foul-cart', 'street-lamp', 'palm-trees', 'fishing-boat', 'satellite-dish', 'water-tanks', 'ac-unit', 'butane-cylinder', 'vespa',
+    // stage 18 (assets/props/sf2): today's Egyptian cars, the HiAce microbus, a motorbike, a bicycle, the street trees
+    'sf2/lanos', 'sf2/corolla', 'sf2/elantra', 'sf2/lada2107', 'sf2/sunny', 'sf2/microbus', 'sf2/motorcycle', 'sf2/bicycle', 'sf2/ficus-tree', 'sf2/mediterranean-tree', 'sf2/date-palm', 'sf2/hedge-bush'];
   try {
     const { GLTFLoader } = await import('three/addons/GLTFLoader.js'); const ld = new GLTFLoader();
-    const got = await Promise.all(names.map(n => ld.loadAsync(`assets/props/sf/${n}.glb`).catch(() => null)));
+    const got = await Promise.all(names.map(n => ld.loadAsync(`assets/props/${n.includes('/') ? n : 'sf/' + n}.glb`).catch(() => null)));
     got.forEach((g, i) => {
-      if (!g) return; const n = names[i]; g.scene.updateMatrixWorld(true);
+      if (!g) return; const n = names[i].split('/').pop(); g.scene.updateMatrixWorld(true);
       const parts = []; g.scene.traverse(o => { if (!o.isMesh) return; const geo = o.geometry.clone(); geo.applyMatrix4(o.matrixWorld); const mats = Array.isArray(o.material) ? o.material : [o.material];
         for (const m of mats){ m.side = THREE.FrontSide; if (m.map) m.map.anisotropy = 4; } parts.push({ name: o.name, geo, mat: o.material }); });
       SFM[n] = parts;
@@ -46,8 +48,11 @@ function sfSkin(g, model, tint){
 function sfCarFor(kind){
   if (kind === 'taxi') return ['lada-taxi', null];
   if (kind === 'tuk') return ['tuktuk', null];
+  if (kind === 'micro') return ['microbus', null];
+  // what's on Alexandria's streets: lots of Lanos, Ladas and old Corollas, Sunnys, a newer Elantra, Peugeot 504s, now and then an old Chevrolet
   const r = Math.random();
-  return r < .38 ? ['lada-car', pick(SF_PAINT)] : r < .66 ? ['peugeot-504-break', pick(SF_PAINT)] : r < .72 ? ['old-car-saratoga', null] : [null, null];
+  return r < .2 ? ['lanos', pick(SF_PAINT)] : r < .34 ? ['lada-car', pick(SF_PAINT)] : r < .46 ? ['lada2107', pick(SF_PAINT)] : r < .58 ? ['corolla', pick(SF_PAINT)] : r < .7 ? ['sunny', pick(SF_PAINT)]
+    : r < .8 ? ['elantra', pick(SF_PAINT)] : r < .92 ? ['peugeot-504-break', pick(SF_PAINT)] : r < .96 ? ['old-car-saratoga', null] : [null, null];
 }
 for (const c of traffic){ const [m, t] = sfCarFor(c.userData.kind); if (m) sfSkin(c, m, t); }
 for (const v of vehicles){
@@ -91,4 +96,4 @@ function cityRoofProps(list, ox, oz, grp){
 
 { const _ucr = updateCity; let t0 = 0;
   updateCity = function(px, pz){ _ucr(px, pz); const now = performance.now(); if (now - t0 < 300) return; t0 = now;
-    for (let i = CROOF.length - 1; i >= 0; i--){ const g = CROOF[i]; if (!g.parent || !g.parent.parent){ CROOF.splice(i, 1); continue; } const [cx, cz] = g.userData.c; g.visible = Math.hypot(cx - px, cz - pz) < (LOW ? 150 : 200); } }; }
+    for (let i = CROOF.length - 1; i >= 0; i--){ const g = CROOF[i]; if (!g.parent || !g.parent.parent){ CROOF.splice(i, 1); continue; } const [cx, cz] = g.userData.c; g.visible = Math.hypot(cx - px, cz - pz) < (LOW ? 90 : GFX === 'high' ? 170 : 115); } }; }

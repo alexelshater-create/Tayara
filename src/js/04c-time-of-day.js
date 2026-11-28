@@ -4,7 +4,7 @@ const HOUSE = { inside: false, room: { x0: 5593.5, x1: 5600.5, z0: 5597, z1: 560
 const TOD = { h: 15, last: -1 };
 const nightAmount = h => (h >= 7 && h <= 17) ? 0 : (h >= 20 || h <= 4.5) ? 1 : h > 17 ? (h - 17)/3 : 1 - (h - 4.5)/2.5;
 const duskAmount = h => Math.max(0, 1 - Math.abs(h - 18.2)/1.5, 1 - Math.abs(h - 6)/1.2);
-const DAYC = { sun: new THREE.Color(0xffe3bd), dusk: new THREE.Color(0xff9a5a), moon: new THREE.Color(0x9fb4ff), fogDay: new THREE.Color(0xcdd6da), fogDusk: new THREE.Color(0xd8a58a), fogNight: new THREE.Color(0x182033), hemiDay: new THREE.Color(0xd9e4f0), hemiNight: new THREE.Color(0x3a4a78) };
+const DAYC = { sun: new THREE.Color(0xffe3bd), dusk: new THREE.Color(0xffb070), moon: new THREE.Color(0x9fb4ff), fogDay: new THREE.Color(0xcdd6da), fogDusk: new THREE.Color(0xd8a58a), fogNight: new THREE.Color(0x182033), hemiDay: new THREE.Color(0xd9e4f0), hemiNight: new THREE.Color(0x3a4a78) };
 const glowBase = new Map();
 function applyTimeOfDay(h){
   TOD.h = ((h % 24) + 24) % 24; h = TOD.h;

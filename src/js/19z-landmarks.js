@@ -120,7 +120,7 @@ function exitCave(){
 const BEACHES = CITY ? await fetch('assets/city/beaches.json').then(r => r.ok ? r.json() : []).catch(() => []) : [];
 const sandTex = makeTex(256, 256, (g, w, h) => { g.fillStyle = '#b9a271'; g.fillRect(0, 0, w, h); for (let i = 0; i < 9000; i++){ g.fillStyle = `rgba(${150 + Math.random() * 80 | 0},${130 + Math.random() * 70 | 0},${80 + Math.random() * 60 | 0},.35)`; g.fillRect(Math.random() * w, Math.random() * h, 1.5, 1.5); } }, [1, 1]);
 sandTex.wrapS = sandTex.wrapT = THREE.RepeatWrapping;
-const sandMat = new THREE.MeshStandardMaterial({ map: sandTex, roughness: 1 });
+const sandMat = new THREE.MeshStandardMaterial({ map: sandTex, roughness: 1 }); PBR(sandMat, 'sand', 2.4, 2.4, { tint: 0xf4ead8, ns: .8 });   // stage 17: real photographed sand
 function buildBeach(b){
   const pos = new Float32Array(b.v.length * 3), uv = new Float32Array(b.v.length * 2);
   b.v.forEach(([x, z], k) => { pos.set([x, .17, z], k * 3); uv.set([x / 6, z / 6], k * 2); });
