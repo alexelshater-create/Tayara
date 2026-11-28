@@ -162,6 +162,13 @@ def place_story(R, land):
     from shapely import prepare
     landp = land.buffer(-1); prepare(landp); prepare(land)
     OLD = box(-120, -120, 320, 440)
+    # real parks and gardens: a story block doesn't go on one (the workshop ended up on a lawn); the pitch may
+    greens = []
+    for e in load('green'):
+        if e['type'] == 'way' and 'geometry' in e and len(e['geometry']) > 3:
+            try: greens.append(Polygon(PL(e['geometry'])).buffer(0))
+            except Exception: pass
+    gtree = STRtree(greens) if greens else None
     taken = list(CLEARS)
     for s in CFG.get('story', []):
         ocx, ocz = -72 + 48 * s['j'], -72 + 48 * s['kk']
@@ -173,6 +180,9 @@ def place_story(R, land):
                 cell = box(cx - 24, cz - 24, cx + 24, cz + 24); inner = box(cx - 18.5, cz - 18.5, cx + 18.5, cz + 18.5)
                 if cell.intersects(OLD) or not landp.contains(inner) or any(cell.intersects(c) for c in taken): continue
                 sc = math.hypot(dxx, dzz) * .25
+                if gtree is not None and s['k'] != 'pitch':
+                    ga = sum(greens[i].intersection(cell).area for i in gtree.query(cell))
+                    if ga > 120: continue
                 for i in tree.query(inner):
                     g = lines[i].intersection(inner)
                     if not g.is_empty: sc += g.length * W8[i]
@@ -613,7 +623,7 @@ def main():
     # ---------------- map picture ----------------
     draw_map(land, road_poly, R, park_poly, out_b, W, H)
     index = {'S': S, 'anchor': [LAT0, LON0], 'kx': KX, 'ky': KY, 'x0': X0, 'z0': Z0, 'x1': X1, 'z1': Z1, 'chunk': CH, 'tile': TS,
-             'chunks': chunks, 'districts': DIST, 'patch': [0, 0, 0, 0] if MERGED else CFG['patch'], 'merged': MERGED, 'story': [{k: s[k] for k in ('k', 'grp', 'j', 'kk', 'dx', 'dz', 'sea')} for s in STORY], 'landmarks': lms, 'shops': shops, 'anchors': CFG.get('anchors', {}), 'remote': [{k: rm[k] for k in ('name', 'j0', 'j1', 'k0', 'k1', 'dx', 'dz')} for rm in REMOTES], 'sets': SETS_OUT, 'places': snap_places(CFG.get('places', []), arr), 'tiles': sorted(f[:-4] for f in os.listdir(os.path.join(OUT, 'r')) if f.endswith('.png'))}
+             'chunks': chunks, 'districts': DIST, 'patch': [0, 0, 0, 0] if MERGED else CFG['patch'], 'merged': MERGED, 'story': [{**{k: s[k] for k in ('k', 'grp', 'j', 'kk', 'dx', 'dz', 'sea')}, **({'type': s['type']} if s.get('type') else {})} for s in STORY], 'landmarks': lms, 'shops': shops, 'anchors': CFG.get('anchors', {}), 'remote': [{k: rm[k] for k in ('name', 'j0', 'j1', 'k0', 'k1', 'dx', 'dz')} for rm in REMOTES], 'sets': SETS_OUT, 'places': snap_places(CFG.get('places', []), arr), 'tiles': sorted(f[:-4] for f in os.listdir(os.path.join(OUT, 'r')) if f.endswith('.png'))}
     json.dump(index, open(os.path.join(OUT, 'index.json'), 'w', encoding='utf-8'), ensure_ascii=False, separators=(',', ':'))
     json.dump(graph, open(os.path.join(OUT, 'graph.json'), 'w', encoding='utf-8'), ensure_ascii=False, separators=(',', ':'))
     json.dump(walk, open(os.path.join(OUT, 'walk.json'), 'w'), separators=(',', ':'))

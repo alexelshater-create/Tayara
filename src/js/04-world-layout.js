@@ -232,7 +232,7 @@ const glowSigns = [];
 // ---- blocks ----
 // one block of the old map (its cell j, k decides what it is); the moved ones (market, restaurants, stadium, workshops) are built
 // at their real places (CITY.remote) with the same insides
-function buildBlock(j, k, cx, cz){
+function buildBlock(j, k, cx, cz, force){
   const dist = blockDistrict(j, k), ox = cx - (X0 + PITCH/2 + j*PITCH), oz = cz - (Z0 + PITCH/2 + k*PITCH);   // a moved block (CITY.remote): its own buildings move with it
   let type = 'city'; const r = rng();
   if (dist === 'hara'){ if (j===2 && k===2) type = 'cafe'; else if (j===1 && k===3) type = 'house'; else if (j===0 && k===2) type = 'wedding'; else if (r < .1) type = 'park'; else if (r < .17) type = 'parking'; }
@@ -243,6 +243,7 @@ function buildBlock(j, k, cx, cz){
   else if (dist === 'stadium' && j === 6 && k === 0) type = 'showroom';
   else if (dist === 'stadium' && j === 7 && k === 0) type = 'villa';
   else type = dist;
+  if (force) type = force;   // a story block of its own kind (the merged city's parking lot)
   blocksInfo.push({ cx, cz, type, dist, j, k });
   const slab = new THREE.Mesh(slabGeo, slabMats); slab.position.set(cx, .075, cz); slab.receiveShadow = true; scene.add(slab);
   const rowsOf = (floorsMin, floorsMax, styles, extra={}) => {
@@ -357,7 +358,7 @@ function buildBlock(j, k, cx, cz){
   }
 }
 
-if (MERGED) for (const s of STORYP) buildBlock(s.j, s.kk, X0 + PITCH/2 + s.j*PITCH + s.dx, Z0 + PITCH/2 + s.kk*PITCH + s.dz);
+if (MERGED) for (const s of STORYP) buildBlock(s.j, s.kk, X0 + PITCH/2 + s.j*PITCH + s.dx, Z0 + PITCH/2 + s.kk*PITCH + s.dz, s.type);
 else for (let j=0;j<NXB;j++) for (let k=0;k<NZB;k++) buildBlock(j, k, X0 + PITCH/2 + j*PITCH, Z0 + PITCH/2 + k*PITCH);
 const REMOTE = CITY && CITY.remote ? CITY.remote : [];
 for (const r of REMOTE) for (let j = r.j0; j <= r.j1; j++) for (let k = r.k0; k <= r.k1; k++) buildBlock(j, k, X0 + PITCH/2 + j*PITCH + r.dx, Z0 + PITCH/2 + k*PITCH + r.dz);

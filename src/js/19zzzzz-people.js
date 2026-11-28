@@ -40,6 +40,9 @@ function npcDie(n, why){
 if (typeof meleeHitNPC === 'function'){ const _mh = meleeHitNPC; meleeHitNPC = function(n, ...a){ if (n.state === 'dead'){ groundHit(n); return; } return _mh(n, ...a); }; }
 
 // ---------- hitting someone on the ground ----------
+// the stomp (tap) and the kick at a body on the ground (hold): Mixamo «Stomp» and «Soccer Penalty Kick», the foot lands at .72 s / .8 s
+STRIKES.stomp = { clip: 'stomp', s0: .38, tc: .72, te: 1.3, rate: 1.4, dmg: 1.6, push: 0, heavy: true, range: .1 };
+STRIKES.groundKick = { clip: 'groundKick', s0: .5, tc: .8, te: 1.25, rate: 1.35, dmg: 2.2, push: 0, big: true, heavy: true, range: .2 };
 function groundTarget(r){
   const p = hero.pos; let best = null, bd = r;
   for (const n of npcs){ if ((n.state !== 'down' && n.state !== 'dead') || !n.g.visible || n.fly) continue; const d = Math.hypot(n.g.position.x - p.x, n.g.position.z - p.z); if (d < bd){ bd = d; best = n; } }
@@ -57,10 +60,10 @@ function groundHit(n){
   if (!isGun(WEAP.cur) && !hero.veh && !hero.locked && !MEL.atk && !MEL.grab && !MEL.dodge && !(hero.d.downT > 0)){
     const up = fightTargets(weaponRange() + .9);
     if (!up || up.d > 1.7){ const g = groundTarget(1.9);
-      if (g){ const st = STRIKES.kick, p = hero.pos, d = Math.hypot(g.g.position.x - p.x, g.g.position.z - p.z);
+      if (g){ const gk = kind === 'kick' ? (CLIPS.groundKick ? 'groundKick' : 'kick') : (CLIPS.stomp ? 'stomp' : 'kick'), st = STRIKES[gk], p = hero.pos, d = Math.hypot(g.g.position.x - p.x, g.g.position.z - p.z);
         hero.d.yaw = Math.atan2(g.g.position.x - p.x, g.g.position.z - p.z);
         if (d > 1.1){ hero.knock.x += (g.g.position.x - p.x) / d * 3; hero.knock.z += (g.g.position.z - p.z) / d * 3; }
-        MEL.atk = { kind: 'kick', st, t: 0, hit: false, tg: { ground: g, x: g.g.position.x, z: g.g.position.z, d }, range: 2.2 }; MEL.combo = 0;
+        MEL.atk = { kind: gk, st, t: 0, hit: false, tg: { ground: g, x: g.g.position.x, z: g.g.position.z, d }, range: 2.2 }; MEL.combo = 0;
         if (!hero.d.is3D || !CLIPS_READY) hero.d.punchT = .28;
         punchWhoosh(); return; } }
   }

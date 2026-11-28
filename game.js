@@ -918,7 +918,7 @@ const glowSigns = [];
 // ---- blocks ----
 // one block of the old map (its cell j, k decides what it is); the moved ones (market, restaurants, stadium, workshops) are built
 // at their real places (CITY.remote) with the same insides
-function buildBlock(j, k, cx, cz){
+function buildBlock(j, k, cx, cz, force){
   const dist = blockDistrict(j, k), ox = cx - (X0 + PITCH/2 + j*PITCH), oz = cz - (Z0 + PITCH/2 + k*PITCH);   // a moved block (CITY.remote): its own buildings move with it
   let type = 'city'; const r = rng();
   if (dist === 'hara'){ if (j===2 && k===2) type = 'cafe'; else if (j===1 && k===3) type = 'house'; else if (j===0 && k===2) type = 'wedding'; else if (r < .1) type = 'park'; else if (r < .17) type = 'parking'; }
@@ -929,6 +929,7 @@ function buildBlock(j, k, cx, cz){
   else if (dist === 'stadium' && j === 6 && k === 0) type = 'showroom';
   else if (dist === 'stadium' && j === 7 && k === 0) type = 'villa';
   else type = dist;
+  if (force) type = force;   // a story block of its own kind (the merged city's parking lot)
   blocksInfo.push({ cx, cz, type, dist, j, k });
   const slab = new THREE.Mesh(slabGeo, slabMats); slab.position.set(cx, .075, cz); slab.receiveShadow = true; scene.add(slab);
   const rowsOf = (floorsMin, floorsMax, styles, extra={}) => {
@@ -1043,7 +1044,7 @@ function buildBlock(j, k, cx, cz){
   }
 }
 
-if (MERGED) for (const s of STORYP) buildBlock(s.j, s.kk, X0 + PITCH/2 + s.j*PITCH + s.dx, Z0 + PITCH/2 + s.kk*PITCH + s.dz);
+if (MERGED) for (const s of STORYP) buildBlock(s.j, s.kk, X0 + PITCH/2 + s.j*PITCH + s.dx, Z0 + PITCH/2 + s.kk*PITCH + s.dz, s.type);
 else for (let j=0;j<NXB;j++) for (let k=0;k<NZB;k++) buildBlock(j, k, X0 + PITCH/2 + j*PITCH, Z0 + PITCH/2 + k*PITCH);
 const REMOTE = CITY && CITY.remote ? CITY.remote : [];
 for (const r of REMOTE) for (let j = r.j0; j <= r.j1; j++) for (let k = r.k0; k <= r.k1; k++) buildBlock(j, k, X0 + PITCH/2 + j*PITCH + r.dx, Z0 + PITCH/2 + k*PITCH + r.dz);
@@ -2381,7 +2382,7 @@ const CLIP_NAMES = ['idle', 'look', 'walk', 'run', 'sprint', 'crouch', 'jump', '
   'pistolIdle', 'pistolWalk', 'pistolShoot', 'rifleIdle', 'rifleWalk', 'rifleRun', 'rifleFire', 'reload',
   'sit', 'sitTalk', 'standUp', 'talk', 'phone', 'wave', 'cheer', 'clap', 'argue', 'dance1', 'dance2', 'kneel',
   // stage 10: cars, falls, reactions, greeting and provoking
-  'carEnter', 'carExit', 'pullDriver', 'pulledOut', 'hitByCar', 'shoved', 'stumbleBack', 'trip', 'loseBalance', 'thrown', 'flyBack', 'terrified', 'filming', 'handshake', 'greet', 'taunt', 'insult', 'angry', 'push', 'coverIdle'];
+  'carEnter', 'carExit', 'pullDriver', 'pulledOut', 'hitByCar', 'shoved', 'stumbleBack', 'trip', 'loseBalance', 'thrown', 'flyBack', 'terrified', 'filming', 'handshake', 'greet', 'taunt', 'insult', 'angry', 'push', 'coverIdle', 'stomp', 'groundKick'];
 const CLIPS = {}; let CLIPS_READY = false;
 const CLIP_CARRIED = ['climb', 'roll', 'knocked', 'dying', 'getUp'];
 const CLIP_PINGPONG = ['phone', 'argue'];   // first and last frames differ: play forward then back
@@ -8560,7 +8561,7 @@ function setPiece(s, build){
   // each solid in pieces of about 1.6 m, so a turned wall stays a thin line of boxes (one big box round a turned wall closed the streets beside it)
   for (const [x0, z0, x1, z1, h] of solids){ const nx = Math.max(1, Math.ceil((x1 - x0) * SET_K / 1.6)), nz = Math.max(1, Math.ceil((z1 - z0) * SET_K / 1.6));
     for (let a = 0; a < nx; a++) for (let b = 0; b < nz; b++){ const ax = x0 + (x1 - x0) * a / nx, bx = x0 + (x1 - x0) * (a + 1) / nx, az = z0 + (z1 - z0) * b / nz, bz = z0 + (z1 - z0) * (b + 1) / nz;
-      const pts = [W(ax, az), W(bx, az), W(ax, bz), W(bx, bz)], xs = pts.map(q => q[0]), zs = pts.map(q => q[1]); obstacles.push({ minX: Math.min(...xs), maxX: Math.max(...xs), minZ: Math.min(...zs), maxZ: Math.max(...zs), h: h ? h * SET_K : undefined, building: !h || h > 3 }); } }
+      const pts = [W(ax, az), W(bx, az), W(ax, bz), W(bx, bz)], xs = pts.map(q => q[0]), zs = pts.map(q => q[1]); obstacles.push({ minX: Math.min(...xs), maxX: Math.max(...xs), minZ: Math.min(...zs), maxZ: Math.max(...zs), h: h ? h * SET_K : undefined, building: !h || h > 3, set: s.k }); } }
   SETS[s.k] = { grp, yaw, front, at: (lx, lz) => { const [x, z] = W(lx, lz); return new THREE.Vector3(x, .15, z); } };
   return { grp, W, yaw };
 }
@@ -9299,10 +9300,12 @@ function buildFootbridge(F){
     ogAdd({ minX: tx - 1.3, maxX: tx + 1.3, minZ: tz - 1.3, maxZ: tz + 1.3 });
   }
   const m = new THREE.Mesh(mergeGeometries(p.map(g => g.index ? g.toNonIndexed() : g)), arMat); m.castShadow = !LOW; m.receiveShadow = true; grp.add(m);
+  if (SFM.footbridge && typeof sfGroup === 'function'){ m.visible = false; const fb = sfGroup('footbridge'); fb.scale.x = ((half + 2.6) * 2) / 26.9; fb.position.set(q.x, .15, q.z); fb.rotation.y = rot - Math.PI / 2; grp.add(fb); }   // the real footbridge (stairs and towers stay solid as before)
   glowSigns.push(signBoard(bigSign('كوبري مشاة', '#1f5fa8', '#ffffff', 512, 110, 54), q.x + o.fx * 1.25, y + .1, q.z + o.fz * 1.25, 3, .6, Math.atan2(o.fx, o.fz), .2)); scene.add(grp); return grp;
 }
 
 // ---------- the railway yards at Qabbari and behind Misr station: gravel, tracks, a few goods wagons ----------
+const YARD_WAGONS = [];   // where they stand (the real wagon model replaces the drawn ones: 19zzzzz-sf3)
 (async () => {
   if (!CITY) return;
   let d = null; try { d = await fetch('assets/city/yards.json').then(r => r.ok ? r.json() : null); } catch (e){}
@@ -9324,12 +9327,12 @@ function buildFootbridge(F){
     for (let i = 1; i < L.length && n <= 40; i++){
       const [ax, az] = L[i - 1], [bx, bz] = L[i], dd = Math.hypot(bx - ax, bz - az); if ((i * 7 + n) % 3 !== 0 || dd < 14) continue;
       const yaw = Math.atan2(bx - ax, bz - az), cx = (ax + bx) / 2, cz = (az + bz) / 2, w = new THREE.BoxGeometry(2.8, 2.6, 12.5); w.translate(0, 1.75, 0); w.rotateY(yaw); w.translate(cx, .15, cz);
-      wp.push(colored(w, ['#6d4c41', '#455a64', '#8d6e63', '#37474f'][n % 4]));
+      wp.push(colored(w, ['#6d4c41', '#455a64', '#8d6e63', '#37474f'][n % 4])); YARD_WAGONS.push([cx, .15, cz, yaw]);
       for (let k = -2; k <= 2; k++) ogAdd({ minX: cx + Math.sin(yaw) * k * 2.5 - 1.5, maxX: cx + Math.sin(yaw) * k * 2.5 + 1.5, minZ: cz + Math.cos(yaw) * k * 2.5 - 1.5, maxZ: cz + Math.cos(yaw) * k * 2.5 + 1.5 });
       n++;
     }
   }
-  if (wp.length){ const m = new THREE.Mesh(mergeGeometries(wp.map(q => q.index ? q.toNonIndexed() : q)), arMat); m.castShadow = !LOW; scene.add(m); }
+  if (wp.length){ const m = new THREE.Mesh(mergeGeometries(wp.map(q => q.index ? q.toNonIndexed() : q)), arMat); m.castShadow = !LOW; m.name = 'yardWagons'; scene.add(m); }
 })();
 
 if (CITY){
@@ -9640,6 +9643,9 @@ function npcDie(n, why){
 if (typeof meleeHitNPC === 'function'){ const _mh = meleeHitNPC; meleeHitNPC = function(n, ...a){ if (n.state === 'dead'){ groundHit(n); return; } return _mh(n, ...a); }; }
 
 // ---------- hitting someone on the ground ----------
+// the stomp (tap) and the kick at a body on the ground (hold): Mixamo «Stomp» and «Soccer Penalty Kick», the foot lands at .72 s / .8 s
+STRIKES.stomp = { clip: 'stomp', s0: .38, tc: .72, te: 1.3, rate: 1.4, dmg: 1.6, push: 0, heavy: true, range: .1 };
+STRIKES.groundKick = { clip: 'groundKick', s0: .5, tc: .8, te: 1.25, rate: 1.35, dmg: 2.2, push: 0, big: true, heavy: true, range: .2 };
 function groundTarget(r){
   const p = hero.pos; let best = null, bd = r;
   for (const n of npcs){ if ((n.state !== 'down' && n.state !== 'dead') || !n.g.visible || n.fly) continue; const d = Math.hypot(n.g.position.x - p.x, n.g.position.z - p.z); if (d < bd){ bd = d; best = n; } }
@@ -9657,10 +9663,10 @@ function groundHit(n){
   if (!isGun(WEAP.cur) && !hero.veh && !hero.locked && !MEL.atk && !MEL.grab && !MEL.dodge && !(hero.d.downT > 0)){
     const up = fightTargets(weaponRange() + .9);
     if (!up || up.d > 1.7){ const g = groundTarget(1.9);
-      if (g){ const st = STRIKES.kick, p = hero.pos, d = Math.hypot(g.g.position.x - p.x, g.g.position.z - p.z);
+      if (g){ const gk = kind === 'kick' ? (CLIPS.groundKick ? 'groundKick' : 'kick') : (CLIPS.stomp ? 'stomp' : 'kick'), st = STRIKES[gk], p = hero.pos, d = Math.hypot(g.g.position.x - p.x, g.g.position.z - p.z);
         hero.d.yaw = Math.atan2(g.g.position.x - p.x, g.g.position.z - p.z);
         if (d > 1.1){ hero.knock.x += (g.g.position.x - p.x) / d * 3; hero.knock.z += (g.g.position.z - p.z) / d * 3; }
-        MEL.atk = { kind: 'kick', st, t: 0, hit: false, tg: { ground: g, x: g.g.position.x, z: g.g.position.z, d }, range: 2.2 }; MEL.combo = 0;
+        MEL.atk = { kind: gk, st, t: 0, hit: false, tg: { ground: g, x: g.g.position.x, z: g.g.position.z, d }, range: 2.2 }; MEL.combo = 0;
         if (!hero.d.is3D || !CLIPS_READY) hero.d.punchT = .28;
         punchWhoosh(); return; } }
   }
@@ -9843,7 +9849,14 @@ function sfReskin(v, model, tint){
   return true;
 }
 const sfCarFor0 = sfCarFor;
-sfCarFor = function(kind){ if (kind === 'taxi' && SFM.taxi) return ['taxi', null]; return sfCarFor0(kind); };
+sfCarFor = function(kind){ if (kind === 'taxi' && SFM.taxi) return ['taxi', null]; const r = sfCarFor0(kind); return r[0] ? r : ['lanos', pick(SF_PAINT)]; };   // no more old box cars (the 4 % that kept it)
+// every car made from now on (events, the garage's repaint, checkpoints) is a real model too, in its own colour
+{ const _mc = makeCar; makeCar = function(color, kind = 'car'){ const g = _mc(color, kind);
+  if (kind === 'police') policeSkin({ mesh: g }, 'police-elantra');
+  else if (kind === 'car' || kind === 'taxi'){ const [m] = sfCarFor(kind); if (m) sfSkin(g, m, kind === 'taxi' ? null : color); }
+  return g; }; }
+{ const _rp = typeof repaint === 'function' ? repaint : null; if (_rp) repaint = function(v, color){ _rp(v, color); if (v.mesh && v.mesh.children.some(c => c.visible && c.userData.wheelPivot)) v.mesh.userData.sf = v.mesh.userData.sf || 'repainted'; }; }
+
 // the taxis already in the street and the parked ones, the hero's taxi
 for (const c of traffic) if (c.userData.sf === 'lada-taxi' && SFM.taxi) sfReskin(c, 'taxi');
 for (const v of vehicles) if (v.mesh && v.mesh.userData.sf === 'lada-taxi' && SFM.taxi) sfReskin(v, 'taxi');
@@ -9922,6 +9935,42 @@ SF3_READY.then(() => {
   for (const [k, m] of [['bank', 'bank-facade'], ['palace', 'villa-palace']]){ const S = typeof SETS !== 'undefined' && SETS[k]; if (!S || !SFM[m]) continue;
     const old = S.grp.children.find(c => c.isMesh); if (old) old.visible = false;
     const g = sfGroup(m); g.scale.setScalar(1 / SET_K); g.rotation.y = Math.PI; S.grp.add(g); S.grp.updateMatrixWorld(true); }
+});
+
+
+// (at the end: the light bar's materials above must exist first) the cars made before the models came: the hero's car, the checkpoint / chase police, parked and street cars still in the old box
+for (const v of vehicles){ if (!v.mesh || v.mesh.userData.sf) continue;
+  if (v.type === 'police') policeSkin(v, 'police-elantra');
+  else if (v.type === 'car' || v.type === 'taxi'){ const [m, tn] = sfCarFor(v.type); if (m) sfReskin(v, m, v.type === 'taxi' ? null : (v.col || tn)); } }
+for (const c of traffic) if (!c.userData.sf){ const [m, tn] = sfCarFor(c.userData.kind); if (m && c.userData.kind !== 'tuk' && c.userData.kind !== 'micro') sfSkin(c, m, tn); }
+for (const g of [typeof chaserCar !== 'undefined' ? chaserCar : null, typeof kameenCar !== 'undefined' ? kameenCar : null]) if (g && !g.userData.sf) policeSkin({ mesh: g }, 'police-elantra');
+
+// ---------- the solid parts of a real model: wherever it has surface between knee and head height (1 m cells) ----------
+// (so you walk under the petrol station's canopy and between the pumps, and the walls are where the model's walls are)
+function modelSolids(obj, tag){
+  obj.updateMatrixWorld(true); const cells = new Set(), v = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()], p = new THREE.Vector3();
+  obj.traverse(m => { if (!m.isMesh) return; const P = m.geometry.attributes.position, I = m.geometry.index, n = I ? I.count : P.count;
+    for (let k = 0; k < n; k += 3){ for (let j = 0; j < 3; j++) v[j].fromBufferAttribute(P, I ? I.getX(k + j) : k + j).applyMatrix4(m.matrixWorld);
+      const ymin = Math.min(v[0].y, v[1].y, v[2].y), ymax = Math.max(v[0].y, v[1].y, v[2].y); if (ymax < .35 || ymin > 2.1) continue;
+      const L = Math.max(v[0].distanceTo(v[1]), v[1].distanceTo(v[2]), v[0].distanceTo(v[2])), st = Math.max(2, Math.ceil(L / .5));
+      for (let a = 0; a <= st; a++) for (let b = 0; b <= st - a; b++){ const c = st - a - b; p.set(0, 0, 0).addScaledVector(v[0], a / st).addScaledVector(v[1], b / st).addScaledVector(v[2], c / st);
+        if (p.y >= .35 && p.y <= 2.1) cells.add(Math.floor(p.x) + ',' + Math.floor(p.z)); } } });
+  // rows of cells → strips (fewer obstacles)
+  const rows = new Map(); for (const c of cells){ const [x, z] = c.split(',').map(Number); let r = rows.get(z); if (!r) rows.set(z, r = []); r.push(x); }
+  const out = []; for (const [z, xs] of rows){ xs.sort((a, b) => a - b); let s = xs[0], e = xs[0]; for (let i = 1; i <= xs.length; i++){ if (i < xs.length && xs[i] === e + 1){ e = xs[i]; continue; } out.push({ minX: s, maxX: e + 1, minZ: z, maxZ: z + 1, building: true, set: tag }); if (i < xs.length){ s = e = xs[i]; } } }
+  return out;
+}
+SF3_READY.then(() => {
+  // the goods wagons in the yards
+  const ym = scene.getObjectByName('yardWagons'); if (ym && SFM['goods-wagon'] && typeof YARD_WAGONS !== 'undefined' && YARD_WAGONS.length){ ym.visible = false; const g = sfInst('goods-wagon', YARD_WAGONS.map(([x, y, z, r]) => [x, y + .05, z, r, .82])); if (g) scene.add(g); }
+  // the petrol station, the scrapyard and the power station: the real models, their solid parts from the model itself
+  let changed = false;
+  for (const [k, m] of [['gas', 'petrol-station'], ['junk', 'scrapyard'], ['power', 'substation']]){ const S = typeof SETS !== 'undefined' && SETS[k]; if (!S || !SFM[m]) continue;
+    const old = S.grp.children.find(c => c.isMesh); if (old) old.visible = false;
+    const g = sfGroup(m); g.scale.setScalar(1 / SET_K); g.rotation.y = Math.PI; S.grp.add(g);
+    for (let i = obstacles.length - 1; i >= 0; i--) if (obstacles[i].set === k) obstacles.splice(i, 1);
+    for (const o of modelSolids(g, k)) obstacles.push(o); changed = true; }
+  if (changed) OG.n = -1;   // one rebuild of the obstacle grid, once
 });
 
 // ---- 19zzzzz-shopfronts.js ----
@@ -12716,4 +12765,4 @@ renderer.setAnimationLoop(() => { const raw = clock.getDelta(), dt = Math.min(ra
   if (state === 'play'){ fpsAcc += raw; fpsN++; if (fpsN >= 150){ const avg = fpsAcc/fpsN; if (avg > 1/30 && pxr > .8){ pxr = Math.max(.8, pxr - .2); renderer.setPixelRatio(pxr); renderer.setSize(innerWidth, innerHeight); } else if (avg > 1/24 && sun.castShadow){ sun.castShadow = false; } else if (avg > 1/24 && GFX !== 'low'){ GFX = 'low'; applyGfx(); gfxWorld(); renderGfxBtns(); pxr = renderer.getPixelRatio(); }   /* still slow: light graphics for this session (not saved) */ fpsAcc = 0; fpsN = 0; } } });
 renderModes();
 loadDone(); introOnLoad();
-window.__game = { hero, enemy, wanted, vehicles, npcs, keys, get state(){ return state; }, get mode(){ return modeObj; }, startMode, action, punch, dbg: { rinfo(){ return { calls: renderer.info.render.calls, tris: renderer.info.render.triangles, geos: renderer.info.memory.geometries, tex: renderer.info.memory.textures }; }, camShot(x, y, z, lx, lz){ CUT.on = true; camera.position.set(x, y, z); lookAt.set(lx, 0, lz); camera.lookAt(lookAt); }, camOff(){ CUT.on = false; }, graphNearest, obstacles, keysDown: keys, GLASS_SPOTS, crimeTest: () => crime("assault", heroAt(), 3), spawnPoint: (a, b, c) => spawnPoint(a, b, c), MS, graphRoute, inWorld: (x, z) => inWorld(x, z), staticBlocked: (x, z, p) => staticBlocked(x, z, p), SETS, BEACHES, LM, CAVE, freeSpot, THREE, shopAtlas, npcDie, P3, groundHit, MEL, WHEEL, COAST, SFR, PL, PL2, SPOT, STORYP, PIER, PORT, MERGED, STOPS, cityR, staticBlocked, inWorld, SETS, feluccas, launches, POL_STATION, SHOPS, cityPreload, MS, curM, storyTarget, get SAVE(){ return SAVE; }, ST2, CUT, HOUSE, get FRIENDS(){ return FRIENDS; }, setTime(h){ applyTimeOfDay(h); }, SKYX, get CBEACHES(){ return CBEACHES; }, get CFOOT(){ return CFOOT; }, CTRAM, ctAt, traffic, cityDistrict, gpsPlaces: () => gpsPlaces(), setOrbit(a){ CAM.orbit = CAM.orbitSm = a; }, setCam(d, tilt){ camTarget = camDist = d; if (tilt != null) CAM.tilt = tilt; }, CITY, CGRAPH, cityR, cityDistrict, CITY_CH, CCH, enterVehicle, exitVehicle: (f) => exitVehicle(f), get nearAction(){ return nearAction; }, OWS, playAs, switchTo, openWheel2, GARAGES, OW_LEFT, OW_MADE, storeCar, takeOut, openSaves, openDone, completion, setSlot, get SLOT(){ return SLOT; }, SW, tayaraD, get SAVE(){ return SAVE; }, owMissionAction, CLIPS, get clipsReady(){ return CLIPS_READY; }, get cam(){ return { yaw: camYaw, p: camera.position.clone(), l: lookAt.clone() }; }, GM, GPS, openMap, gpsPlaces, get state(){ return state; }, DSC, deathScene, heroDamage, busted, hudHint, hudCounter, subtitle, say, banner, setObjective, CMOVE, MOVE, ledgeAt, startPipe, takeStairs, toggleHideCar, polSightR, roofTop, buildings, OG, heroGround, LIFE, BREAK, startEvent, endEvent, streetDrama, shopsPanic, greet, provoke, npcLaunch, thiefChase, startFilming, CHAIRM, streetLifeUpdate, CARANIM, animEnter, animExit, animJack, carDamaged, explode, crackGlass, DEBRIS, heroMoto, carjackTarget, SAMP, playS, GSND, playGun, ROADS_X, ROADS_Z, spawnPoint, aiDrive, copSpawn, copHit, roadBlock, polUnit, onScreen, crossTarget, SHELLM, WMODEL, AIM_RAISE, GW, GUN, AMMO, BLOOD, FX, MOLO, fireGun, gunPress, gunRelease, throwMolotov, startReload, buyAmmo, openWheel, closeWheel, aimTarget, traceShot, MEL, STRIKES, FSTYLE, PROPS, attackPress, attackRelease, blockPress, blockRelease, grabPress, meleeHitNPC, styleOf, pickProp, updateNPC, showActor, hideActor, shadiaD, haidyD, kamelD, POL, crime, wantedUp, polEnd, busted, carjack, carjackTarget, isTheft, TL, tlPhase, tlFor, CROWD, CROSSERS, traffic, crowdWanted, trafficWanted, TOD, applyTimeOfDay, MOVE, wantJump, SEA_STAIRS, heroGround, joy, NILE_Z, WATER_Y, get camYaw(){ return camYaw; }, WEAP, setWeapon, POL, GPS, gpsSet, gpsPlaces, openPhone, closePhone, PHONE, ACTS, actStart, TUTS, inSea, vCircles, CUT, MS, curM, NARR, setRain, giveStick, launches, arabiCar, setCam: (d, tl) => { camTarget = camDist = d; CAM.tilt = tl; }, tram, TRAMR, SHOPS, enterShop, exitShop, FORT, VILLA, traffic, vehicles, heroCar, copCar, enterVehicle, CAM, pedal, joy, dom: { DOM, round10, newDominoMatch, newDominoRound, commitPlayer, aiLegal, aiEval, unseenBy, DOM_AI, aiTurn, babCounts, isBlocked, hand: s => DOM.hands[s] }, say, failMission, skipMission, uiBack, startReplay, ST2, REPLAY, EASY, get SAVE(){ return SAVE; }, get DIFF(){ return DIFF; }, RIG_MS, renderer, scene, camera, SFX, spawnThugs, npcWear3D, playIntroSeq, endIntro, makePosterImage, introLayout, VOICE, playVoice, vHash, voiceLeft, heroCheer, cats, mesa, PROG_R: () => PROG.ramadan, nightVisuals, openGarage, applyGarage, GARAGE_POS, TW, openTawla, twRoll, twPlayerMove, twStartGame, closeTawla, sequences, TAWLA_SPOT, ACT, ACTS, actStart, actEnd, kameenSpawn, pigeons, RAMPS, parkCar, LOT, PEN, COOP, PROG, ACH, achCheck, openAch, openPhoto, closePhoto, takePhoto, PHOTO, goldGlasses, staticBlocked, blocked, obstacles, freeSpot, SPOT, STOPS, ST, AH, FL, DOM, ahwaTap, ahwaHold, foulTap, stationBtn, enterStation, exitStation, openDomino, playerPick, SA, SF, get SAVE(){ return SAVE; }, startJob, endJob, race, buyVehicle, MS, ST2, CUT, JOB, RHY, HOUSE, TOD, boss, pickups, checkpoints, idx, curM, finishMission, failMission, applyStoryWorld, playCut, dlgTap, applyTimeOfDay, enterHouse, exitHouse, houseAction, openTransit, ride, startPizzaJob, startTukJob, endJob2, playWedding, rhyHit, pizzaMoto, tukVeh, arabiMoto, heroMoto, storyAction, openShop, renderModes, thief, thiefStart, thiefCaught, islamD, CAM }, step(n=60){ for (let i=0;i<n;i++){ elapsed += 1/60; update(1/60, elapsed); } renderer.render(scene, camera); } };
+window.__game = { hero, enemy, wanted, vehicles, npcs, keys, get state(){ return state; }, get mode(){ return modeObj; }, startMode, action, punch, dbg: { rinfo(){ return { calls: renderer.info.render.calls, tris: renderer.info.render.triangles, geos: renderer.info.memory.geometries, tex: renderer.info.memory.textures }; }, camShot(x, y, z, lx, lz){ CUT.on = true; camera.position.set(x, y, z); lookAt.set(lx, 0, lz); camera.lookAt(lookAt); }, camOff(){ CUT.on = false; }, graphNearest, obstacles, keysDown: keys, GLASS_SPOTS, crimeTest: () => crime("assault", heroAt(), 3), spawnPoint: (a, b, c) => spawnPoint(a, b, c), MS, graphRoute, inWorld: (x, z) => inWorld(x, z), staticBlocked: (x, z, p) => staticBlocked(x, z, p), SETS, BEACHES, LM, CAVE, freeSpot, THREE, shopAtlas, npcDie, P3, groundHit, MEL, WHEEL, COAST, SFR, PL, PL2, SPOT, STORYP, PIER, PORT, MERGED, STOPS, cityR, staticBlocked, inWorld, SETS, feluccas, launches, POL_STATION, SHOPS, cityPreload, MS, curM, storyTarget, LOT, CFOOT, traffic, obstacles, OG, get SAVE(){ return SAVE; }, ST2, CUT, HOUSE, get FRIENDS(){ return FRIENDS; }, setTime(h){ applyTimeOfDay(h); }, SKYX, get CBEACHES(){ return CBEACHES; }, get CFOOT(){ return CFOOT; }, CTRAM, ctAt, traffic, cityDistrict, gpsPlaces: () => gpsPlaces(), setOrbit(a){ CAM.orbit = CAM.orbitSm = a; }, setCam(d, tilt){ camTarget = camDist = d; if (tilt != null) CAM.tilt = tilt; }, CITY, CGRAPH, cityR, cityDistrict, CITY_CH, CCH, enterVehicle, exitVehicle: (f) => exitVehicle(f), get nearAction(){ return nearAction; }, OWS, playAs, switchTo, openWheel2, GARAGES, OW_LEFT, OW_MADE, storeCar, takeOut, openSaves, openDone, completion, setSlot, get SLOT(){ return SLOT; }, SW, tayaraD, get SAVE(){ return SAVE; }, owMissionAction, CLIPS, get clipsReady(){ return CLIPS_READY; }, get cam(){ return { yaw: camYaw, p: camera.position.clone(), l: lookAt.clone() }; }, GM, GPS, openMap, gpsPlaces, get state(){ return state; }, DSC, deathScene, heroDamage, busted, hudHint, hudCounter, subtitle, say, banner, setObjective, CMOVE, MOVE, ledgeAt, startPipe, takeStairs, toggleHideCar, polSightR, roofTop, buildings, OG, heroGround, LIFE, BREAK, startEvent, endEvent, streetDrama, shopsPanic, greet, provoke, npcLaunch, thiefChase, startFilming, CHAIRM, streetLifeUpdate, CARANIM, animEnter, animExit, animJack, carDamaged, explode, crackGlass, DEBRIS, heroMoto, carjackTarget, SAMP, playS, GSND, playGun, ROADS_X, ROADS_Z, spawnPoint, aiDrive, copSpawn, copHit, roadBlock, polUnit, onScreen, crossTarget, SHELLM, WMODEL, AIM_RAISE, GW, GUN, AMMO, BLOOD, FX, MOLO, fireGun, gunPress, gunRelease, throwMolotov, startReload, buyAmmo, openWheel, closeWheel, aimTarget, traceShot, MEL, STRIKES, FSTYLE, PROPS, attackPress, attackRelease, blockPress, blockRelease, grabPress, meleeHitNPC, styleOf, pickProp, updateNPC, showActor, hideActor, shadiaD, haidyD, kamelD, POL, crime, wantedUp, polEnd, busted, carjack, carjackTarget, isTheft, TL, tlPhase, tlFor, CROWD, CROSSERS, traffic, crowdWanted, trafficWanted, TOD, applyTimeOfDay, MOVE, wantJump, SEA_STAIRS, heroGround, joy, NILE_Z, WATER_Y, get camYaw(){ return camYaw; }, WEAP, setWeapon, POL, GPS, gpsSet, gpsPlaces, openPhone, closePhone, PHONE, ACTS, actStart, TUTS, inSea, vCircles, CUT, MS, curM, NARR, setRain, giveStick, launches, arabiCar, setCam: (d, tl) => { camTarget = camDist = d; CAM.tilt = tl; }, tram, TRAMR, SHOPS, enterShop, exitShop, FORT, VILLA, traffic, vehicles, heroCar, copCar, enterVehicle, CAM, pedal, joy, dom: { DOM, round10, newDominoMatch, newDominoRound, commitPlayer, aiLegal, aiEval, unseenBy, DOM_AI, aiTurn, babCounts, isBlocked, hand: s => DOM.hands[s] }, say, failMission, skipMission, uiBack, startReplay, ST2, REPLAY, EASY, get SAVE(){ return SAVE; }, get DIFF(){ return DIFF; }, RIG_MS, renderer, scene, camera, SFX, spawnThugs, npcWear3D, playIntroSeq, endIntro, makePosterImage, introLayout, VOICE, playVoice, vHash, voiceLeft, heroCheer, cats, mesa, PROG_R: () => PROG.ramadan, nightVisuals, openGarage, applyGarage, GARAGE_POS, TW, openTawla, twRoll, twPlayerMove, twStartGame, closeTawla, sequences, TAWLA_SPOT, ACT, ACTS, actStart, actEnd, kameenSpawn, pigeons, RAMPS, parkCar, LOT, PEN, COOP, PROG, ACH, achCheck, openAch, openPhoto, closePhoto, takePhoto, PHOTO, goldGlasses, staticBlocked, blocked, obstacles, freeSpot, SPOT, STOPS, ST, AH, FL, DOM, ahwaTap, ahwaHold, foulTap, stationBtn, enterStation, exitStation, openDomino, playerPick, SA, SF, get SAVE(){ return SAVE; }, startJob, endJob, race, buyVehicle, MS, ST2, CUT, JOB, RHY, HOUSE, TOD, boss, pickups, checkpoints, idx, curM, finishMission, failMission, applyStoryWorld, playCut, dlgTap, applyTimeOfDay, enterHouse, exitHouse, houseAction, openTransit, ride, startPizzaJob, startTukJob, endJob2, playWedding, rhyHit, pizzaMoto, tukVeh, arabiMoto, heroMoto, storyAction, openShop, renderModes, thief, thiefStart, thiefCaught, islamD, CAM }, step(n=60){ for (let i=0;i<n;i++){ elapsed += 1/60; update(1/60, elapsed); } renderer.render(scene, camera); } };

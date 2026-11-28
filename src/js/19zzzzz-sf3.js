@@ -35,7 +35,14 @@ function sfReskin(v, model, tint){
   return true;
 }
 const sfCarFor0 = sfCarFor;
-sfCarFor = function(kind){ if (kind === 'taxi' && SFM.taxi) return ['taxi', null]; return sfCarFor0(kind); };
+sfCarFor = function(kind){ if (kind === 'taxi' && SFM.taxi) return ['taxi', null]; const r = sfCarFor0(kind); return r[0] ? r : ['lanos', pick(SF_PAINT)]; };   // no more old box cars (the 4 % that kept it)
+// every car made from now on (events, the garage's repaint, checkpoints) is a real model too, in its own colour
+{ const _mc = makeCar; makeCar = function(color, kind = 'car'){ const g = _mc(color, kind);
+  if (kind === 'police') policeSkin({ mesh: g }, 'police-elantra');
+  else if (kind === 'car' || kind === 'taxi'){ const [m] = sfCarFor(kind); if (m) sfSkin(g, m, kind === 'taxi' ? null : color); }
+  return g; }; }
+{ const _rp = typeof repaint === 'function' ? repaint : null; if (_rp) repaint = function(v, color){ _rp(v, color); if (v.mesh && v.mesh.children.some(c => c.visible && c.userData.wheelPivot)) v.mesh.userData.sf = v.mesh.userData.sf || 'repainted'; }; }
+
 // the taxis already in the street and the parked ones, the hero's taxi
 for (const c of traffic) if (c.userData.sf === 'lada-taxi' && SFM.taxi) sfReskin(c, 'taxi');
 for (const v of vehicles) if (v.mesh && v.mesh.userData.sf === 'lada-taxi' && SFM.taxi) sfReskin(v, 'taxi');
@@ -114,4 +121,40 @@ SF3_READY.then(() => {
   for (const [k, m] of [['bank', 'bank-facade'], ['palace', 'villa-palace']]){ const S = typeof SETS !== 'undefined' && SETS[k]; if (!S || !SFM[m]) continue;
     const old = S.grp.children.find(c => c.isMesh); if (old) old.visible = false;
     const g = sfGroup(m); g.scale.setScalar(1 / SET_K); g.rotation.y = Math.PI; S.grp.add(g); S.grp.updateMatrixWorld(true); }
+});
+
+
+// (at the end: the light bar's materials above must exist first) the cars made before the models came: the hero's car, the checkpoint / chase police, parked and street cars still in the old box
+for (const v of vehicles){ if (!v.mesh || v.mesh.userData.sf) continue;
+  if (v.type === 'police') policeSkin(v, 'police-elantra');
+  else if (v.type === 'car' || v.type === 'taxi'){ const [m, tn] = sfCarFor(v.type); if (m) sfReskin(v, m, v.type === 'taxi' ? null : (v.col || tn)); } }
+for (const c of traffic) if (!c.userData.sf){ const [m, tn] = sfCarFor(c.userData.kind); if (m && c.userData.kind !== 'tuk' && c.userData.kind !== 'micro') sfSkin(c, m, tn); }
+for (const g of [typeof chaserCar !== 'undefined' ? chaserCar : null, typeof kameenCar !== 'undefined' ? kameenCar : null]) if (g && !g.userData.sf) policeSkin({ mesh: g }, 'police-elantra');
+
+// ---------- the solid parts of a real model: wherever it has surface between knee and head height (1 m cells) ----------
+// (so you walk under the petrol station's canopy and between the pumps, and the walls are where the model's walls are)
+function modelSolids(obj, tag){
+  obj.updateMatrixWorld(true); const cells = new Set(), v = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()], p = new THREE.Vector3();
+  obj.traverse(m => { if (!m.isMesh) return; const P = m.geometry.attributes.position, I = m.geometry.index, n = I ? I.count : P.count;
+    for (let k = 0; k < n; k += 3){ for (let j = 0; j < 3; j++) v[j].fromBufferAttribute(P, I ? I.getX(k + j) : k + j).applyMatrix4(m.matrixWorld);
+      const ymin = Math.min(v[0].y, v[1].y, v[2].y), ymax = Math.max(v[0].y, v[1].y, v[2].y); if (ymax < .35 || ymin > 2.1) continue;
+      const L = Math.max(v[0].distanceTo(v[1]), v[1].distanceTo(v[2]), v[0].distanceTo(v[2])), st = Math.max(2, Math.ceil(L / .5));
+      for (let a = 0; a <= st; a++) for (let b = 0; b <= st - a; b++){ const c = st - a - b; p.set(0, 0, 0).addScaledVector(v[0], a / st).addScaledVector(v[1], b / st).addScaledVector(v[2], c / st);
+        if (p.y >= .35 && p.y <= 2.1) cells.add(Math.floor(p.x) + ',' + Math.floor(p.z)); } } });
+  // rows of cells → strips (fewer obstacles)
+  const rows = new Map(); for (const c of cells){ const [x, z] = c.split(',').map(Number); let r = rows.get(z); if (!r) rows.set(z, r = []); r.push(x); }
+  const out = []; for (const [z, xs] of rows){ xs.sort((a, b) => a - b); let s = xs[0], e = xs[0]; for (let i = 1; i <= xs.length; i++){ if (i < xs.length && xs[i] === e + 1){ e = xs[i]; continue; } out.push({ minX: s, maxX: e + 1, minZ: z, maxZ: z + 1, building: true, set: tag }); if (i < xs.length){ s = e = xs[i]; } } }
+  return out;
+}
+SF3_READY.then(() => {
+  // the goods wagons in the yards
+  const ym = scene.getObjectByName('yardWagons'); if (ym && SFM['goods-wagon'] && typeof YARD_WAGONS !== 'undefined' && YARD_WAGONS.length){ ym.visible = false; const g = sfInst('goods-wagon', YARD_WAGONS.map(([x, y, z, r]) => [x, y + .05, z, r, .82])); if (g) scene.add(g); }
+  // the petrol station, the scrapyard and the power station: the real models, their solid parts from the model itself
+  let changed = false;
+  for (const [k, m] of [['gas', 'petrol-station'], ['junk', 'scrapyard'], ['power', 'substation']]){ const S = typeof SETS !== 'undefined' && SETS[k]; if (!S || !SFM[m]) continue;
+    const old = S.grp.children.find(c => c.isMesh); if (old) old.visible = false;
+    const g = sfGroup(m); g.scale.setScalar(1 / SET_K); g.rotation.y = Math.PI; S.grp.add(g);
+    for (let i = obstacles.length - 1; i >= 0; i--) if (obstacles[i].set === k) obstacles.splice(i, 1);
+    for (const o of modelSolids(g, k)) obstacles.push(o); changed = true; }
+  if (changed) OG.n = -1;   // one rebuild of the obstacle grid, once
 });

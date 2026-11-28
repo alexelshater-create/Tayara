@@ -162,7 +162,7 @@ function setPiece(s, build){
   // each solid in pieces of about 1.6 m, so a turned wall stays a thin line of boxes (one big box round a turned wall closed the streets beside it)
   for (const [x0, z0, x1, z1, h] of solids){ const nx = Math.max(1, Math.ceil((x1 - x0) * SET_K / 1.6)), nz = Math.max(1, Math.ceil((z1 - z0) * SET_K / 1.6));
     for (let a = 0; a < nx; a++) for (let b = 0; b < nz; b++){ const ax = x0 + (x1 - x0) * a / nx, bx = x0 + (x1 - x0) * (a + 1) / nx, az = z0 + (z1 - z0) * b / nz, bz = z0 + (z1 - z0) * (b + 1) / nz;
-      const pts = [W(ax, az), W(bx, az), W(ax, bz), W(bx, bz)], xs = pts.map(q => q[0]), zs = pts.map(q => q[1]); obstacles.push({ minX: Math.min(...xs), maxX: Math.max(...xs), minZ: Math.min(...zs), maxZ: Math.max(...zs), h: h ? h * SET_K : undefined, building: !h || h > 3 }); } }
+      const pts = [W(ax, az), W(bx, az), W(ax, bz), W(bx, bz)], xs = pts.map(q => q[0]), zs = pts.map(q => q[1]); obstacles.push({ minX: Math.min(...xs), maxX: Math.max(...xs), minZ: Math.min(...zs), maxZ: Math.max(...zs), h: h ? h * SET_K : undefined, building: !h || h > 3, set: s.k }); } }
   SETS[s.k] = { grp, yaw, front, at: (lx, lz) => { const [x, z] = W(lx, lz); return new THREE.Vector3(x, .15, z); } };
   return { grp, W, yaw };
 }

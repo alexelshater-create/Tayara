@@ -10,7 +10,7 @@ const CLIP_NAMES = ['idle', 'look', 'walk', 'run', 'sprint', 'crouch', 'jump', '
   'pistolIdle', 'pistolWalk', 'pistolShoot', 'rifleIdle', 'rifleWalk', 'rifleRun', 'rifleFire', 'reload',
   'sit', 'sitTalk', 'standUp', 'talk', 'phone', 'wave', 'cheer', 'clap', 'argue', 'dance1', 'dance2', 'kneel',
   // stage 10: cars, falls, reactions, greeting and provoking
-  'carEnter', 'carExit', 'pullDriver', 'pulledOut', 'hitByCar', 'shoved', 'stumbleBack', 'trip', 'loseBalance', 'thrown', 'flyBack', 'terrified', 'filming', 'handshake', 'greet', 'taunt', 'insult', 'angry', 'push', 'coverIdle'];
+  'carEnter', 'carExit', 'pullDriver', 'pulledOut', 'hitByCar', 'shoved', 'stumbleBack', 'trip', 'loseBalance', 'thrown', 'flyBack', 'terrified', 'filming', 'handshake', 'greet', 'taunt', 'insult', 'angry', 'push', 'coverIdle', 'stomp', 'groundKick'];
 const CLIPS = {}; let CLIPS_READY = false;
 const CLIP_CARRIED = ['climb', 'roll', 'knocked', 'dying', 'getUp'];
 const CLIP_PINGPONG = ['phone', 'argue'];   // first and last frames differ: play forward then back

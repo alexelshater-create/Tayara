@@ -106,10 +106,12 @@ function buildFootbridge(F){
     ogAdd({ minX: tx - 1.3, maxX: tx + 1.3, minZ: tz - 1.3, maxZ: tz + 1.3 });
   }
   const m = new THREE.Mesh(mergeGeometries(p.map(g => g.index ? g.toNonIndexed() : g)), arMat); m.castShadow = !LOW; m.receiveShadow = true; grp.add(m);
+  if (SFM.footbridge && typeof sfGroup === 'function'){ m.visible = false; const fb = sfGroup('footbridge'); fb.scale.x = ((half + 2.6) * 2) / 26.9; fb.position.set(q.x, .15, q.z); fb.rotation.y = rot - Math.PI / 2; grp.add(fb); }   // the real footbridge (stairs and towers stay solid as before)
   glowSigns.push(signBoard(bigSign('كوبري مشاة', '#1f5fa8', '#ffffff', 512, 110, 54), q.x + o.fx * 1.25, y + .1, q.z + o.fz * 1.25, 3, .6, Math.atan2(o.fx, o.fz), .2)); scene.add(grp); return grp;
 }
 
 // ---------- the railway yards at Qabbari and behind Misr station: gravel, tracks, a few goods wagons ----------
+const YARD_WAGONS = [];   // where they stand (the real wagon model replaces the drawn ones: 19zzzzz-sf3)
 (async () => {
   if (!CITY) return;
   let d = null; try { d = await fetch('assets/city/yards.json').then(r => r.ok ? r.json() : null); } catch (e){}
@@ -131,12 +133,12 @@ function buildFootbridge(F){
     for (let i = 1; i < L.length && n <= 40; i++){
       const [ax, az] = L[i - 1], [bx, bz] = L[i], dd = Math.hypot(bx - ax, bz - az); if ((i * 7 + n) % 3 !== 0 || dd < 14) continue;
       const yaw = Math.atan2(bx - ax, bz - az), cx = (ax + bx) / 2, cz = (az + bz) / 2, w = new THREE.BoxGeometry(2.8, 2.6, 12.5); w.translate(0, 1.75, 0); w.rotateY(yaw); w.translate(cx, .15, cz);
-      wp.push(colored(w, ['#6d4c41', '#455a64', '#8d6e63', '#37474f'][n % 4]));
+      wp.push(colored(w, ['#6d4c41', '#455a64', '#8d6e63', '#37474f'][n % 4])); YARD_WAGONS.push([cx, .15, cz, yaw]);
       for (let k = -2; k <= 2; k++) ogAdd({ minX: cx + Math.sin(yaw) * k * 2.5 - 1.5, maxX: cx + Math.sin(yaw) * k * 2.5 + 1.5, minZ: cz + Math.cos(yaw) * k * 2.5 - 1.5, maxZ: cz + Math.cos(yaw) * k * 2.5 + 1.5 });
       n++;
     }
   }
-  if (wp.length){ const m = new THREE.Mesh(mergeGeometries(wp.map(q => q.index ? q.toNonIndexed() : q)), arMat); m.castShadow = !LOW; scene.add(m); }
+  if (wp.length){ const m = new THREE.Mesh(mergeGeometries(wp.map(q => q.index ? q.toNonIndexed() : q)), arMat); m.castShadow = !LOW; m.name = 'yardWagons'; scene.add(m); }
 })();
 
 if (CITY){
