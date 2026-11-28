@@ -2,13 +2,16 @@
 let STORY_KEY = 'ty_story_v2';   // the save slot (20b-open-world.js picks it)
 const newStory = () => ({ money: 20, rep: 0, m: 0, time: 9, house: 0, owned: { moto: false, car: false }, acc: {}, wear: {}, up: {}, cnt: {}, ended: false, started: false, introSeen: -1, chSeen: -1, skipped: {} });
 function loadStory(){ try { const s = JSON.parse(store.get(STORY_KEY) || 'null'); if (s && typeof s.m === 'number'){ const d = newStory(); return { ...d, ...s, owned: { ...d.owned, ...s.owned }, acc: s.acc || {}, wear: s.wear || {}, up: s.up || {}, cnt: s.cnt || {} }; } } catch(e){} return newStory(); }
+// stage 18½ (the merged city): a save from the old «حتة» map forgets where you stood (that spot is now another street);
+// the story, money and everything else stay
+{ const _ls = loadStory; loadStory = function(){ const s = _ls(); if (MERGED && s.world !== 2){ s.startAt = null; s.world = 2; } return s; }; }
 let SAVE = loadStory();
 const STORY_V = 3;
 // replaying a finished mission from the missions screen runs on a copy of the save; the real one is kept in REPLAY.back
 const REPLAY = { on: false, back: null, i: -1, last: -1 };
 function saveStory(){ if (REPLAY.on) return; SAVE.v = STORY_V; if (modeId === 'story'){ if (!SAVE.ow || SAVE.ow.cur === 'tayara') SAVE.money = Math.max(0, Math.round(hero.money)); SAVE.time = TOD.h; } store.set(STORY_KEY, JSON.stringify(SAVE)); }
 const trayCap = () => SAVE.up.tray4 ? 4 : 3;
-const SHOP = { pos: new THREE.Vector3(7.7, .15, 30), name: 'محل الأناقة', items: [
+const SHOP = { pos: RLV(7.7, .15, 30), name: 'محل الأناقة', items: [
   { id: 'glasses', kind: 'acc', name: 'نضارة شمس', price: 120 },
   { id: 'cap', kind: 'acc', name: 'كاب', price: 90 },
   { id: 'chain', kind: 'acc', name: 'سلسلة دهب', price: 250 },
@@ -25,8 +28,8 @@ const PRICE = { moto: 300, car: 1500 };
 const priceTag = (txt) => { const t = makeTex(256,96,(g,w,h)=>{ g.fillStyle='#fff3c4'; g.fillRect(0,0,w,h); g.strokeStyle='#b4431f'; g.lineWidth=6; g.strokeRect(3,3,w-6,h-6); arText(g,txt,w/2,h/2+3,38,'#7a1f0e'); }); t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping; const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: true })); s.scale.set(1.7,.64,1); scene.add(s); return s; };
 const motoTag = priceTag('للبيع ٣٠٠ جنيه'), carTag = priceTag('للبيع ١٥٠٠ جنيه');
 const missionMark = new THREE.Group(); { const b = new THREE.Mesh(beamGeo, new THREE.MeshBasicMaterial({ color: 0xffc94a, transparent: true, opacity: .2, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false })); b.scale.set(1.3,1.4,1.3); const r = new THREE.Mesh(new THREE.RingGeometry(1.1,1.4,40), new THREE.MeshBasicMaterial({ color: 0xffc94a, transparent: true, opacity: .7, depthWrite: false, side: THREE.DoubleSide })); r.rotation.x = -Math.PI/2; r.position.y = .25; missionMark.add(b, r); missionMark.visible = false; scene.add(missionMark); }
-const race = { active: false, t: 0, goal: new THREE.Vector3(-48, 0, -96) };
-const ENEMY_WAIT = new THREE.Vector3(28, .15, 40.2);
+const race = { active: false, t: 0, goal: RLV(-48, 0, -96) };
+const ENEMY_WAIT = RLV(28, .15, 40.2);
 // accessories drawn on top of the hero photo
 const ACC = {};
 if (hero.d.is3D) Object.assign(ACC, make3DAccessories(hero.d.R));
@@ -87,7 +90,7 @@ const near = (a, b, r) => Math.hypot(a.x - b.x, a.z - b.z) < r;
 const heroAt = () => hero.veh ? hero.veh.pos : hero.pos;
 // named people (low-poly)
 const NAMED = { moallem: { i: 40, name: 'المعلم عبده', pos: [24.6, .15, 24.4], yaw: Math.PI }, landlord: { i: 41, name: 'الحاج محمود', pos: [-21.2, .15, 88.6], yaw: 0 }, azzouz: { i: 42, name: 'عزوز', pos: [116.4, .15, 40.6], yaw: 0 }, fathi: { i: 43, name: 'الحاج فتحي', pos: [37.4, .15, 31.8], yaw: -Math.PI/2 }, officer: { i: 44, name: 'الظابط', pos: [34.6, .15, 39.6], yaw: Math.PI }, reda: { i: 45, name: 'الأسطى رضا', pos: [127, .15, -7.6], yaw: Math.PI } };
-function setupNamed(){ for (const [k, v] of Object.entries(NAMED)){ const n = npcs[v.i]; if (!n) continue; n.role = 'named'; n.name = v.name; n.state = 'idle'; n.g.visible = true; n.g.position.set(v.pos[0], v.pos[1], v.pos[2]); n.yaw = v.yaw; n.g.rotation.set(0, v.yaw, 0); n.fall = 0; n.downT = 0; ST2.npcs[k] = n; } }
+function setupNamed(){ for (const [k, v] of Object.entries(NAMED)){ const n = npcs[v.i]; if (!n) continue; n.role = 'named'; n.name = v.name; n.state = 'idle'; n.g.visible = true; n.g.position.copy(V(v.pos[0], v.pos[1], v.pos[2])); n.yaw = v.yaw; n.g.rotation.set(0, v.yaw, 0); n.fall = 0; n.downT = 0; ST2.npcs[k] = n; } }
 const NP = k => ST2.npcs[k];
 // pickups (papers, parts) with a glowing beam
 const pickups = [];
@@ -110,7 +113,7 @@ function clearPickups(){ for (const p of pickups) scene.remove(p.g); pickups.len
 function updatePickups(dt, t){ for (const p of pickups){ if (p.got) continue; p.m.rotation.y = t*2; p.m.position.y = .9 + Math.sin(t*3)*.12; if (!hero.veh && near(hero.pos, p.pos, 1.6)){ p.got = true; p.g.visible = false; coin(); buzz(20); banner('✓ لقيتها', 'ok', 1.2); } } }
 // police checkpoints (كمين)
 const checkpoints = [];
-function addCheckpoint(x, z){ const car = makeCar('#f4f4f4', 'police'); car.position.set(x, 0, z); car.rotation.y = Math.PI/2; const c = { car, pos: V(x, 0, z), r: 10 }; checkpoints.push(c); return c; }
+function addCheckpoint(x, z){ const car = makeCar('#f4f4f4', 'police'); car.position.copy(V(x, 0, z)); car.rotation.y = Math.PI/2; const c = { car, pos: V(x, 0, z), r: 10 }; checkpoints.push(c); return c; }
 function clearCheckpoints(){ for (const c of checkpoints) scene.remove(c.car); checkpoints.length = 0; }
 // wedding decorations
 const wedding = new THREE.Group(); wedding.visible = false; scene.add(wedding);
@@ -137,7 +140,7 @@ const brideLook = (() => {
   g.visible = false; haidyD.root.add(g); return g;
 })();
 // arabi's motorcycle (for chapter 5) and شمس's getaway motorcycle
-const arabiMoto = addVehicle('moto', 262, 92.5, -Math.PI/2, '#1565c0'); arabiMoto.jobOnly = 'arabi'; arabiMoto.home.y = 0;
+const arabiMoto = addVehicle('moto', ...RELOC(262, 92.5), -Math.PI/2, '#1565c0'); arabiMoto.jobOnly = 'arabi'; arabiMoto.home.y = 0;
 const shamsMoto = makeMoto('#212121'); shamsMoto.visible = false;
 // شمس as a fighter for the final fight
 // the final boss: three rounds, he blocks some punches and gets faster after each knock-down
@@ -241,7 +244,7 @@ function raceM(o){
 }
 function parkArabiMoto(){
   if (hero.veh === arabiMoto) return; const atWs = false;
-  const [x, z, y] = atWs ? [262, 92.5, -Math.PI/2] : [25.6, 43.3, Math.PI/2]; arabiMoto.pos.set(x, 0, z); arabiMoto.yaw = y; arabiMoto.mesh.rotation.set(0, y, 0); arabiMoto.speed = 0;
+  const [x, z, y] = atWs ? [262, 92.5, -Math.PI/2] : [25.6, 43.3, Math.PI/2]; arabiMoto.pos.copy(V(x, 0, z)); arabiMoto.yaw = y; arabiMoto.mesh.rotation.set(0, y, 0); arabiMoto.speed = 0;
 }
 // --- thugs (شمس's men) ---
 function spawnThugs(d){
@@ -428,7 +431,7 @@ const MS = [
 
   // ===== الفصل التالت: العربي =====
   { id: 'arabiArrives', ch: 3, title: 'العرض', at: () => PL.cafeOut, atR: 9, goText: 'ارجع القهوة (★) — فيه عربية حمرا واقفة قدامها', par: 30,
-    intro: () => [ { do: () => { heroTo(19, 38.5); if (arabiCar){ arabiCar.mesh.visible = true; arabiCar.pos.set(70, 0, 51); arabiCar.yaw = -Math.PI / 2; arabiCar.mesh.rotation.set(0, -Math.PI / 2, 0); tween(3, k => { const e = 1 - (1 - k) * (1 - k); arabiCar.pos.set(70 - 44 * e, 0, 51 - 7.8 * Math.min(1, e * 1.6)); }); horn(); } } },
+    intro: () => [ { do: () => { heroTo(19, 38.5); if (arabiCar){ arabiCar.mesh.visible = true; arabiCar.pos.copy(V(70, 0, 51)); arabiCar.yaw = -Math.PI / 2; arabiCar.mesh.rotation.set(0, -Math.PI / 2, 0); tween(3, k => { const e = 1 - (1 - k) * (1 - k); arabiCar.pos.set(70 - 44 * e, 0, 51 - 7.8 * Math.min(1, e * 1.6)); }); horn(); } } },
       camAt(16, 2.4, 36.5, 30, 1.2, 46, 1.4), { wait: 2.2 }, { do: () => showActor(enemyD, 25.5, 41.4) }, { walk: [enemyD, 22, 39.6, 1.8] },
       L('arabi', 'مساء الفل يا قصر الملوك العربية دي؟ هدية صغيرة من أبويا.'),
       L('arabi', 'الحاج العربي الكبير عايز يشتري القهوة… والشارع كله لحد البحر. هيبني برج.'),
@@ -627,7 +630,7 @@ const MS = [
     outro: () => [ shot(npcAt('officer'), 2.4, 1, 3.2), L('police', 'الأدلة دي تقيلة يا طيارة… برافو عليك.'), L('police', 'بس من غير شمس نفسه منقدرش نعمل حاجة. خليك صاحي.') ] },
   { id: 'sighting', ch: 5, title: 'شمس في السوق', par: 90,
     intro: () => [ L('police', 'الظابط: شمس اتشاف في السوق دلوقتي! الحقه قبل ما يختفي!') ],
-    start: () => { spawnWanted(); wanted.pos.set(148, .15, -47.6); wanted.home = V(148, 0, -40); wanted.leash = 55; }, text: () => 'الحق شمس في السوق (النقطة الحمرا) وامسكه', target: () => wanted.pos,
+    start: () => { spawnWanted(); wanted.pos.copy(V(148, .15, -47.6)); wanted.home = V(148, 0, -40); wanted.leash = 55; }, text: () => 'الحق شمس في السوق (النقطة الحمرا) وامسكه', target: () => wanted.pos,
     update: () => !!ST2.ev.arrest,
     outro: () => [ { do: () => { wanted.active = false; showActor(wantedD, wanted.pos.x, wanted.pos.z); heroTo(wanted.pos.x + 1.4, wanted.pos.z + .6); } }, shot(wanted.pos, 2.2, 1, 3),
       L('shams', 'طيارة بتاع القهوة.'),
@@ -660,7 +663,7 @@ const MS = [
     update: () => true },
   { id: 'carStolen', ch: 6, title: 'العربية الحمرا', at: () => PL.cafeOut, atR: 10, goText: 'ارجع القهوة (★)', par: 120,
     intro: () => [ hideHero(), { do: () => { applyTimeOfDay(21.5); showroomFire(true); } }, camAt(SHOWROOM.cx - 12, 7, SHOWROOM.cz + 20, SHOWROOM.cx, 3, SHOWROOM.cz - 2, 0), KN('kamel_06_fire'),
-      { do: () => { SCENE.hideHero = false; heroTo(19, 38.5); if (arabiCar){ arabiCar.mesh.visible = true; arabiCar.pos.set(26, 0, 43.2); arabiCar.yaw = Math.PI / 2; arabiCar.mesh.rotation.set(0, Math.PI / 2, 0); } showActor(enemyD, 22, 40); } }, camAt(17, 2.4, 36, 27, 1.2, 44, 1.2),
+      { do: () => { SCENE.hideHero = false; heroTo(19, 38.5); if (arabiCar){ arabiCar.mesh.visible = true; arabiCar.pos.copy(V(26, 0, 43.2)); arabiCar.yaw = Math.PI / 2; arabiCar.mesh.rotation.set(0, Math.PI / 2, 0); } showActor(enemyD, 22, 40); } }, camAt(17, 2.4, 36, 27, 1.2, 44, 1.2),
       { do: () => { noise(.3, 200, .5); horn(); } }, L('arabi', 'العربية!!! حد ركب عربيتي!!'), L('tayara', 'اركب يا طيارة… مش هيبعد!') ],
     start: d => { if (!arabiCar) return; d.run = { v: arabiCar, i: 1, path: cityPath([[34, 51], [240.6, 51], [240.6, 141], [258, 141], [PORT.door.x, 127]]) }; d.far = 0; },
     text: d => `الحق العربية الحمرا (النقطة الحمرا) ومتسيبهاش تبعد · ${Math.round(d.dist || 0)} م`, target: d => arabiCar ? arabiCar.pos : null,
@@ -707,7 +710,7 @@ const MS = [
     text: d => `ادخل المخزن وهات الورق والمفتاح ${nPick(d, 2)} · رجالة شمس جوه`, target: () => nearestPick(), update: allPicked,
     cleanup: d => clearThugs(d),
     outro: () => [ L('tayara', 'الورق أهو… بس ده نسخة! فين الأصل؟'),
-      { do: () => { shamsLaunch.visible = true; shamsLaunch.position.set(PIER.x1 + 4, -.9, 168); } }, camAt(PL2.pier.x - 6, 3.2, PL2.pier.z - 6, PL2.pier.x + 4, 1, 168, 1.2),
+      { do: () => { shamsLaunch.visible = true; shamsLaunch.position.set(PIER.x1 + 4, -.9, 168 + PORT_OFF[1]); } }, camAt(PL2.pier.x - 6, 3.2, PL2.pier.z - 6, PL2.pier.x + 4, 1, 168 + PORT_OFF[1], 1.2),
       L('shams', '(بيركب اللانش ومعاه الشنطة) الأصل معايا يا طيارة. الحقني لو تعرف.'),
       L('arabi', 'اللانشات على الرصيف! يلا!') ] },
   { id: 'launchChase', ch: 6, title: 'مطاردة اللانشات', par: 120, spawn: PL2.pier,
@@ -732,7 +735,7 @@ const MS = [
     text: () => hero.veh === arabiCar ? 'سوق عربية العربي الحمرا لحد القهوة (★)' : 'اركب العربية الحمرا اللي في المخزن (★)', target: () => hero.veh === arabiCar ? PL.cafeOut : (arabiCar ? arabiCar.pos : PL.cafeOut),
     update: () => !arabiCar || (hero.veh === arabiCar && near(arabiCar.pos, PL.cafeOut, 9)),
     cleanup: () => { setRain(false); giveStick(false); },
-    outro: () => [ { rain: false }, { do: () => { if (hero.veh) exitVehicle(true); applyTimeOfDay(7); heroTo(19, 38.5); if (arabiCar){ arabiCar.pos.set(26, 0, 43.2); arabiCar.yaw = Math.PI / 2; arabiCar.mesh.rotation.set(0, Math.PI / 2, 0); } showActor(enemyD, 22.2, 40.2); showActor(fatherD, 24, 39.4); } }, camAt(16, 2.4, 36, 23, 1.3, 40, 1.4),
+    outro: () => [ { rain: false }, { do: () => { if (hero.veh) exitVehicle(true); applyTimeOfDay(7); heroTo(19, 38.5); if (arabiCar){ arabiCar.pos.copy(V(26, 0, 43.2)); arabiCar.yaw = Math.PI / 2; arabiCar.mesh.rotation.set(0, Math.PI / 2, 0); } showActor(enemyD, 22.2, 40.2); showActor(fatherD, 24, 39.4); } }, camAt(16, 2.4, 36, 23, 1.3, 40, 1.4),
       L('father', 'العربية… والورق. انتوا الاتنين عملتوها؟'),
       L('arabi', 'طيارة هو اللي…'),
       L('tayara', 'إحنا الاتنين يا حاج. كتف في كتف.'),
@@ -779,7 +782,7 @@ const MS = [
     outro: () => [ L('islam', 'إيه الرقص ده يا طيارة!! الحتة كلها هتتكلم عليك بكرة') ] },
   { id: 'shamsWedding', ch: 7, title: 'هجوم على الفرح', par: 120, spawn: V(-66, .15, 34),
     intro: () => [ { do: () => showActor(shadiaD, -66, 31) }, L('shadia', 'طيارة!! حد خد الكاميرا من إيدي… فيها كل صور شمس!'), L('crowd', 'الحقوا!! شمس!!'), L('tayara', 'شمس!! في فرح إسلام؟! مش هسيبه المرة دي.'), { do: () => hideActor(shadiaD) } ],
-    start: () => { spawnWanted(); wanted.pos.set(-57, .15, 41); wanted.home = V(-48, 0, 40); wanted.leash = 50; }, text: () => 'الحق شمس في حواري بحري (النقطة الحمرا) وامسكه', target: () => wanted.pos,
+    start: () => { spawnWanted(); wanted.pos.copy(V(-57, .15, 41)); wanted.home = V(-48, 0, 40); wanted.leash = 50; }, text: () => 'الحق شمس في حواري بحري (النقطة الحمرا) وامسكه', target: () => wanted.pos,
     update: () => !!ST2.ev.arrest,
     outro: () => [ { do: () => { wanted.active = false; showActor(wantedD, wanted.pos.x, wanted.pos.z); heroTo(wanted.pos.x + 1.4, wanted.pos.z + .6); } }, shot(wanted.pos, 2.2, 1, 3),
       L('shams', 'وعدتك بأحلى ليلة في الحتة يا طيارة.'), { do: () => { flash(); thwack(); shake = .4; hero.d.downT = 1.5; } }, { fade: () => hideActor(wantedD) },
@@ -819,11 +822,11 @@ const MS = [
       L('shams', 'وصلت لحد هنا؟ … القلعة دي شافت ناس أجمد منك يا طيارة.'),
       L('tayara', 'مش عايز أكسبك يا شمس… عايزك ترجع الميكانيكي اللي كان بيصلّح ببلاش.'),
       L('shams', 'الميكانيكي مات.') ],
-    start: () => { heroTo(92, 270); boss.active = true; boss.maxHp = boss.hp = DIFF.dmg < 1 ? 200 : 260; boss.need = 3; boss.downs = 0; boss.atk = 1.2; boss.pos.set(100, 0, 276); wantedD.root.visible = true; wantedD.P.legL.visible = wantedD.P.legR.visible = true; wantedD.blob.visible = true; wantedD.downT = 0; },
+    start: () => { heroTo(92, 270); boss.active = true; boss.maxHp = boss.hp = DIFF.dmg < 1 ? 200 : 260; boss.need = 3; boss.downs = 0; boss.atk = 1.2; boss.pos.copy(V(100, 0, 276)); wantedD.root.visible = true; wantedD.P.legL.visible = wantedD.P.legR.visible = true; wantedD.blob.visible = true; wantedD.downT = 0; },
     text: () => `وقّع شمس ٣ مرات (${boss.downs}/${boss.need}) · بيصد الضربة الواحدة… اضرب ٣ ورا بعض · صحته ${AR(Math.max(0, Math.round(boss.hp)))}`, target: () => null,
     update: () => boss.downs >= boss.need, cleanup: () => { boss.active = false; } },
   { id: 'policeArrive', ch: 8, title: 'الصور', par: 20,
-    intro: () => [ { do: () => { showActor(wantedD, boss.pos.x || 100, boss.pos.z || 276); wantedD.downT = 30; showActor(shadiaD, 94, 266.5); copCar.pos.set(96, 0, 256); copCar.yaw = 0; copCar.mesh.rotation.set(0, 0, 0); } }, camAt(88, 2.6, 268, 97, 1.3, 273, 1.2),
+    intro: () => [ { do: () => { showActor(wantedD, boss.pos.x || 100, boss.pos.z || 276); wantedD.downT = 30; showActor(shadiaD, 94, 266.5); copCar.pos.copy(V(96, 0, 256)); copCar.yaw = 0; copCar.mesh.rotation.set(0, 0, 0); } }, camAt(88, 2.6, 268, 97, 1.3, 273, 1.2),
       L('police', 'محدش يتحرك!'),
       L('shadia', 'الصور دي فيها كل حاجة يا باشا… الشحنات، والعربيات، والميناء.'),
       L('police', 'شمس… انت مقبوض عليك.'),
@@ -952,7 +955,7 @@ function storyWorld2(m, I){
   if (arabiCar && hero.veh !== arabiCar){
     const away = m < I('arabiArrives'), inPort = m > I('carStolen') && m <= I('carBack');
     arabiCar.mesh.visible = !away;
-    if (away) arabiCar.pos.set(-600, 0, -600); else if (inPort) arabiCar.pos.copy(PORT.inside); else if (!(m === I('carStolen') && ST2.phase === 'active')){ arabiCar.pos.set(26, 0, 43.2); arabiCar.yaw = Math.PI / 2; }
+    if (away) arabiCar.pos.set(-600, 0, -600); else if (inPort) arabiCar.pos.copy(PORT.inside); else if (!(m === I('carStolen') && ST2.phase === 'active')){ arabiCar.pos.copy(V(26, 0, 43.2)); arabiCar.yaw = Math.PI / 2; }
     arabiCar.mesh.rotation.set(0, arabiCar.yaw, 0);
   }
   ST2.idle.delete(shadiaD);
@@ -1136,7 +1139,7 @@ function startMode(id){
       if (SAVE.m === 0 && SAVE.introSeen !== 0){ HOUSE.inside = true; HOUSE.prevCam = camTarget; camTarget = Math.min(camTarget, 3.4); camDist = camTarget; hero.pos.set(5596.4, 0, 5600.4); CAM.orbit = CAM.orbitSm = 0; }
       else if (M && SAVE.introSeen === SAVE.m){
         // back in the middle of a mission: where it started, not the café (where a "go to the café" mission would finish by itself)
-        const s = SAVE.startAt && SAVE.startAt[0] === SAVE.m && inWorld(SAVE.startAt[1], SAVE.startAt[2]) ? V(SAVE.startAt[1], .15, SAVE.startAt[2]) : M.spawn;
+        const s = SAVE.startAt && SAVE.startAt[0] === SAVE.m && inWorld(SAVE.startAt[1], SAVE.startAt[2]) ? (MERGED ? new THREE.Vector3(SAVE.startAt[1], .15, SAVE.startAt[2]) : V(SAVE.startAt[1], .15, SAVE.startAt[2])) : M.spawn;
         if (s){ const [fx, fz] = freeSpot(s.x, s.z); hero.pos.set(fx, .15, fz); }
       }
       houseVisual(); TOD.h = SAVE.time ?? 9; applyTimeOfDay(TOD.h); parkArabiMoto(); applyStoryWorld();
@@ -1222,7 +1225,7 @@ function updateAhwa(dt){
     const n = m.patrons.find(n => n.state === 'hidden');
     if (free.length && n){
       const si = rpick(free); m.seatsTaken.add(si); const s = SEATS[si];
-      n.leaving = false; n.g.visible = true; n.g.position.set(s.x + R(-3,3), .15, 40.5); n.state = 'goto'; n.speed = R(1.6, 2.1); n.tx = s.x + (s.x < TABLES[s.ti][0] ? -.25 : .25); n.tz = s.z + .6; n.seat = si;
+      n.leaving = false; n.g.visible = true; n.g.position.set(s.x + R(-3,3), .15, 40.5 + CAFE_OFF[1]); n.state = 'goto'; n.speed = R(1.6, 2.1); n.tx = s.x + (s.x < TABLES[s.ti][0] ? -.25 : .25); n.tz = s.z + .6; n.seat = si;
       n.onArrive = n2 => { seatNPC(n2, s.x, s.z, s.ry); n2.state = 'customer'; const rg = REGULARS[n2.name]; n2.order = rg && Math.random() < .75 ? { ...rg, reg: true } : { drink: pickDrink(), sugar: rpick(SUGARS) }; n2.maxPat = 120*DIFF.pat; n2.patience = n2.maxPat; n2.bubble = orderBubble(n2); say(n2, n2.order.reg ? `زي العادة يا ${heroName}! ${n2.order.drink} ${n2.order.sugar}` : `واحد ${n2.order.drink} ${n2.order.sugar} يا ريس!`, 0); buzz(15); };
     } else m.spawnT = 2;
   }
@@ -1234,6 +1237,6 @@ function updateAhwa(dt){
     } else if (n.state === 'drinking'){ n.leaveT -= dt; if (n.leaveT <= 0){ if (n.glass){ scene.remove(n.glass); n.glass = null; } leaveSeat(n); } }
   }
 }
-function leaveSeat(n){ modeObj.seatsTaken && modeObj.seatsTaken.delete(n.seat); n.leaving = true; n.state = 'goto'; n.g.position.y = .15; n.tx = rpick([7.5, 40.5]); n.tz = R(36, 40); n.onArrive = n2 => { n2.state = 'hidden'; n2.g.visible = false; n2.leaving = false; }; }
+function leaveSeat(n){ modeObj.seatsTaken && modeObj.seatsTaken.delete(n.seat); n.leaving = true; n.state = 'goto'; n.g.position.y = .15; n.tx = rpick([7.5, 40.5]) + CAFE_OFF[0]; n.tz = R(36, 40) + CAFE_OFF[1]; n.onArrive = n2 => { n2.state = 'hidden'; n2.g.visible = false; n2.leaving = false; }; }
 // on short (landscape phone) screens the mission card is clamped; tap it to read all of it
 $('radar').addEventListener('pointerdown', e => { if (modeObj.hud){ e.stopPropagation(); hudHint(modeObj.hud(), true); } });   // forgot what to do? tap the radar: the objective shows again

@@ -162,10 +162,10 @@ function addVehicle(type, x, z, yaw, color){
     circles: type==='moto' ? [[0,.6]] : type==='tuk' ? [[.7,.85],[-.6,.85]] : [[1.25,1.05],[-1.25,1.05]], home: { x, z, yaw }, col: color };
   vehicles.push(v); return v;
 }
-const reserved = [[11,43.3],[19,53],[32,43],[26,43.2],[78,139],RELOC(114,-5)];   // 26,43.2: العربي's sports car (05c); 78,139 / 114,-5: the taxi and microbus jobs (19o)
-const heroMoto = addVehicle('moto', 11, 43.3, -Math.PI/2, '#b3121f');
-const heroCar = addVehicle('car', 19, 53, Math.PI/2, '#e8b21a');
-const copCar = addVehicle('police', 32, 43, Math.PI/2, '#f4f4f4');
+const reserved = [[11,43.3],[19,53],[32,43],[26,43.2],[78,139],[114,-5]].map(([x, z]) => RELOC(x, z));   // 26,43.2: العربي's sports car (05c); 78,139 / 114,-5: the taxi and microbus jobs (19o)
+const heroMoto = addVehicle('moto', ...RELOC(11, 43.3), -Math.PI/2, '#b3121f');
+const heroCar = addVehicle('car', ...RELOC(19, 53), Math.PI/2, '#e8b21a');
+const copCar = addVehicle('police', ...RELOC(32, 43), Math.PI/2, '#f4f4f4');
 const parkedAt = [];
 parkedSpots.forEach((p, pi) => { if (reserved.some(([x,z]) => Math.hypot(p.x-x, p.z-z) < 7)) return; if (GFX === 'low' && pi % 3 === 1) return; /* weak phones: a third fewer parked cars */ if (parkedAt.some(([x, z]) => Math.hypot(p.x - x, p.z - z) < 5.6)) return; parkedAt.push([p.x, p.z]); const pv = addVehicle(rng()<.3 ? 'taxi' : 'car', p.x, p.z, p.ry, rng()<.3 ? '#f2f2f2' : pick(COLORS)); pv.mesh.position.y = p.y; FAR_CULL.push({ v: pv, mesh: pv.mesh }); });
 vehicles.forEach(v => v.home.y = v.mesh.position.y);
@@ -251,4 +251,4 @@ function trafficStep(c, dt, t, playing){
 }
 // chaser for the cash mode
 const chaserCar = makeCar('#f4f4f4', 'police'); chaserCar.visible = false;
-const chaserLight = new THREE.PointLight(0xff2040, 0, 22, 1.6); chaserLight.position.set(0, 2.2, 0); chaserCar.add(chaserLight);
+const chaserLight = new THREE.PointLight(0xff2040, 0, 22, 1.6); scene.add(chaserLight);   // in the scene, following the car (a light inside a hidden car would come and go: a shader rebuild)

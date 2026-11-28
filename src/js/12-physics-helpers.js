@@ -12,6 +12,14 @@ function ogBuild(){
   }
   OG.n = obstacles.length;
 }
+// add one obstacle without rebuilding the whole grid (a full rebuild per streetlight / tree / kiosk was a hitch each time)
+function ogAdd(o){
+  const inSync = OG.n === obstacles.length; obstacles.push(o); if (!inSync) return;
+  const c = OG.cell, x0 = Math.floor(o.minX / c), x1 = Math.floor(o.maxX / c), z0 = Math.floor(o.minZ / c), z1 = Math.floor(o.maxZ / c);
+  if ((x1 - x0 + 1) * (z1 - z0 + 1) > 300) OG.big.push(o);
+  else for (let gx = x0; gx <= x1; gx++) for (let gz = z0; gz <= z1; gz++){ const k = gx * 4096 + gz; let l = OG.map.get(k); if (!l) OG.map.set(k, l = []); l.push(o); }
+  OG.n = obstacles.length;
+}
 // calls fn(o) for each obstacle within pad of (x, z); stops early if fn returns true
 function ogQuery(x, z, pad, fn){
   if (OG.n !== obstacles.length) ogBuild();

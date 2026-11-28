@@ -9,7 +9,7 @@ function spawnChaser(){
 }
 function updateChaser(dt){
   if (!chaser.active) return;
-  const pc = chaserCar.position, p = hero.pos, dx = p.x - pc.x, dz = p.z - pc.z, dist = Math.hypot(dx, dz);
+  const pc = chaserCar.position, p = hero.pos, dx = p.x - pc.x, dz = p.z - pc.z, dist = Math.hypot(dx, dz); chaserLight.position.set(pc.x, 2.2, pc.z);
   chaser.spawnT += dt;
   const sees = dist < 42 && lineOfSight(pc.x, pc.z, p.x, p.z);
   const speed = 6.9 + Math.min(modeObj.got||0, 10)*.13 + (chaser.mode === 'grid' ? .9 : 0);

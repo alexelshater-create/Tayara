@@ -9,9 +9,9 @@ const cityMapImg = CITY ? await new Promise(res => { const i = new Image(); i.on
   const g = mapBase.getContext('2d'); const K = MAP.k; g.save(); g.scale(K, K); g.translate(-MAP.x0, -MAP.z0);
   const MX = x => x, MZ = z => z;   // inside: world metres (the canvas is scaled)
   // dark like a phone GPS: dark land, light grey streets, the sea deep blue
-  if (cityMapImg){ g.drawImage(cityMapImg, MAP.x0, MAP.z0, MAP.x1 - MAP.x0, MAP.z1 - MAP.z0); g.fillStyle = '#0e2333'; g.fillRect(X0 - 8, NILE_Z, XMAX - X0 + 16, 80); }
+  if (cityMapImg){ g.drawImage(cityMapImg, MAP.x0, MAP.z0, MAP.x1 - MAP.x0, MAP.z1 - MAP.z0); if (!MERGED){ g.fillStyle = '#0e2333'; g.fillRect(X0 - 8, NILE_Z, XMAX - X0 + 16, 80); } }
   else { g.fillStyle = '#1b1f24'; g.fillRect(MAP.x0, MAP.z0, MAP.x1 - MAP.x0, MAP.z1 - MAP.z0); g.fillStyle = '#0e2333'; g.fillRect(MAP.x0, NILE_Z, MAP.x1 - MAP.x0, MAP.z1 - NILE_Z); }
-  g.fillStyle = '#5a626c'; g.fillRect(MX(X0-6), MZ(Z0-6), XMAX - X0 + 12, NILE_Z - Z0 + 6);
+  if (!MERGED){ g.fillStyle = '#5a626c'; g.fillRect(MX(X0-6), MZ(Z0-6), XMAX - X0 + 12, NILE_Z - Z0 + 6); }
   g.fillStyle = '#6b4f2a'; g.fillRect(PIER.x0, PIER.z0, PIER.x1 - PIER.x0, PIER.z1 - PIER.z0);
   blocksInfo.forEach(b => { g.fillStyle = b.type === 'park' ? '#1f3526' : b.type === 'pitch' ? '#234a2c' : '#252a30'; g.fillRect(MX(b.cx - BW/2), MZ(b.cz - BW/2), BW, BW); });
   g.fillStyle = '#30363e'; obstacles.filter(o => o.building && o.minX > X0 - 20 && o.maxX < XMAX + 20 && o.minZ > Z0 - 20 && o.maxZ < NILE_Z + 10).forEach(o => g.fillRect(MX(o.minX), MZ(o.minZ), o.maxX - o.minX, o.maxZ - o.minZ));

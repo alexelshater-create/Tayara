@@ -48,7 +48,7 @@ function graphRoute(from, to, drive = true){
     const [, n] = hpop(); if (closed.has(n)) continue; closed.add(n);
     if (n === goalA || n === goalB){ goal = n; break; }
     const gn = g.get(n);
-    for (const { e: ei, d } of RG.adj[n]){ const e = RG.E[ei]; if (drive && e.ow && d < 0) continue; const m = d > 0 ? e.b : e.a; push(m, gn + e.L * (e.cls === 'service' ? 1.4 : e.cls === 'major' ? .85 : 1), n, [ei, d]); }
+    for (const { e: ei, d } of RG.adj[n]){ const e = RG.E[ei]; if (drive && e.ow && d < 0) continue; const m = d > 0 ? e.b : e.a; push(m, gn + e.L * (e.cls === 'service' ? 1.4 : e.cls === 'major' ? .85 : 1) * (drive && e.w < 5.5 ? 4 : 1), n, [ei, d]); }
   }
   if (goal < 0){ RFAIL.add(fk); return null; }
   const legs = []; let n = goal; while (true){ const [p, via] = came.get(n); if (!via) break; legs.push(via); n = p; } legs.reverse();

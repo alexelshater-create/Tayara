@@ -40,7 +40,7 @@ const tlLamps = (() => {
   return { im, lamps };
 })();
 function updateLights(){
-  const im = tlLamps.im; let changed = false;
+  const im = tlLamps.im; if (!im) return; let changed = false;   // the merged city has none of the old grid's lights
   for (const L of TL.list){
     const p = tlPhase(L); if (p === L.phase) continue; L.phase = p; changed = true;
     for (const g of L.groups){ const s = p === 'g' + g.axis ? 'g' : p === 'y' + g.axis ? 'y' : 'r'; ['r', 'y', 'g'].forEach((c, k) => im.setColorAt(g.i0 + k, c === s ? TL_ON[c] : TL_OFF[c])); }

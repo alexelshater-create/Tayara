@@ -68,7 +68,8 @@ function buildAround(L){
   const spec = AROUND[L.k]; if (!spec) return null;
   const c = L.root.position, [r0, r1] = spec.r, R0 = Math.max(r0 * .7, L.r * .55), R1 = Math.max(r1 * .75, R0 + 30), B = L.box.clone().expandByScalar(2);
   const parts = [], used = [], grp = new THREE.Group(), obs = [], inModel = (x, z) => x > B.min.x && x < B.max.x && z > B.min.z && z < B.max.z && L.k !== 'stanley';
-  const sfl = {}, SWAP = { palm: () => Math.random() < .5 ? 'palm-trees:palm_a' : 'palm-trees:palm_b', lamp: () => LOW ? null : 'street-lamp', stall: () => 'vendor-stall', cart: () => 'foul-cart', cat: () => 'cat', boat: () => Math.random() < .5 ? 'fishing-boat' : null };
+  const sfl = {}, SWAP = { palm: () => Math.random() < .5 ? 'palm-trees:palm_a' : 'palm-trees:palm_b', lamp: () => LOW ? null : 'street-lamp', stall: () => 'vendor-stall', cart: () => 'foul-cart', cat: () => 'cat', boat: () => Math.random() < .5 ? 'fishing-boat' : 'fishing-boat-eg',
+    kiosk: () => 'kiosk', news: () => 'newspaper-stand', corn: () => 'corn-grill-cart', termis: () => 'termis-cart', fresca: () => 'fresca-box', candy: () => 'cotton-candy-pole', bench: () => 'bench', cabin: () => 'beach-cabin', hantour: () => 'hantour' };   // stage 18½: the real models (sf3) in place of the drawn boxes
   const put = (kind, x, z, ry) => { const sw = SWAP[kind.startsWith('boat') ? 'boat' : kind], sn = sw && sw();
     if (sn && SFM[sn]){ (sfl[sn] = sfl[sn] || []).push([x, kind.startsWith('boat') ? -.25 : .15, z, ry + (kind === 'lamp' ? 0 : Math.PI)]); used.push([x, z]); const sd = AR_SOLID[kind]; if (sd) obs.push({ minX: x - sd, maxX: x + sd, minZ: z - sd, maxZ: z + sd, around: L.k }); return; }
     if (!AR_GEO[kind]) return; const g = AR_GEO[kind].clone(); g.rotateY(ry); g.translate(x, kind.startsWith('boat') ? -1 : .15, z); parts.push(g); used.push([x, z]);
@@ -101,7 +102,7 @@ function buildAround(L){
   if (spec.tram && LM.tramGLB){ const sx = L.box.max.x - L.box.min.x, sz = L.box.max.z - L.box.min.z, alongX = sx > sz, fx = alongX ? 1 : 0, fz = alongX ? 0 : 1;
     for (let i = 0; i < spec.tram; i++){ const sd = i ? 1 : -1, x = c.x + fz * 2.2 * sd, z = c.z + fx * 2.2 * sd, t = LM.tramGLB.clone(true); t.scale.setScalar(.85); t.position.set(x, .17, z); t.rotation.y = Math.atan2(fx, fz); grp.add(t);
       for (let k = -3; k <= 3; k++) obs.push({ minX: x + fx * k * 2 - 1.2, maxX: x + fx * k * 2 + 1.2, minZ: z + fz * k * 2 - 1.2, maxZ: z + fz * k * 2 + 1.2, around: L.k }); } }
-  for (const o of obs) obstacles.push(o); OG.n = -1; scene.add(grp); return grp;
+  for (const o of obs) ogAdd(o); scene.add(grp); return grp;
 }
 // built when you come within 380 m
 // one landmark at a time, after the ground round it has loaded

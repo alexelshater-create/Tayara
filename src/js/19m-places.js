@@ -28,10 +28,21 @@ const ROOM = { W: 10, D: 8, H: 3.4 };
 const shopLight = new THREE.PointLight(0xffe8c8, 0, 14, 1.3); scene.add(shopLight);
 // ---- doors in town ----
 {
-  const used = new Set();
+  const used = new Set(), mDoors = [];
+  // the merged city: a shop's door on a real building near where its block was (the front of a building facing a pavement, ±z)
+  function cityDoor(tx, tz, taken){
+    const inPiece = (x, z) => STORYP.some(s => Math.abs(x - (-72 + 48 * s.j + s.dx)) < 26 && Math.abs(z - (-72 + 48 * s.kk + s.dz)) < 26);
+    for (let r = 0; r < 70; r += 1.5) for (let a = 0; a < 6.28; a += r ? 1.2 / r : 7){ const x = tx + Math.sin(a) * r, z = tz + Math.cos(a) * r, v = cityR(x, z);
+      if ((v !== 2 && v !== 4) || inPiece(x, z) || !taken.every(d => Math.hypot(d.x - x, d.z - z) > 14)) continue;
+      for (const s of [1, -1]){ if (cityR(x, z - s * 1.4) < 10 || cityR(x - 1.1, z - s * 1.4) < 10 || cityR(x + 1.1, z - s * 1.4) < 10 || cityR(x, z + s * 1.5) >= 10) continue;
+        let wz = z - s * 1.4; for (let i = 0; i < 12 && cityR(x, wz + s * .2) >= 10; i++) wz += s * .2;
+        return { x, z: wz + s * .09, ry: s > 0 ? 0 : Math.PI }; } }
+    return null;
+  }
   const doorMat = new THREE.MeshStandardMaterial({ color: 0x2a3540, emissive: 0xffd9a0, emissiveIntensity: .35, roughness: .2, metalness: .3 });
   SHOP_DEFS.forEach((def, i) => {
     let door = def.door ? (([x, z]) => ({ x, z, ry: def.door.face === 'pz' ? 0 : Math.PI }))(RELOC(def.door.x, def.door.z)) : null;
+    if (!door && MERGED){ const [j, k] = def.block, [tx, tz] = RELOC(X0 + PITCH / 2 + j * PITCH, Z0 + PITCH / 2 + k * PITCH); door = cityDoor(tx, tz, mDoors); if (door) mDoors.push(door); }
     if (!door){
       const [j, k] = def.block, [cx, cz] = RELOC(X0 + PITCH / 2 + j * PITCH, Z0 + PITCH / 2 + k * PITCH);
       const b = buildings.filter(b => b.faces && Math.abs(b.cx - cx) < BW / 2 && Math.abs(b.cz - cz) < BW / 2 && b.w >= 6.5 && !used.has(b) && b.faces.some(f => f === 'pz' || f === 'nz')).sort((a, c) => c.w - a.w)[0];

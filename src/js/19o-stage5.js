@@ -107,7 +107,7 @@ function gpsPlaces(){
   for (const s of SHOPS) if (s.id !== 'cafe') P('shops', 'المحلات', s.name.replace(/\s*\(جوه\)/, ''), SHOP_IC[s.id] || 'building-store', s.out);
   if (CITY) for (const l of CITY.landmarks) P('places', 'إسكندرية', l.name, l.k === 'qaitbay' ? 'building-castle' : l.k.includes('st') ? 'train' : 'map-pin', new THREE.Vector3(l.k === 'qaitbay' ? QAIT_GATE[0] : l.x, 0, l.k === 'qaitbay' ? QAIT_GATE[1] : l.z)); else P('places', 'إسكندرية', 'القلعة', 'building-castle', new THREE.Vector3(96, 0, 262)); P('places', 'إسكندرية', 'حلقة السمك', 'fish', new THREE.Vector3(72, 0, 140)); P('places', 'إسكندرية', 'الميناء', 'anchor', PORT.door); P('places', 'إسكندرية', 'فيلا الحاج العربي', 'building-estate', VILLA.gate); P('places', 'إسكندرية', 'معرض العربيات', 'car', SHOWROOM.front); P('places', 'إسكندرية', 'الكورنيش', 'ship', PL.corniche); P('places', 'إسكندرية', 'ورشة شمس', 'tool', SPOT.workshop);
   if (typeof GARAGE_POS !== 'undefined') P('places', 'إسكندرية', 'ورشة رضا', 'car-garage', GARAGE_POS);
-  TRAM.stations.forEach((x, i) => P('transit', 'مواصلات', `محطة الترام ${AR(i + 1)}`, 'train', new THREE.Vector3(x, 0, TRAM.z - 7)));
+  if (!MERGED) TRAM.stations.forEach((x, i) => P('transit', 'مواصلات', `محطة الترام ${AR(i + 1)}`, 'train', new THREE.Vector3(x, 0, TRAM.z - 7)));
   for (const s of STOPS) P('transit', 'مواصلات', `موقف ${s.name}`, 'bus', s.pos);
   L.push(...owPlaces());
   for (const [k, A] of Object.entries(ACTS)) if (A && A.pos && A.label){ const m = ACT_MAP[k]; P('fun', 'تسالي', m ? m[0] : A.label.replace(/[^\u0600-\u06FF\s()٠-٩0-9:]/g, '').trim(), m ? m[1] : 'star', A.pos); }
@@ -208,7 +208,7 @@ const HANTOUR = { g: null, x0: -84, x1: 90, z: 147.2 };   // along the «حتة�
   g.add(new THREE.Mesh(mergeGeometries(p), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .7 }))); g.position.set(HANTOUR.x0, 0, HANTOUR.z); g.rotation.y = Math.PI / 2; scene.add(g); HANTOUR.g = g;
 }
 // the taxi and the microbus for the passenger jobs (like the tuktuk)
-const taxiVeh = addVehicle('taxi', 78, 139, Math.PI / 2, '#161616'); taxiVeh.jobOnly = 'taxi'; taxiVeh.home.y = 0;
+const taxiVeh = addVehicle('taxi', ...RELOC(78, 139), Math.PI / 2, '#161616'); taxiVeh.jobOnly = 'taxi'; taxiVeh.home.y = 0;
 const microVeh = (() => {
   const g = new THREE.Group(), p = []; box(p, 2.1, 1.9, 4.8, 0, 1.35, 0, '#f4f4f0'); box(p, 2.12, .35, 4.82, 0, .9, 0, '#1e5aa8'); box(p, 2.14, .7, 3.6, 0, 1.75, -.4, '#22313a'); box(p, 1.9, .7, .06, 0, 1.75, 2.42, '#22313a');
   for (const x of [-.95, .95]) for (const z of [-1.6, 1.6]){ const w = new THREE.CylinderGeometry(.38, .38, .26, 12); w.rotateZ(Math.PI / 2); w.translate(x, .38, z); p.push(colored(w, '#141414')); }
@@ -232,9 +232,9 @@ Object.assign(ACTS, {
     action(d){ if (d.phase === 'cast') return { text: 'ارمي السنارة', fn: () => { d.phase = 'wait'; d.t = R(1.5, 4); noise(.1, 800, .2); } }; if (d.phase === 'hook') return { text: 'اسحب!', fn: () => { if (inZone(d.v, d.zone)){ const f = rpick(FISH); d.got.push(f); banner(`${f[0]}${f[1] ? ' +' + f[1] : ''}`, 'ok', 1.6); coin(); } else banner('بدري أوي… السمكة فلتت', 'bad', 1.4); d.n++; d.phase = d.n >= 5 ? 'done' : 'cast'; } }; return null; },
     hud: d => `رمية ${Math.min(d.n + 1, 5)} من ٥ · طلّعت ${d.got.length}<br>${d.got.map(f => f[0].split(' ')[0]).join(' ')}` },
   kite: { pos: AV(-29.4, .15, 88.8), r: 2.2, label: 'اطلع السطح وطيّر طيارة ورق',
-    start(d){ d.t = 35; d.v = .5; d.in = 0; d.wind = 0; hero.locked = true; kiteShow(true); KITE.g.position.set(-24, 17, 72); SCENE.lockY = true; hero.pos.set(-24.5, 10.2, 79.5); banner('خلّي الطيارة في الأخضر: دوس تشد الخيط', 'info', 3); },
+    start(d){ d.t = 35; d.v = .5; d.in = 0; d.wind = 0; hero.locked = true; kiteShow(true); KITE.g.position.copy(AV(-24, 17, 72)); SCENE.lockY = true; hero.pos.copy(AV(-24.5, 10.2, 79.5)); banner('خلّي الطيارة في الأخضر: دوس تشد الخيط', 'info', 3); },
     update(dt, d, t){
-      ACT.cam = { p: AV(-30, 13.5, 86), l: AV(-24, 14, 74) }; hero.pos.set(-24.5, 10.2, 79.5); hero.vel.set(0, 0, 0);
+      ACT.cam = { p: AV(-30, 13.5, 86), l: AV(-24, 14, 74) }; hero.pos.copy(AV(-24.5, 10.2, 79.5)); hero.vel.set(0, 0, 0);
       d.t -= dt; d.wind += (Math.sin(t * .9) * .6 + Math.sin(t * 2.3) * .4 - d.wind) * dt; d.v = clamp(d.v - dt * (.18 + d.wind * .12), 0, 1);
       if (inZone(d.v, [.45, .8])) d.in += dt; KITE.g.position.y = 12 + d.v * 10; actUi(`الطيارة في الهوا… ${Math.round(d.in)} ثانية في الأخضر`, d.v, [.45, .8]);
       if (d.v <= 0){ return actEnd('الطيارة وقعت على سطح الجيران', 'bad'); }

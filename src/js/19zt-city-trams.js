@@ -89,7 +89,7 @@ function ctBuildPiece(pc){
         bedUV.push(0, v0, 1, v0, 1, v1, 0, v0, 1, v1, 0, v1); }
       wire.push(prev.x, 5.6, prev.z, cur.x, 5.6, cur.z);
     }
-    if (Math.round(s) % 30 < 2 && (!poles.length || s - poles[poles.length - 1].s > 20)) poles.push({ s, x: q.x + nx * 2.3, z: q.z + nz * 2.3, nx, nz, road });
+    if (Math.round(s) % 30 < 2 && (!poles.length || s - poles[poles.length - 1].s > 20) && cityR(q.x + nx * 2.3, q.z + nz * 2.3) >= 2 && cityR(q.x + nx * 2.3, q.z + nz * 2.3) < 10) poles.push({ s, x: q.x + nx * 2.3, z: q.z + nz * 2.3, nx, nz, road });
     prev = cur;
   }
   const g = new THREE.Group();
@@ -100,8 +100,8 @@ function ctBuildPiece(pc){
   const pg = new THREE.CylinderGeometry(.09, .12, 6.2, 6); pg.translate(0, 3.1, 0); const ag = new THREE.BoxGeometry(.07, .07, 2.5); ag.translate(0, 5.75, -1.25);
   const pm = new THREE.InstancedMesh(pg, CT_POLE, poles.length), am = new THREE.InstancedMesh(ag, CT_POLE, poles.length), M = new THREE.Matrix4(), Q = new THREE.Quaternion(), S = new THREE.Vector3(1, 1, 1), Y = new THREE.Vector3(0, 1, 0);
   poles.forEach((p, i) => { Q.setFromAxisAngle(Y, Math.atan2(p.nx, p.nz)); M.compose(new THREE.Vector3(p.x, p.road ? .15 : .16, p.z), Q, S); pm.setMatrixAt(i, M); am.setMatrixAt(i, M); });
-  g.add(pm, am); for (const p of poles) obstacles.push({ minX: p.x - .15, maxX: p.x + .15, minZ: p.z - .15, maxZ: p.z + .15, tram: true });
-  if (poles.length) OG.n = -1;
+  g.add(pm, am); for (const p of poles) ogAdd({ minX: p.x - .15, maxX: p.x + .15, minZ: p.z - .15, maxZ: p.z + .15, tram: true });
+  if (poles.length)
   scene.add(g); return g;
 }
 function ctBuildStop(st){
@@ -117,8 +117,7 @@ function ctBuildStop(st){
   glowSigns.push(signBoard(bigSign(st.name, st.blue ? '#173e86' : '#c99a00', '#ffffff', 640, 120, 56), sx, 3.25, sz, 2.6, .5, yaw + Math.PI / 2, .25));
   // the platform is solid at its ends only (you walk onto it from the side)
   const c = Math.cos(yaw), s = Math.sin(yaw);
-  for (const zz of [-2.6, 2.6]){ const x = px + s * zz + c * .9, z = pz + c * zz - s * .9; obstacles.push({ minX: x - .12, maxX: x + .12, minZ: z - .12, maxZ: z + .12, tram: true }); }
-  OG.n = -1;
+  for (const zz of [-2.6, 2.6]){ const x = px + s * zz + c * .9, z = pz + c * zz - s * .9; ogAdd({ minX: x - .12, maxX: x + .12, minZ: z - .12, maxZ: z + .12, tram: true }); }
 }
 // ---------- the trams ----------
 function ctCars(T){

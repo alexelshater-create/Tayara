@@ -140,7 +140,7 @@ function explode(v){
   // the fireball: the explosion frames on a sprite, a flash of light
   const sm = new THREE.SpriteMaterial({ map: explTex.clone(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }); sm.map.needsUpdate = true; sm.map.repeat.set(1 / 3, 1 / 3);
   const s = new THREE.Sprite(sm); s.position.copy(p).setY(2); s.scale.setScalar(7); scene.add(s);
-  const L = new THREE.PointLight(0xffa040, 40, 30, 2); L.position.copy(p).setY(3); scene.add(L);
+  const L = lightGet(0xffa040, 40, 30, 2); L.position.copy(p).setY(3);
   EXPL.list.push({ s, L, t: 0 }); shopsPanic(p);
   burst('fire', p, null, 14, 5); burst('soot', p, null, 6, 2); burst('spark', p, null, 12, 9);
   flyPart(v, 0, 2.2, 30); flyPart(v, 1, -.5, 30);
@@ -159,7 +159,7 @@ function carsAliveUpdate(dt, t){
   for (const D of DEBRIS){ if (D.life <= 0) continue; D.life -= dt; const m = D.m, gy = groundY(m.position.x, m.position.z) + .1;
     if (m.position.y > gy || D.v.y > 0){ D.v.y -= 9.8 * dt; m.position.addScaledVector(D.v, dt); m.rotation.x += D.spin.x * dt; m.rotation.y += D.spin.y * dt; m.rotation.z += D.spin.z * dt; if (m.position.y < gy){ m.position.y = gy; D.v.y *= -.3; D.v.x *= .5; D.v.z *= .5; D.spin.multiplyScalar(.5); if (Math.abs(D.v.y) < .6) D.v.set(0, 0, 0); } } }
   // explosions: play the 9 frames, fade the light
-  for (let i = EXPL.list.length - 1; i >= 0; i--){ const E = EXPL.list[i]; E.t += dt; const f = Math.min(8, Math.floor(E.t / .07)); E.s.material.map.offset.set((f % 3) / 3, 1 - (Math.floor(f / 3) + 1) / 3); E.s.scale.setScalar(7 + E.t * 6); E.L.intensity = Math.max(0, 40 * (1 - E.t / .8)); if (E.t > .75){ scene.remove(E.s); scene.remove(E.L); EXPL.list.splice(i, 1); } }
+  for (let i = EXPL.list.length - 1; i >= 0; i--){ const E = EXPL.list[i]; E.t += dt; const f = Math.min(8, Math.floor(E.t / .07)); E.s.material.map.offset.set((f % 3) / 3, 1 - (Math.floor(f / 3) + 1) / 3); E.s.scale.setScalar(7 + E.t * 6); E.L.intensity = Math.max(0, 40 * (1 - E.t / .8)); if (E.t > .75){ scene.remove(E.s); E.s.material.map.dispose(); E.s.material.dispose(); lightPut(E.L); EXPL.list.splice(i, 1); } }
   // smoke → fire → boom
   for (const v of vehicles){
     if (v.type === 'boat' || v.type === 'moto') continue; const dmg = v.dmg || 0;

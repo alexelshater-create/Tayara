@@ -21,7 +21,7 @@ function showroomFire(on){ clearFires(); if (on){ for (const dx of [-9, -3, 3, 9
 const KITE = { g: null };
 function kiteShow(on){
   if (!KITE.g){ const g = new THREE.Group(); const k = new THREE.Mesh(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, .6, 0), new THREE.Vector3(.45, 0, 0), new THREE.Vector3(0, -.8, 0), new THREE.Vector3(0, .6, 0), new THREE.Vector3(0, -.8, 0), new THREE.Vector3(-.45, 0, 0)]), new THREE.MeshStandardMaterial({ color: 0xe8b419, side: THREE.DoubleSide, emissive: 0x553300, emissiveIntensity: .3 })); k.geometry.computeVertexNormals(); g.add(k); const tail = new THREE.Mesh(new THREE.BoxGeometry(.04, 1.4, .02).translate(0, -1.5, 0), new THREE.MeshStandardMaterial({ color: 0xc0392b })); g.add(tail); scene.add(g); KITE.g = g; }
-  KITE.g.visible = !!on; if (on) KITE.g.position.set(-24, 17, 72); SCENE.lockY = !!on;
+  KITE.g.visible = !!on; if (on) KITE.g.position.copy(RLV(-24, 17, 72)); SCENE.lockY = !!on;
 }
 // ---- extra people: شادية, هايدي, الحاج العربي (العربي's father), the man in the leather jacket ----
 const shadiaD = makeCharacter('shadia', CH.hero, 1.64); shadiaD.root.visible = false;
@@ -63,10 +63,10 @@ const fireMat = new THREE.MeshBasicMaterial({ color: 0xff8a2a, transparent: true
 function fireAt(x, y, z, size = 1){
   const g = new THREE.Group(); g.position.set(x, y, z);
   for (let i = 0; i < 4; i++){ const c = new THREE.Mesh(new THREE.ConeGeometry(.45 * size, 1.6 * size, 7, 1, true), fireMat); c.position.set(R(-.5, .5) * size, .8 * size, R(-.5, .5) * size); g.add(c); }
-  const light = new THREE.PointLight(0xff7a2a, 6 * size, 10 * size, 1.6); light.position.y = 1.2 * size; g.add(light);
+  const light = lightGet(0xff7a2a, 6 * size, 10 * size, 1.6); light.position.set(x, y + 1.2 * size, z);
   scene.add(g); const f = { g, light, size, ph: R(0, 6), smokeT: 0 }; FIRES.push(f); return f;
 }
-function clearFires(){ for (const f of FIRES) scene.remove(f.g); FIRES.length = 0; }
+function clearFires(){ for (const f of FIRES){ scene.remove(f.g); lightPut(f.light); } FIRES.length = 0; }
 function fireTick(dt, t){
   for (const f of FIRES){ f.g.children.forEach((c, i) => { if (c.isMesh){ const k = 1 + Math.sin(t * 13 + i * 2 + f.ph) * .18; c.scale.set(k, k + Math.sin(t * 9 + i) * .25, k); } }); f.light.intensity = (5 + Math.sin(t * 17 + f.ph) * 1.6) * f.size;
     f.smokeT -= dt; if (f.smokeT <= 0){ f.smokeT = .25; _t.set(f.g.position.x + R(-.4, .4), f.g.position.y + 1.8 * f.size, f.g.position.z + R(-.4, .4)); puff(_t, .9 * f.size); } }
@@ -89,7 +89,7 @@ function makeLaunch(color){
   const m = new THREE.Mesh(mergeGeometries(p), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .5 })); m.castShadow = true; g.add(m); scene.add(g); return g;
 }
 const launches = [];
-for (const [x, z, c] of [[PIER.x0 - 2.4, 172, '#1f5fa8'], [PIER.x1 + 2.4, 178, '#c0392b']]){
+for (const [x, z, c] of [[PIER.x0 - 2.4, 172 + PORT_OFF[1], '#1f5fa8'], [PIER.x1 + 2.4, 178 + PORT_OFF[1], '#c0392b']]){
   const mesh = makeLaunch(c); mesh.position.set(x, -.9, z);
   const v = { type: 'boat', mesh, pos: mesh.position, yaw: 0, speed: 0, steer: 0, max: 21, accel: 8, turn: 1.35, circles: [[1.6, 1.25], [-1.6, 1.25]], home: { x, z, yaw: 0, y: -.9 }, jobOnly: 'boat' };
   vehicles.push(v); launches.push(v);

@@ -261,7 +261,7 @@ function startEvent(kind){
       const pts = []; for (let s = 0; s <= 8; s++){ const k = s / 8, x = P.x + (px - P.x) * k, z = P.z + (pz - P.z) * k, y = P.y + 3.95 - 1 * k - Math.sin(k * Math.PI) * .35; pts.push(new THREE.Vector3(x, y, z)); if (s > 0 && s < 8){ const m = new THREE.Mesh(bulb, mats[(s + j) % 4]); m.position.set(x, y - .07, z); lights.add(m); } }
       lights.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), wireM)); }
     scene.add(lights); E.props.push(lights);
-    const L2 = new THREE.PointLight(0xffb060, night ? 6 : 2, 16, 2); L2.position.set(P.x, 3, P.z); scene.add(L2); E.props.push(L2); E.ppl = L;
+    const L2 = lightGet(0xffb060, night ? 6 : 2, 16, 2); L2.position.set(P.x, 3, P.z); E.props.push(L2); E.ppl = L;
   }
   else if (kind === 'funeral'){
     const L = takeNPCs(6); if (!L) return false;
@@ -285,7 +285,7 @@ const flagTex = (() => { const c = document.createElement('canvas'); c.width = 6
 function endEvent(){
   const E = LIFE.ev; if (!E) return; LIFE.ev = null;
   for (const n of E.ppl){ if (n.role !== 'ev') continue; n.role = null; n.state = 'hidden'; n.g.visible = false; n.mstrike = null; n.watch = false; n.speed = 1.1 + Math.random() * .5; if (n.phone) n.phone.visible = false; if (n.phone3) n.phone3.visible = false; }
-  for (const o of E.props){ if (o.parent) o.parent.remove(o); }
+  for (const o of E.props){ if (o.userData && o.userData.pooled){ lightPut(o); continue; } if (o.parent) o.parent.remove(o); }
   for (const v of E.cars){ const i = vehicles.indexOf(v); if (i >= 0 && hero.veh !== v){ vehicles.splice(i, 1); scene.remove(v.mesh); } }
   for (const c of E.cars2) c.userData.paradeT = 0;
 }

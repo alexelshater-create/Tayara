@@ -21,7 +21,7 @@ function cityStreetlights(grp, ox, oz){
           const off = e.w / 2 + .7, x = o.x - o.fz * off * side, z = o.z + o.fx * off * side, v = cityR(x, z);
           if (v < 2 || v >= 10 || inPatch(x, z)) continue;
           list.push([x, z, Math.atan2(o.fz * side, -o.fx * side)]);   // the arm reaches over the road
-          const key = Math.round(x) + ',' + Math.round(z); if (!SLIGHT.done.has(key)){ SLIGHT.done.add(key); obstacles.push({ minX: x - .12, maxX: x + .12, minZ: z - .12, maxZ: z + .12 }); OG.n = -1; }
+          const key = Math.round(x) + ',' + Math.round(z); if (!SLIGHT.done.has(key)){ SLIGHT.done.add(key); ogAdd({ minX: x - .12, maxX: x + .12, minZ: z - .12, maxZ: z + .12 }); }
         }
       }
     }

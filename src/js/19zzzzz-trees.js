@@ -33,7 +33,7 @@ function cityTrees(grp, ox, oz){
           if (v < 2 || v >= 10 || inPatch(x, z) || staticBlocked(x, z, .6)) continue;
           if (corniche && ![3, 6, 9].some(d => cityR(x - o.fz * d * side, z + o.fx * d * side) === 0)) continue;   // the palms stand on the sea side
           (kind === 'palm' ? palms : trees).push([x, .15, z, (x * 13 + z * 7) % 6.28, .85 + ((x * 31 + z * 17) % 1 + 1) % 1 * .35]);
-          const key = Math.round(x) + ',' + Math.round(z); if (!TREES.obs.has(key)){ TREES.obs.add(key); obstacles.push({ minX: x - .3, maxX: x + .3, minZ: z - .3, maxZ: z + .3 }); OG.n = -1; }
+          const key = Math.round(x) + ',' + Math.round(z); if (!TREES.obs.has(key)){ TREES.obs.add(key); ogAdd({ minX: x - .3, maxX: x + .3, minZ: z - .3, maxZ: z + .3 }); }
         }
       }
     }

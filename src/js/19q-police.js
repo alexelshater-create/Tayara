@@ -5,7 +5,7 @@
 // to arrest you, 3+ they shoot. 3+ stars: road blocks ahead of you; 4+: a helicopter. Out of sight, a search circle shows on
 // the map: get out of it and stay unseen for a few seconds (more stars = longer) and they lose you. Missions don't count crimes.
 const POL = { on: false, heat: 0, t: 0, trackT: 0, seen: false, losT: 0, lastSeen: new THREE.Vector3(), unseenT: 0, zoneR: 0, units: [], cops: [], bustT: 0, bustSaid: false, panel: false, pending: [], ramT: 0, blockT: 12, heli: null, checkT: 0 };
-const POL_STATION = new THREE.Vector3(60.5, .15, 92.5);
+const POL_STATION = RLV(60.5, .15, 92.5);
 const POL_CARS = [0, 1, 2, 3, 4, 5], POL_BLOCK = [6, 7];   // chase cars by stars; two more for a road block
 // a police car is a real car (05-vehicles + driveVehicle in 13): it skids, crashes, rams and gets stuck like yours
 function polUnit(i){
@@ -18,7 +18,7 @@ function crime(kind, pos, stars = 1, victim = null){
   if (!crimeAllowed()) return;
   const copSees = POL.on && (POL.units.some(u => u.active && u.pos.distanceTo(pos) < 45) || POL.cops.some(c => c.on && c.state !== 'down' && c.pos.distanceTo(pos) < 35));
   if (copSees || kind === 'shoot' || kind === 'copHit'){ wantedUp(stars); return; }
-  const witness = npcs.some(n => n !== victim && n.state !== 'hidden' && n.state !== 'down' && n.g.visible && n.g.position.distanceTo(pos) < 22);
+  const witness = npcs.some(n => n !== victim && n.state !== 'hidden' && n.state !== 'down' && n.state !== 'dead' && n.g.visible && n.g.position.distanceTo(pos) < 22);
   if (witness && !POL.pending.some(c => c.t > 0)) POL.pending.push({ t: 2.5 + Math.random() * 2, stars });
 }
 function wantedUp(n = 1){
@@ -100,7 +100,7 @@ function aiDrive(u, dt, t, i){
     tgt = u.searchPt;
   }
   u.repath -= dt;
-  if (u.repath <= 0){ u.repath = .45; const dt2 = Math.hypot(tgt.x - v.pos.x, tgt.z - v.pos.z); u.path = dt2 < 38 && lineOfSight(v.pos.x, v.pos.z, tgt.x, tgt.z) ? [tgt.clone()] : polRoute(v.pos, tgt); }
+  if (u.repath <= 0){ u.repath = .9 + Math.random() * .3; const dt2 = Math.hypot(tgt.x - v.pos.x, tgt.z - v.pos.z); u.path = dt2 < 38 && lineOfSight(v.pos.x, v.pos.z, tgt.x, tgt.z) ? [tgt.clone()] : polRoute(v.pos, tgt); }
   const D2 = w => Math.hypot(w.x - v.pos.x, w.z - v.pos.z); let wp = tgt, wi = -1;
   for (let k = 0; k < u.path.length; k++){ const w = u.path[k], nx2 = u.path[k + 1]; if (D2(w) < 6) continue; if (nx2 && D2(nx2) < Math.hypot(nx2.x - w.x, nx2.z - w.z) - .5) continue; wp = w; wi = k; break; }
   const ang = lerpAngle(0, Math.atan2(wp.x - v.pos.x, wp.z - v.pos.z) - v.yaw, 1);
@@ -198,7 +198,7 @@ function heliMake(){
   const body = new THREE.Mesh(mergeGeometries(p), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .5, metalness: .3 })); g.add(body);
   const rotor = new THREE.Mesh(new THREE.BoxGeometry(7.5, .05, .28), new THREE.MeshStandardMaterial({ color: 0x222222 })); rotor.position.y = .85; g.add(rotor);
   const rotor2 = rotor.clone(); rotor2.rotation.y = Math.PI / 2; rotor.add(rotor2);
-  const spot = new THREE.SpotLight(0xfff4d0, 0, 70, .32, .6, 1.2); spot.position.set(0, -.6, .5); g.add(spot); g.add(spot.target);
+  const spot = HELI_SPOT;   // made at the start (02c-lightpool.js): adding a light now would freeze the game
   g.visible = false; scene.add(g);
   return { g, rotor, spot, pos: g.position, on: false, ang: 0 };
 }
@@ -211,7 +211,7 @@ function heliStep(dt, t){
   H.pos.x += ex / e * sp; H.pos.z += ez / e * sp; H.pos.y += (24 - H.pos.y) * damp(1, dt);
   H.g.rotation.y = Math.atan2(f.x - H.pos.x, f.z - H.pos.z); H.g.rotation.z = clamp(-ex * .01, -.2, .2);
   H.rotor.rotation.y += dt * 38;
-  const night = typeof TOD !== 'undefined' && (TOD.h < 6.5 || TOD.h > 18.5); H.spot.intensity = night ? 60 : 0; H.spot.target.position.set(f.x - H.pos.x, -H.pos.y, f.z - H.pos.z).applyAxisAngle(new THREE.Vector3(0, 1, 0), -H.g.rotation.y);
+  const night = typeof TOD !== 'undefined' && (TOD.h < 6.5 || TOD.h > 18.5); H.spot.intensity = night ? 60 : 0; H.spot.position.set(H.pos.x, H.pos.y - .6, H.pos.z); H.spot.target.position.set(f.x, 0, f.z);
   const near = Math.hypot(f.x - H.pos.x, f.z - H.pos.z); setLoop('heli', muted ? 0 : clamp(.09 - near * .0008, 0, .09) * (.75 + .25 * Math.sin(t * 34)), 90, 'lowpass');
   return near < 75;   // it sees you
 }

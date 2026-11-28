@@ -2,7 +2,7 @@
 // ---------- the ferris wheel goes to the Shatby corniche, on the open ground between the road and the sea ----------
 (async () => {
   if (!CITY || !WHEEL.g) return;
-  const [tx, tz] = cityLL(31.2112, 29.9102);
+  const [tx, tz] = cityLL(31.2148, 29.9228);   // east of the Library and Silsila, on the Shatby corniche (not in front of the Library)
   await cityPreload(tx, tz, 200);
   for (let i = 0; i < 60 && !cityReady(tx, tz, 150); i++) await new Promise(r => setTimeout(r, 250));
   const fits = (x, z) => { for (let dx = -5; dx <= 5; dx += 1) for (let dz = -2.5; dz <= 4; dz += 1){ const v = cityR(x + dx, z + dz); if (v < 2 || v >= 10) return false; } return !staticBlocked(x, z, 5); };
@@ -100,19 +100,21 @@ function cityKiosks(grp, ox, oz){
   if (!RG.N.length) return;
   if (!CKIOSK.byChunk){ CKIOSK.byChunk = new Map(); RG.N.forEach(([x, z], i) => { if (RG.adj[i].length < 3) return; const k = Math.floor((x - CITY.x0) / CITY.chunk) + '_' + Math.floor((z - CITY.z0) / CITY.chunk); let l = CKIOSK.byChunk.get(k); if (!l) CKIOSK.byChunk.set(k, l = []); l.push(i); }); }
   const key = Math.floor((ox + 1 - CITY.x0) / CITY.chunk) + '_' + Math.floor((oz + 1 - CITY.z0) / CITY.chunk), list = CKIOSK.byChunk.get(key); if (!list) return;
-  const parts = [];
+  const parts = [], sfk = {};
   for (const i of list){
     if (((i * 2654435761) >>> 0) % 100 >= 14) continue;   // about one corner in seven, the same ones every time
     const [x, z] = RG.N[i];
     for (const [dx, dz] of [[6.5, 6.5], [-6.5, 6.5], [6.5, -6.5], [-6.5, -6.5]]){
       const px = x + dx, pz = z + dz; let ok = true;
-      for (const [a, b] of [[0, 0], [1.4, 0], [-1.4, 0], [0, 1.4], [0, -1.4]]){ const v = cityR(px + a, pz + b); if (v < 2 || v >= 10){ ok = false; break; } }
+      for (const [a, b] of [[0, 0], [1.8, 0], [-1.8, 0], [0, 1.8], [0, -1.8], [1.6, 1.6], [-1.6, 1.6], [1.6, -1.6], [-1.6, -1.6]]){ const v = cityR(px + a, pz + b); if (v < 2 || v >= 10){ ok = false; break; } }
       if (!ok || inPatch(px, pz)) continue;
-      const kind = i % 2 ? 'news' : 'kiosk', g = AR_GEO[kind].clone(); g.rotateY(Math.atan2(-dx, -dz)); g.translate(px, .15, pz); parts.push(g);
-      if (!CKIOSK.obs.has(i)){ CKIOSK.obs.add(i); obstacles.push({ minX: px - 1.2, maxX: px + 1.2, minZ: pz - 1.2, maxZ: pz + 1.2 }); OG.n = -1; }
+      const kind = i % 2 ? 'news' : 'kiosk', sn = kind === 'news' ? 'newspaper-stand' : 'kiosk';
+      if (SFM[sn]) (sfk[sn] = sfk[sn] || []).push([px, .15, pz, Math.atan2(-dx, -dz) + Math.PI]); else { const g = AR_GEO[kind].clone(); g.rotateY(Math.atan2(-dx, -dz)); g.translate(px, .15, pz); parts.push(g); }
+      if (!CKIOSK.obs.has(i)){ CKIOSK.obs.add(i); ogAdd({ minX: px - 1.2, maxX: px + 1.2, minZ: pz - 1.2, maxZ: pz + 1.2 }); }
       break;
     }
   }
+  for (const [nm, l] of Object.entries(sfk)){ const g = sfInst(nm, l); if (g) grp.add(g); }
   if (parts.length){ const m = new THREE.Mesh(mergeGeometries(parts), arMat); m.castShadow = !LOW; m.receiveShadow = true; m.matrixAutoUpdate = false; m.updateMatrixWorld(true); grp.add(m); }
 }
 

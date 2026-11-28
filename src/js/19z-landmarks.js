@@ -121,7 +121,7 @@ const BEACHES = CITY ? await fetch('assets/city/beaches.json').then(r => r.ok ? 
 const sandTex = makeTex(256, 256, (g, w, h) => { g.fillStyle = '#b9a271'; g.fillRect(0, 0, w, h); for (let i = 0; i < 9000; i++){ g.fillStyle = `rgba(${150 + Math.random() * 80 | 0},${130 + Math.random() * 70 | 0},${80 + Math.random() * 60 | 0},.35)`; g.fillRect(Math.random() * w, Math.random() * h, 1.5, 1.5); } }, [1, 1]);
 sandTex.wrapS = sandTex.wrapT = THREE.RepeatWrapping;
 const sandMat = new THREE.MeshStandardMaterial({ map: sandTex, roughness: 1 }); PBR(sandMat, 'sand', 2.4, 2.4, { tint: 0xf4ead8, ns: .8 });   // stage 17: real photographed sand
-function buildBeach(b){
+function buildBeach(b){ const sfB = {};
   const pos = new Float32Array(b.v.length * 3), uv = new Float32Array(b.v.length * 2);
   b.v.forEach(([x, z], k) => { pos.set([x, .17, z], k * 3); uv.set([x / 6, z / 6], k * 2); });
   const idx = b.i.slice(); for (let k = 0; k < idx.length; k += 3){ const [a, c, d] = [idx[k], idx[k + 1], idx[k + 2]]; const cr = (b.v[c][0] - b.v[a][0]) * (b.v[d][1] - b.v[a][1]) - (b.v[c][1] - b.v[a][1]) * (b.v[d][0] - b.v[a][0]); if (cr > 0){ idx[k + 1] = d; idx[k + 2] = c; } }
@@ -134,14 +134,15 @@ function buildBeach(b){
   for (let tries = 0; tries < n * 6 && placed < n; tries++){
     const x = R(Math.min(...xs), Math.max(...xs)), z = R(Math.min(...zs), Math.max(...zs)); if (!inTri(x, z)) continue;
     const col = pick(['#c0392b', '#1f5fa8', '#e0a21a', '#2e7d32', '#f1ead8', '#c2185b']);
-    cyl(p, .04, .04, 2.3, x, 1.32, z, '#e8e4da'); { const c = new THREE.ConeGeometry(1.25, .55, 8); c.translate(x, 2.45, z); p.push(colored(c, col)); }
-    for (const s of [-1, 1]) box(p, .5, .45, .5, x + s * .8, .4, z + .6, pick(['#f2f2f2', '#2e6fbf', '#e8b21a']));
+    if (!sfPush(sfB, 'beach-umbrella', x, .17, z, Math.random() * 6.28)){ cyl(p, .04, .04, 2.3, x, 1.32, z, '#e8e4da'); { const c = new THREE.ConeGeometry(1.25, .55, 8); c.translate(x, 2.45, z); p.push(colored(c, col)); } }
+    for (const s of [-1, 1]) if (!sfPush(sfB, Math.random() < .5 ? 'beach-chair-white' : 'beach-chair-blue', x + s * .8, .17, z + .6, s * .5 + Math.PI)) box(p, .5, .45, .5, x + s * .8, .4, z + .6, pick(['#f2f2f2', '#2e6fbf', '#e8b21a']));
     obstacles.push({ minX: x - .1, maxX: x + .1, minZ: z - .1, maxZ: z + .1 }); placed++;
   }
   // the fresca men walking the sand, a termis cart and a corn grill at the top of the beach
   if (b.a > 400 && typeof AR_GEO !== 'undefined'){ let k = 0; const want = Math.min(5, 1 + Math.floor(b.a / 2500));
     for (let tries = 0; tries < 60 && k < want; tries++){ const x = R(Math.min(...xs), Math.max(...xs)), z = R(Math.min(...zs), Math.max(...zs)); if (!inTri(x, z)) continue;
-      const kind = k === 1 ? 'termis' : k === 3 ? 'corn' : 'fresca', g2 = AR_GEO[kind].clone(); g2.rotateY(Math.random() * 6.28); g2.translate(x, .17, z); p.push(g2); k++; } }
+      const kind = k === 1 ? 'termis' : k === 3 ? 'corn' : 'fresca'; if (!sfPush(sfB, { termis: 'termis-cart', corn: 'corn-grill-cart', fresca: 'fresca-box' }[kind], x, .17, z, Math.random() * 6.28)){ const g2 = AR_GEO[kind].clone(); g2.rotateY(Math.random() * 6.28); g2.translate(x, .17, z); p.push(g2); } k++; } }
+  sfFlush(grp, sfB);
   if (p.length){ const um = new THREE.Mesh(mergeGeometries(p.map(q => q.index ? q.toNonIndexed() : q)), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .7 })); um.castShadow = !LOW; grp.add(um); }
   scene.add(grp); return grp;
 }
@@ -158,7 +159,10 @@ function setPiece(s, build){
   const m = new THREE.Mesh(mergeGeometries(p.map(q => q.index ? q.toNonIndexed() : q)), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .75, metalness: .1 })); m.castShadow = !LOW; m.receiveShadow = true; grp.add(m);
   grp.updateMatrixWorld(true);
   const c = Math.cos(yaw), sn = Math.sin(yaw), W = (lx, lz) => [s.x + (lx * c + lz * sn) * SET_K, s.z + (-lx * sn + lz * c) * SET_K];
-  for (const [x0, z0, x1, z1, h] of solids){ const pts = [W(x0, z0), W(x1, z0), W(x0, z1), W(x1, z1)], xs = pts.map(q => q[0]), zs = pts.map(q => q[1]); obstacles.push({ minX: Math.min(...xs), maxX: Math.max(...xs), minZ: Math.min(...zs), maxZ: Math.max(...zs), h: h ? h * SET_K : undefined, building: !h || h > 3 }); }
+  // each solid in pieces of about 1.6 m, so a turned wall stays a thin line of boxes (one big box round a turned wall closed the streets beside it)
+  for (const [x0, z0, x1, z1, h] of solids){ const nx = Math.max(1, Math.ceil((x1 - x0) * SET_K / 1.6)), nz = Math.max(1, Math.ceil((z1 - z0) * SET_K / 1.6));
+    for (let a = 0; a < nx; a++) for (let b = 0; b < nz; b++){ const ax = x0 + (x1 - x0) * a / nx, bx = x0 + (x1 - x0) * (a + 1) / nx, az = z0 + (z1 - z0) * b / nz, bz = z0 + (z1 - z0) * (b + 1) / nz;
+      const pts = [W(ax, az), W(bx, az), W(ax, bz), W(bx, bz)], xs = pts.map(q => q[0]), zs = pts.map(q => q[1]); obstacles.push({ minX: Math.min(...xs), maxX: Math.max(...xs), minZ: Math.min(...zs), maxZ: Math.max(...zs), h: h ? h * SET_K : undefined, building: !h || h > 3 }); } }
   SETS[s.k] = { grp, yaw, front, at: (lx, lz) => { const [x, z] = W(lx, lz); return new THREE.Vector3(x, .15, z); } };
   return { grp, W, yaw };
 }

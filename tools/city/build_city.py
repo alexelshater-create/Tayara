@@ -44,11 +44,15 @@ X0, Z0 = math.floor(X0 / 128) * 128, math.floor(Z0 / 128) * 128
 X1, Z1 = math.ceil(X1 / 128) * 128, math.ceil(Z1 / 128) * 128
 log('world', X0, X1, Z0, Z1, 'size', X1 - X0, Z1 - Z0)
 WORLD = box(X0, Z0, X1, Z1)
-PATCH = box(*CFG['patch'])            # the old map's «حتة» (kept from the old game)
-PATCH_SEA = box(*CFG['patchSea'])     # forced sea in front of its corniche
+MERGED = bool(CFG.get('merged'))     # stage 18½: no «حتة», no pasted grids; the story's places are single blocks in real streets
+PATCH = Polygon() if MERGED else box(*CFG['patch'])            # the old map's «حتة» (kept from the old game)
+PATCH_SEA = Polygon() if MERGED else box(*CFG['patchSea'])     # forced sea in front of its corniche
+STORY = []
 REMOTES = []
 SETS_OUT = []
 TRAM_WAYS = []
+BREAKWATERS = []
+POOLS = []
 RAML_WAYS = []
 CLEARS = [Point(c['x'], c['z']).buffer(c['r']) for c in CFG.get('clear', [])]   # room for the story's own buildings / landmarks
 
@@ -62,14 +66,16 @@ def coast_land():
     """land = everything the sea flood doesn't reach: the coastline is drawn as a wall at 2 m, the sea is flooded from
     points known to be open water (CFG seaSeeds, lat/lon), then the land is turned back into polygons."""
     els = load('coast')
-    k = 0.5   # px per metre
+    k = 1.0   # px per metre (0.5 made 8 m steps along the corniche)
     W = int((X1 - X0) * k); H = int((Z1 - Z0) * k)
     im = Image.new('L', (W, H), 0); d = ImageDraw.Draw(im)
     for e in els:
         t = e.get('tags', {})
-        if e['type'] == 'way' and 'geometry' in e and (t.get('natural') == 'coastline' or t.get('man_made') in ('breakwater', 'pier', 'groyne')):
+        if e['type'] == 'way' and 'geometry' in e and (t.get('natural') == 'coastline' or t.get('man_made') == 'pier'):
             pts = [((x - X0) * k, (z - Z0) * k) for x, z in PL(e['geometry'])]
-            if len(pts) > 1: d.line(pts, fill=255, width=3 if t.get('natural') == 'coastline' else 2)
+            if len(pts) > 1: d.line(pts, fill=255, width=4 if t.get('natural') == 'coastline' else 3)
+        if e['type'] == 'way' and 'geometry' in e and t.get('man_made') in ('breakwater', 'groyne'):
+            BREAKWATERS.append([[round(x, 1), round(z, 1)] for x, z in PL(e['geometry'])])
     # the streets are on land: they stop the flood where the coastline has gaps (the corniche runs along the whole coast)
     for e in load('roads'):
         t = e.get('tags', {})
@@ -83,19 +89,20 @@ def coast_land():
     land_mask = (a != 128).astype(np.uint8)
     # land polygons from the mask: rows of runs merged per 4 px band, then unioned (coarse but robust)
     polys = []
-    for z0 in range(0, H, 4):
-        band = land_mask[z0:z0 + 4].min(axis=0) if z0 + 4 <= H else land_mask[z0:].min(axis=0)
+    for z0 in range(0, H, 2):
+        band = land_mask[z0:z0 + 2].min(axis=0) if z0 + 2 <= H else land_mask[z0:].min(axis=0)
         row = np.concatenate([[0], band, [0]]); dif = np.diff(row.astype(np.int8)); starts = np.where(dif == 1)[0]; ends = np.where(dif == -1)[0]
         for s, e in zip(starts, ends):
-            polys.append(box(X0 + s / k, Z0 + z0 / k, X0 + e / k, Z0 + min(H, z0 + 4) / k))
-    L = unary_union(polys).buffer(1.0).buffer(-1.0).simplify(1.0)
+            polys.append(box(X0 + s / k, Z0 + z0 / k, X0 + e / k, Z0 + min(H, z0 + 2) / k))
+    L = unary_union(polys).buffer(1.0).buffer(-1.0).simplify(0.5)
+    L = unary_union([g for g in (L.geoms if hasattr(L, 'geoms') else [L]) if g.area >= 200])   # no little islands of land in the sea
     water = []
     for e in els:
         t = e.get('tags', {})
         if t.get('natural') == 'water' and e['type'] == 'way' and 'geometry' in e and len(e['geometry']) > 3:
             try: water.append(Polygon(PL(e['geometry'])).buffer(0))
             except Exception: pass
-    if water: L = L.difference(unary_union(water))
+    if water: POOLS.extend(water)
     L = L.difference(PATCH_SEA).union(PATCH)
     return make_valid(L.buffer(0))
 
@@ -143,6 +150,60 @@ def patch_roads():
     for z in zs: out.append({'ln': LineString([(-96, z), (96, z)]), 'cls': 'major' if z == 144 else 'minor', 'w': 12, 'ow': False, 'name': 'كورنيش الحتة' if z == 144 else '', 'bridge': False, 'hw': 'patch', 'patch': True})
     return out
 
+def place_story(R, land):
+    """Each story place (one old 48 m block: the café, Tayara's house, the wedding street, the port...) is put down whole,
+    moved but never turned (the story's cameras and steps stay right), in a real block near where it belongs:
+    few real streets crossed, on land, away from the old map's coordinates (they are still read as old-map positions),
+    the sea right in front (north) for the port and the fish market. Its 48 m square is cleared, streets through its
+    inside are cut, the streets round it stay."""
+    from shapely.strtree import STRtree
+    lines = [r['ln'] for r in R]; tree = STRtree(lines)
+    W8 = [6 if r['cls'] == 'major' else 2 if r['name'] else 1 for r in R]
+    from shapely import prepare
+    landp = land.buffer(-1); prepare(landp); prepare(land)
+    OLD = box(-120, -120, 320, 440)
+    taken = list(CLEARS)
+    for s in CFG.get('story', []):
+        ocx, ocz = -72 + 48 * s['j'], -72 + 48 * s['kk']
+        tx, tz = P(s['lon'], s['lat']); best = None; RAD = s.get('r', 420)
+        for dxx in range(-RAD, RAD + 1, 6):
+            for dzz in range(-RAD, RAD + 1, 6):
+                if dxx * dxx + dzz * dzz > RAD * RAD: continue
+                cx, cz = tx + dxx, tz + dzz
+                cell = box(cx - 24, cz - 24, cx + 24, cz + 24); inner = box(cx - 18.5, cz - 18.5, cx + 18.5, cz + 18.5)
+                if cell.intersects(OLD) or not landp.contains(inner) or any(cell.intersects(c) for c in taken): continue
+                sc = math.hypot(dxx, dzz) * .25
+                for i in tree.query(inner):
+                    g = lines[i].intersection(inner)
+                    if not g.is_empty: sc += g.length * W8[i]
+                near = min((lines[i].distance(cell) for i in tree.query(cell.buffer(12))), default=99)
+                if near > 10: sc += 500
+                if s.get('sea'):
+                    seaN = sum(1 for k in range(8) if not land.contains(Point(cx - 21 + k * 6, cz + 24 + 14)))
+                    if seaN < 6: continue
+                    if land.contains(Point(cx, cz + 24 + 30)): sc += 300
+                if best is None or sc < best[0]: best = (sc, cx, cz)
+        if not best: log('story', s['k'], 'NO PLACE'); continue
+        _, cx, cz = best; cell = box(cx - 24, cz - 24, cx + 24, cz + 24)
+        STORY.append({**s, 'dx': round(cx - ocx, 1), 'dz': round(cz - ocz, 1), 'cell': cell, 'sea': bool(s.get('sea'))})
+        taken.append(cell.buffer(30)); CLEARS.append(cell)
+        if s.get('sea'):   # the quay: nothing built between the block and the water (the pier and the stalls look onto the sea)
+            z = cz + 24
+            while z < cz + 90 and land.contains(Point(cx - 18, z)): z += 2
+            CLEARS.append(box(cx - 30, cz + 20, cx + 30, z + 4))
+        log('story', s['k'], 'at', round(cx), round(cz), 'moved', round(math.hypot(cx - tx, cz - tz)), 'm, roads crossed', round(best[0]))
+    # streets through a story block's inside are cut (the block brings its own ground); the ones round it stay
+    if STORY:
+        cut = unary_union([box(*(lambda b: (b[0] + 5, b[1] + 5, b[2] - 5, b[3] - 5))(st['cell'].bounds)) for st in STORY])
+        R2 = []
+        for r in R:
+            if not r['ln'].intersects(cut): R2.append(r); continue
+            g = r['ln'].difference(cut.buffer(1))
+            for part in (g.geoms if hasattr(g, 'geoms') else [g]):
+                if part.geom_type == 'LineString' and part.length > 6: R2.append({**r, 'ln': part})
+        R = R2
+    return R
+
 def main():
     os.makedirs(os.path.join(OUT, 'c'), exist_ok=True); os.makedirs(os.path.join(OUT, 'r'), exist_ok=True)
     for sub, ext in (('c', '.bin'), ('r', '.png')):   # no stale tiles / chunks from an older build
@@ -154,7 +215,7 @@ def main():
     # blocks and the streets round them, put down whole at its real place (its own little grid, like the «حتة»)
     global REMOTES
     REMOTES = []
-    for rm in CFG.get('remote', []):
+    for rm in ([] if MERGED else CFG.get('remote', [])):
         tx, tz = P(rm['lon'], rm['lat'])
         ox = -96 + (rm['j0'] + rm['j1'] + 1) * 24; oz = -96 + (rm['k0'] + rm['k1'] + 1) * 24
         best = None
@@ -183,7 +244,7 @@ def main():
         g = r['ln'].difference(padU.buffer(2))
         for part in (g.geoms if hasattr(g, 'geoms') else [g]):
             if part.length > 6: R2.append({**r, 'ln': part})
-    R = R2 + patch_roads()
+    R = R2 + ([] if MERGED else patch_roads())
     for rm in REMOTES:
         x0, z0, x1, z1 = rm['bx']
         for x in rm['xs']: R.append({'ln': LineString([(x, z0), (x, z1)]), 'cls': 'minor', 'w': 12, 'ow': False, 'name': '', 'bridge': False, 'hw': 'patch', 'grid': True})
@@ -195,7 +256,7 @@ def main():
     def link(a, q):
         if a.distance(q) < 1.5: return
         links.append({'ln': LineString([(a.x, a.y), (q.x, q.y)]), 'cls': 'minor', 'w': 9, 'ow': False, 'name': '', 'bridge': False, 'hw': 'link'})
-    pieces = [(PATCH, [-96, -48, 0, 48, 96], [-96, -48, 0, 48, 96, 144])] + [(rm['rect'], rm['xs'], rm['zs']) for rm in REMOTES]
+    pieces = ([] if MERGED else [(PATCH, [-96, -48, 0, 48, 96], [-96, -48, 0, 48, 96, 144])]) + [(rm['rect'], rm['xs'], rm['zs']) for rm in REMOTES]
     for pad, xs, zs in pieces:
         bx0, bz0, bx1, bz1 = min(xs), min(zs), max(xs), max(zs)
         ends = [(x, bz0, 0, -1) for x in xs] + [(x, bz1, 0, 1) for x in xs] + [(bx0, z, -1, 0) for z in zs] + [(bx1, z, 1, 0) for z in zs]
@@ -217,6 +278,7 @@ def main():
                     if q.distance(e) < 30: link(e, q)
     R += links
     log('roads with patch + links', len(R))
+    if MERGED: R = place_story(R, land)
     land = land.union(unary_union([rm['rect'].buffer(4) for rm in REMOTES])) if REMOTES else land
     # road surfaces
     car = [r for r in R if r['cls'] != 'ped']
@@ -307,12 +369,17 @@ def main():
         SETS_OUT.append(out); CLEARS.append(Point(q.x, q.y).buffer(math.hypot(s['w'], s['d']) / 2 + 2))
         free_blocks = free_blocks.difference(Point(q.x, q.y).buffer(math.hypot(s['w'], s['d']) / 2 + 6))
         log('set', s['k'], 'moved', round(q.distance(tp)), 'm')
-    blocked = unary_union([walk_space, PATCH.buffer(1), PATCH_SEA, park_poly.buffer(-0.5) if not park_poly.is_empty else Polygon()] + CLEARS + [rm['rect'].buffer(3) for rm in REMOTES])
+    POOLU = unary_union(POOLS).buffer(1) if POOLS else Polygon()
+    blocked = unary_union([walk_space, PATCH.buffer(1), PATCH_SEA, POOLU, park_poly.buffer(-0.5) if not park_poly.is_empty else Polygon()] + CLEARS + [rm['rect'].buffer(3) for rm in REMOTES])
     from shapely.strtree import STRtree
     out_b = []
+    SEA0 = WORLD.difference(land).buffer(0)
     for b in blds:
         g = b['g']
         if not g.intersects(land) or g.within(blocked): continue
+        if g.distance(SEA0) < 6 and not (b['tags'].get('amenity') in ('cafe', 'restaurant') or b['tags'].get('leisure') or b['tags'].get('club')) and g.area < 6000:
+            continue   # a block between the corniche and the sea: only a sea café or club stands there
+        if g.distance(SEA0) < 6: b['lv'] = min(b['lv'] or 2, 2); b['h'] = None
         g = g.difference(blocked).intersection(land)
         if g.is_empty: continue
         for part in (g.geoms if hasattr(g, 'geoms') else [g]):
@@ -327,10 +394,12 @@ def main():
     try: prepare_ok = True; from shapely import prepare; prepare(bl_union)
     except Exception: pass
     blocks = land.difference(walk_space).difference(PATCH.buffer(2)).difference(PATCH_SEA)
+    for st in STORY: blocks = blocks.difference(st['cell'].buffer(2))   # the story's blocks bring their own buildings
     for rm in REMOTES: blocks = blocks.difference(rm['rect'].buffer(3))
     if not park_poly.is_empty: blocks = blocks.difference(park_poly.buffer(1))
     if not ped_poly.is_empty: blocks = blocks.difference(ped_poly.buffer(2))
     for cz in CLEARS: blocks = blocks.difference(cz)
+    if not POOLU.is_empty: blocks = blocks.difference(POOLU)
     green_no = unary_union([g for k, g in parks if k == 'pitch']) if parks else Polygon()
     if not green_no.is_empty: blocks = blocks.difference(green_no)
     made = 0
@@ -341,8 +410,11 @@ def main():
             dd = (d['x'] - x) ** 2 + (d['z'] - z) ** 2
             if dd < bd: bd, best = dd, d.get('h')
         return best
+    SEA = WORLD.difference(land).buffer(0)
+    from shapely import prepare as _prep; _prep(SEA)
     for B in iter_polys(blocks.buffer(0)):
         if B.area < 40: continue
+        if B.area < 30000 and B.distance(SEA) < 3: continue   # the corniche's promenade: never houses
         free = B.difference(bl_union) if not bl_union.is_empty and B.intersects(bl_union) else B
         dense = hood(B.centroid.x, B.centroid.y) in DENSE and B.area < 25000
         if not dense and free.area < 0.25 * B.area and B.area > 400: continue      # OSM already has most of it
@@ -370,7 +442,7 @@ def main():
     def default_floors(x, z):
         d = dist_to(x, z)
         if d == 'bahary' and random.random() < .15: return random.randint(10, 14)
-        base = {'bahary': (4, 10), 'attarin': (4, 8), 'manshiya': (5, 9), 'raml': (6, 11), 'corniche': (10, 16), 'smouha': (9, 16), 'karmouz': (3, 7), 'moharram': (5, 10), 'sidigaber': (7, 13), 'shatby': (6, 12)}.get(d, (4, 8))
+        base = {'bahary': (4, 10), 'attarin': (4, 8), 'manshiya': (5, 9), 'raml': (6, 11), 'corniche': (10, 16), 'smouha': (9, 16), 'karmouz': (8, 14), 'moharram': (5, 10), 'sidigaber': (7, 13), 'shatby': (6, 12)}.get(d, (4, 8))
         return random.randint(*base)
     # districts (from the frame config)
     DIST = CFG['districts']
@@ -402,15 +474,19 @@ def main():
             dr.polygon([(x - X0, z - Z0) for x, z in p.exterior.coords], fill=v)
             for hole in p.interiors: dr.polygon([(x - X0, z - Z0) for x, z in hole.coords], fill=0 if v == 2 else 2)
     fill(land, 2); fill(ped_poly.intersection(land) if not ped_poly.is_empty else Polygon(), 4); fill(park_poly, 3); fill(track_poly.difference(road_poly), 4); fill(road_poly, 1)
+    if POOLS: fill(unary_union(POOLS).intersection(land).difference(road_poly), 5)   # ponds: not walkable, drawn as water
     for b in out_b:
         v = min(255, 10 + int(round(b['height'] / 0.5)))
         dr.polygon([(x - X0, z - Z0) for x, z in b['g'].exterior.coords], fill=v)
     # the patch is the old game's own: walkable land there (its buildings are its own obstacles), roads as roads
     patch_img = Image.new('L', (W, H), 0)
-    px0, pz0, px1, pz1 = CFG['patch']
-    dr.rectangle([px0 - X0, pz0 - Z0, px1 - X0, pz1 - Z0], fill=2)
-    for x in (-96, -48, 0, 48, 96): dr.rectangle([x - 6 - X0, -96 - 6 - Z0, x + 6 - X0, 144 + 6 - Z0], fill=1)
-    for z in (-96, -48, 0, 48, 96, 144): dr.rectangle([-96 - 6 - X0, z - 6 - Z0, 96 + 6 - X0, z + 6 - Z0], fill=1)
+    if not MERGED:
+        px0, pz0, px1, pz1 = CFG['patch']
+        dr.rectangle([px0 - X0, pz0 - Z0, px1 - X0, pz1 - Z0], fill=2)
+        for x in (-96, -48, 0, 48, 96): dr.rectangle([x - 6 - X0, -96 - 6 - Z0, x + 6 - X0, 144 + 6 - Z0], fill=1)
+        for z in (-96, -48, 0, 48, 96, 144): dr.rectangle([-96 - 6 - X0, z - 6 - Z0, 96 + 6 - X0, z + 6 - Z0], fill=1)
+    for st in STORY:   # a story block: open ground (its own buildings are the game's), never sea
+        x0, z0, x1, z1 = st['cell'].bounds; dr.rectangle([x0 - X0, z0 - Z0, x1 - X0, z1 - Z0], fill=2)
     arr = np.array(img)
     # PIL mis-fills where the coastline ring pinches (Stanley bay came out as land): every plain-land pixel is checked against the land itself
     import shapely as _sh
@@ -429,12 +505,13 @@ def main():
     log('raster', W, H)
     # ---------------- shopfronts ----------------
     shops, lms = pois(out_b, land, road_poly)
-    BAND_OF = {'fish': 1, 'cafe': 2, 'clothes': 3, 'gold': 3, 'food': 10, 'sweets': 4, 'bakery': 4, 'butcher': 10, 'juice': 11, 'pharmacy': 5, 'market': 5, 'phones': 6, 'books': 0, 'barber': 0}
-    DW = {'bahary': [(1, 25), (10, 15), (12, 20), (5, 12), (7, 10), (0, 8), (11, 10)], 'manshiya': [(3, 30), (11, 25), (4, 10), (5, 10), (6, 10), (7, 5), (0, 10)],
-          'attarin': [(9, 45), (3, 10), (5, 10), (10, 10), (7, 10), (0, 15)], 'raml': [(4, 25), (2, 20), (3, 15), (6, 10), (5, 10), (0, 10), (10, 10)],
-          'corniche': [(12, 45), (10, 25), (4, 15), (0, 15)], 'shatby': [(2, 25), (4, 20), (5, 20), (10, 10), (0, 25)],
-          'karmouz': [(8, 40), (5, 15), (10, 15), (7, 15), (0, 15)], 'moharram': [(8, 30), (5, 20), (10, 15), (4, 10), (7, 10), (0, 15)],
-          'smouha': [(2, 35), (6, 20), (3, 20), (5, 15), (4, 10)], 'sidigaber': [(2, 25), (5, 20), (4, 20), (6, 15), (3, 10), (0, 10)]}
+    # shop-front rows (03c-city.js SHOP_ROWS): 13 butchers, 14 bakeries, 15 barbers, 16 gold
+    BAND_OF = {'fish': 1, 'cafe': 2, 'clothes': 3, 'gold': 16, 'food': 10, 'sweets': 4, 'bakery': 14, 'butcher': 13, 'juice': 11, 'pharmacy': 5, 'market': 5, 'phones': 6, 'books': 0, 'barber': 15}
+    DW = {'bahary': [(13, 8), (14, 8), (15, 6), (1, 25), (10, 15), (12, 20), (5, 12), (7, 10), (0, 8), (11, 10)], 'manshiya': [(16, 14), (15, 6), (13, 6), (3, 30), (11, 25), (4, 10), (5, 10), (6, 10), (7, 5), (0, 10)],
+          'attarin': [(15, 6), (13, 6), (14, 4), (9, 45), (3, 10), (5, 10), (10, 10), (7, 10), (0, 15)], 'raml': [(16, 6), (15, 6), (14, 6), (4, 25), (2, 20), (3, 15), (6, 10), (5, 10), (0, 10), (10, 10)],
+          'corniche': [(15, 4), (12, 45), (10, 25), (4, 15), (0, 15)], 'shatby': [(14, 6), (15, 6), (2, 25), (4, 20), (5, 20), (10, 10), (0, 25)],
+          'karmouz': [(13, 10), (14, 8), (15, 6), (8, 40), (5, 15), (10, 15), (7, 15), (0, 15)], 'moharram': [(13, 8), (14, 8), (15, 6), (8, 30), (5, 20), (10, 15), (4, 10), (7, 10), (0, 15)],
+          'smouha': [(15, 8), (14, 6), (16, 4), (2, 35), (6, 20), (3, 20), (5, 15), (4, 10)], 'sidigaber': [(14, 6), (15, 6), (13, 4), (2, 25), (5, 20), (4, 20), (6, 15), (3, 10), (0, 10)]}
     def wpick(ws):
         r = random.uniform(0, sum(w for _, w in ws))
         for v, w in ws:
@@ -500,6 +577,15 @@ def main():
                 q = q.simplify(.8)
                 if q.area > 60: v, i = tri(q); beaches.append({'v': [[round(x, 1), round(z, 1)] for x, z in v], 'i': i, 'c': [round(q.centroid.x, 1), round(q.centroid.y, 1)], 'a': round(q.area)})
     json.dump(beaches, open(os.path.join(OUT, 'beaches.json'), 'w'), separators=(',', ':'))
+    json.dump({'breakwaters': BREAKWATERS}, open(os.path.join(OUT, 'breakwaters.json'), 'w'), separators=(',', ':'))
+    pools = []
+    for wpoly in POOLS:
+        for q in iter_polys(wpoly.intersection(WORLD)):
+            if q.area < 40: continue
+            v, i = tri_ok(q.simplify(.5))
+            if i: pools.append({'v': [[round(x, 1), round(z, 1)] for x, z in v], 'i': i, 'c': [round(q.centroid.x, 1), round(q.centroid.y, 1)], 'r': round(math.sqrt(q.area), 1)})
+    json.dump(pools, open(os.path.join(OUT, 'pools.json'), 'w'), separators=(',', ':'))
+    log('breakwaters', len(BREAKWATERS), 'pools', len(pools))
     # the tram lines (OSM railway=tram): the blue Raml line (its corridor north-east of Raml station) and the yellow city line; the real stops
     cols = {0: [], 1: []}
     raml_u = unary_union(RAML_WAYS).buffer(1) if RAML_WAYS else Polygon()
@@ -527,7 +613,7 @@ def main():
     # ---------------- map picture ----------------
     draw_map(land, road_poly, R, park_poly, out_b, W, H)
     index = {'S': S, 'anchor': [LAT0, LON0], 'kx': KX, 'ky': KY, 'x0': X0, 'z0': Z0, 'x1': X1, 'z1': Z1, 'chunk': CH, 'tile': TS,
-             'chunks': chunks, 'districts': DIST, 'patch': CFG['patch'], 'landmarks': lms, 'shops': shops, 'anchors': CFG.get('anchors', {}), 'remote': [{k: rm[k] for k in ('name', 'j0', 'j1', 'k0', 'k1', 'dx', 'dz')} for rm in REMOTES], 'sets': SETS_OUT, 'places': snap_places(CFG.get('places', []), arr), 'tiles': sorted(f[:-4] for f in os.listdir(os.path.join(OUT, 'r')) if f.endswith('.png'))}
+             'chunks': chunks, 'districts': DIST, 'patch': [0, 0, 0, 0] if MERGED else CFG['patch'], 'merged': MERGED, 'story': [{k: s[k] for k in ('k', 'grp', 'j', 'kk', 'dx', 'dz', 'sea')} for s in STORY], 'landmarks': lms, 'shops': shops, 'anchors': CFG.get('anchors', {}), 'remote': [{k: rm[k] for k in ('name', 'j0', 'j1', 'k0', 'k1', 'dx', 'dz')} for rm in REMOTES], 'sets': SETS_OUT, 'places': snap_places(CFG.get('places', []), arr), 'tiles': sorted(f[:-4] for f in os.listdir(os.path.join(OUT, 'r')) if f.endswith('.png'))}
     json.dump(index, open(os.path.join(OUT, 'index.json'), 'w', encoding='utf-8'), ensure_ascii=False, separators=(',', ':'))
     json.dump(graph, open(os.path.join(OUT, 'graph.json'), 'w', encoding='utf-8'), ensure_ascii=False, separators=(',', ':'))
     json.dump(walk, open(os.path.join(OUT, 'walk.json'), 'w'), separators=(',', ':'))
@@ -632,7 +718,7 @@ def pack_chunk(ox, oz, rd, sw, pk, pd, mk, kerb, curb, bl):
         if g.exterior.is_ccw: ring = ring[::-1]
         if len(ring) > 400: ring = ring[:400]
         v, i = tri(Polygon(ring))
-        out += struct.pack('<BBHH', (b.get('band', 0) << 4) | (b['style'] & 15), DKEYS.get(b['dist'], 0), int(b['height'] * 10), len(ring))
+        out += struct.pack('<BBHH', ((b.get('band', 0) & 15) << 4) | (b['style'] & 15), ((b.get('band', 0) >> 4) << 4) | (DKEYS.get(b['dist'], 0) & 15), int(b['height'] * 10), len(ring))   # the shop row: 4 low bits with the style, the high bits with the district
         out += np.array([[round((x - ox) * 10), round((z - oz) * 10)] for x, z in ring], dtype=np.int16).tobytes()
         out += struct.pack('<H', len(i)) + np.array(i, dtype=np.uint16).tobytes()
     return out

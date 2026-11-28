@@ -71,7 +71,7 @@ if (!CITY){
 }
 
 // ---- the breakwater: concrete tetrapods piled along the corniche wall (weak phones: fewer) ----
-{
+if (!MERGED){
   const parts = []; for (const [x, y, z] of [[0, 1, 0], [.94, -.33, 0], [-.47, -.33, .82], [-.47, -.33, -.82]]){ const g = new THREE.CylinderGeometry(.18, .42, 1.3, 7); g.translate(0, .65, 0); const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(x, y, z).normalize()); g.applyQuaternion(q); parts.push(g); }
   const tetra = mergeGeometries(parts); tetra.computeVertexNormals();
   const list = [], step = GFX === 'low' ? 2.6 : 1.7;
@@ -81,8 +81,8 @@ if (!CITY){
 }
 
 // ---- the tram line along the market road (z = -48): rails in the middle of the road, poles and wires, three stops ----
-const TRAM = { z: ROADS_Z[1], x0: X0 - 4, x1: XMAX + 4, stations: [-60, 30, 84] };   // the «حتة»'s own little tram line (Bahary had one)
-{
+const TRAM = { z: MERGED ? -1e5 : ROADS_Z[1], x0: X0 - 4, x1: XMAX + 4, stations: [-60, 30, 84] };   // merged city: the old line is gone (the real trams run)   // the «حتة»'s own little tram line (Bahary had one)
+if (!MERGED){
   const p = [];
   for (const s of [-1, 1]) box(p, TRAM.x1 - TRAM.x0, .06, .12, (TRAM.x0 + TRAM.x1) / 2, .04, TRAM.z + s * .72, '#9aa0a6');
   box(p, TRAM.x1 - TRAM.x0, .02, 2.6, (TRAM.x0 + TRAM.x1) / 2, .012, TRAM.z, '#3a3835');
@@ -129,8 +129,8 @@ const VILLA = (() => { const [cx, cz] = RELOC(X0 + PITCH / 2 + 7 * PITCH, Z0 + P
 
 // ---- the story houses get their names on the door: طيارة's (already there), شادية's next door, إسلام's family ----
 const STORY_HOUSES = {
-  shadia: { name: 'بيت شادية', door: new THREE.Vector3(-35, .15, 86.4) },
-  islam: { name: 'بيت إسلام', door: new THREE.Vector3(-72, .15, 22.4) },
+  shadia: { name: 'بيت شادية', door: RLV(-35, .15, 86.4) },
+  islam: { name: 'بيت إسلام', door: RLV(-72, .15, 22.4) },
 };
 for (const h of Object.values(STORY_HOUSES)){
   const d = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 2.3), new THREE.MeshStandardMaterial({ map: doorTex, roughness: .8, color: 0xb8a48c })); d.position.set(h.door.x, 1.3, h.door.z - .3); scene.add(d);
@@ -139,7 +139,7 @@ for (const h of Object.values(STORY_HOUSES)){
 
 // ---- the harbour (الميناء) at the east end of the corniche: a warehouse you can walk into, containers, a pier with launches ----
 // stage 14: the first block of the «حتة» corniche, its pier out into Anfoushi bay (fishing boats are there in real life too)
-const PORT = { cx: X0 + PITCH / 2, cz: Z0 + PITCH / 2 + 4 * PITCH };
+const PORT = (([cx, cz]) => ({ cx, cz }))(RELOC(X0 + PITCH / 2, Z0 + PITCH / 2 + 4 * PITCH));
 {
   const { cx, cz } = PORT, p = [], wx0 = cx - 15, wx1 = cx + 13, wz0 = cz - 15, wz1 = cz + 1, H = 8;
   PORT.shed = { x0: wx0, x1: wx1, z0: wz0, z1: wz1 }; PORT.door = new THREE.Vector3(cx - 1, .15, wz1 + 1.5); PORT.inside = new THREE.Vector3(cx - 1, .15, cz - 8);
@@ -156,7 +156,7 @@ const PORT = { cx: X0 + PITCH / 2, cz: Z0 + PITCH / 2 + 4 * PITCH };
   // the pier and its posts
   box(p, PIER.x1 - PIER.x0, .3, PIER.z1 - PIER.z0, (PIER.x0 + PIER.x1) / 2, 0, (PIER.z0 + PIER.z1) / 2, '#8a6a4a');
   for (let z = PIER.z0 + 2; z < PIER.z1; z += 4) for (const x of [PIER.x0, PIER.x1]) box(p, .35, 2.2, .35, x, -.6, z, '#5a4030');
-  for (const s2 of [-1, 1]) obstacles.push({ minX: (s2 < 0 ? PIER.x0 - .3 : PIER.x1 - .2), maxX: (s2 < 0 ? PIER.x0 + .2 : PIER.x1 + .3), minZ: NILE_Z + 1, maxZ: PIER.z1 });
+  for (const s2 of [-1, 1]) obstacles.push({ minX: (s2 < 0 ? PIER.x0 - .3 : PIER.x1 - .2), maxX: (s2 < 0 ? PIER.x0 + .2 : PIER.x1 + .3), minZ: MERGED ? PIER.z0 + 2 : NILE_Z + 1, maxZ: PIER.z1 });
   const m = new THREE.Mesh(mergeGeometries(p), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .7, metalness: .25 })); m.castShadow = true; m.receiveShadow = true; scene.add(m);
   glowSigns.push(signBoard(bigSign('مخازن الميناء', '#20262c', '#ffb74d', 640, 120, 58), cx - 1, H - 1.2, wz1 + .25, 6, 1.1, 0, .3));
   const fl = new THREE.Mesh(new THREE.BoxGeometry(wx1 - wx0, .04, wz1 - wz0), new THREE.MeshStandardMaterial({ color: 0x5a5650, roughness: .9 })); fl.position.set((wx0 + wx1) / 2, .17, (wz0 + wz1) / 2); fl.receiveShadow = true; scene.add(fl);

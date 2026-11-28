@@ -27,7 +27,7 @@ function cityGoods(grp, ox, oz){
         if (((Math.round(x1 * 7 + z1 * 13 + s * 31) >>> 0) % 100) > 45) continue;
         const x = x1 + (x2 - x1) * s / L + nx * .75, z = z1 + (z2 - z1) * s / L + nz * .75, g = GOODS_GEO[kind].clone();
         g.rotateY(Math.atan2(x2 - x1, z2 - z1) + Math.PI / 2); g.translate(x, .15, z); parts.push(g);
-        const key = Math.round(x * 2) + ',' + Math.round(z * 2); if (!GOODS_OBS.has(key)){ GOODS_OBS.add(key); obstacles.push({ minX: x - .45, maxX: x + .45, minZ: z - .45, maxZ: z + .45 }); OG.n = -1; }
+        const key = Math.round(x * 2) + ',' + Math.round(z * 2); if (!GOODS_OBS.has(key)){ GOODS_OBS.add(key); ogAdd({ minX: x - .45, maxX: x + .45, minZ: z - .45, maxZ: z + .45 }); }
       }
     }
   }
@@ -39,44 +39,56 @@ function cityGoods(grp, ox, oz){
 const CBEACHES = [['الشاطبي', 31.2118, 29.9105], ['كامب شيزار', 31.2148, 29.9215], ['الإبراهيمية', 31.2165, 29.9265], ['سبورتنج', 31.2195, 29.9335], ['كليوباترا', 31.2238, 29.9405], ['مصطفى كامل', 31.2290, 29.9465], ['ستانلي', 31.2352, 29.9488]]
   .map(([n, la, lo]) => { const [x, z] = cityLL(la, lo); return { n, x, z, built: false, grp: null }; });
 // the beach is a strip of sand on the sea side of the corniche wall (as in Alexandria: the road runs right along the water)
-const BEACH_CELLS = new Set(), bkey = (x, z) => Math.round(x / 2) + ',' + Math.round(z / 2);
+const BEACH_CELLS = new Set(), BEACH_Y = new Map(), bkey = (x, z) => Math.round(x / 2) + ',' + Math.round(z / 2);
+// the sand slopes from just under the promenade (−0.25 m) down to the water's edge (the sea is at −1.1)
+const beachLandDist = (x, z, W) => { for (let r = 2; r <= W; r += 2) for (let a = 0; a < 6.28; a += .785) if (cityR(x + Math.sin(a) * r, z + Math.cos(a) * r) >= 1) return r; return W + 2; };
+// the height of the sand at a cell corner: the mean of the (up to 4) beach cells that share it
+function beachCorner(x, z){ let s = 0, n = 0; for (const dx of [-1, 1]) for (const dz of [-1, 1]){ const y = BEACH_Y.get(bkey(x + dx, z + dz)); if (y !== undefined){ s += y; n++; } } return n ? s / n : -.25; }
+// plastic beach chairs (white / blue / yellow): a seat, a back, four legs — merged once, copied for every chair
+const BCHAIR = (() => { const q = []; box(q, .46, .04, .44, 0, .42, 0, '#ffffff'); { const b = new THREE.BoxGeometry(.46, .46, .04); b.rotateX(-.22); b.translate(0, .66, -.24); q.push(colored(b, '#ffffff')); }
+  for (const [x, z] of [[-.2, -.18], [.2, -.18], [-.2, .18], [.2, .18]]){ const l = new THREE.CylinderGeometry(.018, .022, .42, 5); l.translate(x, .21, z); q.push(colored(l, '#ffffff')); }
+  return mergeGeometries(q.map(g => g.index ? g.toNonIndexed() : g)); })();
 function buildCityBeach(B){
-  const S = 2, R0 = 180, W = 18;
+  const S = 2, R0 = 180, W = 18, sfB = {};
   const landNear = (x, z) => { for (let a = 0; a < 6.28; a += .52) for (let r = 2; r <= W; r += 4) if (cityR(x + Math.sin(a) * r, z + Math.cos(a) * r) >= 1) return true; return false; };
   const cells = [], P = [], U = [];
   for (let z = B.z - R0; z <= B.z + R0; z += S){
-    let run = null;
-    for (let x = B.x - R0; x <= B.x + R0 + S; x += S){
+    for (let x = B.x - R0; x <= B.x + R0; x += S){
       const ok = x <= B.x + R0 && Math.hypot(x - B.x, z - B.z) < R0 && cityR(x, z) === 0 && !inPatch(x, z) && landNear(x, z) && ![[3, 0], [-3, 0], [0, 3], [0, -3], [2, 2], [-2, 2], [2, -2], [-2, -2]].some(([a, b]) => cityR(x + a, z + b) === 1);
-      if (ok){ cells.push([x, z]); BEACH_CELLS.add(bkey(x, z)); if (run === null) run = x; }
-      if (!ok && run !== null){ const x0 = run - S / 2, x1 = x - S / 2, z0 = z - S / 2, z1 = z + S / 2, y = .17;
-        P.push(x0, y, z0, x0, y, z1, x1, y, z1, x0, y, z0, x1, y, z1, x1, y, z0); U.push(x0 / 6, z0 / 6, x0 / 6, z1 / 6, x1 / 6, z1 / 6, x0 / 6, z0 / 6, x1 / 6, z1 / 6, x1 / 6, z0 / 6); run = null; }
+      if (ok){ const d = beachLandDist(x, z, W), y = -.25 - .045 * d; cells.push([x, z, y]); BEACH_CELLS.add(bkey(x, z)); BEACH_Y.set(bkey(x, z), y); }
     }
   }
   if (cells.length < 40) return null;
+  for (const [x, z] of cells){ const x0 = x - S / 2, x1 = x + S / 2, z0 = z - S / 2, z1 = z + S / 2, a = beachCorner(x0, z0), b = beachCorner(x0, z1), c = beachCorner(x1, z1), e = beachCorner(x1, z0);
+    P.push(x0, a, z0, x0, b, z1, x1, c, z1, x0, a, z0, x1, c, z1, x1, e, z0); U.push(x0 / 6, z0 / 6, x0 / 6, z1 / 6, x1 / 6, z1 / 6, x0 / 6, z0 / 6, x1 / 6, z1 / 6, x1 / 6, z0 / 6); }
   const grp = new THREE.Group(), g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(U, 2)); g.computeVertexNormals();
   const sand = new THREE.Mesh(g, sandMat); sand.receiveShadow = true; grp.add(sand);
   const p = []; let k = 0, gate = null, gd = 1e9;
-  for (const [x, z] of cells){
+  for (const [x, z, cy] of cells){
     const toLand = [2, 4].some(r => [[0, r], [r, 0], [0, -r], [-r, 0]].some(([a, b]) => cityR(x + a, z + b) >= 1));
     if (toLand){ const d = Math.hypot(x - B.x, z - B.z); if (d < gd){ gd = d; gate = [x, z]; } continue; }   // keep the foot of the wall clear
     const ix = Math.round(x / S), iz = Math.round(z / S);
     if (((ix % 3) + 3) % 3 !== 0 || ((iz % 3) + 3) % 3 !== 0 || (((ix * 13 + iz * 7) & 7) > 5)) continue;
     const col = ['#c0392b', '#1f5fa8', '#e0a21a', '#2e7d32', '#f1ead8', '#c2185b'][(k++) % 6];
-    cyl(p, .04, .04, 2.3, x, 1.32, z, '#e8e4da'); { const cn = new THREE.ConeGeometry(1.25, .55, 8); cn.translate(x, 2.45, z); p.push(colored(cn, col)); }
-    for (const s of [-1, 1]) box(p, .5, .45, .5, x + s * .8, .4, z + .6, ['#f2f2f2', '#2e6fbf', '#e8b21a'][(k + s + 3) % 3]);
-    obstacles.push({ minX: x - .1, maxX: x + .1, minZ: z - .1, maxZ: z + .1 });
+    cyl(p, .04, .04, 2.3, x, cy + 1.15, z, '#e8e4da'); { const cn = new THREE.ConeGeometry(1.25, .55, 14, 1, true); cn.translate(x, cy + 2.28, z); p.push(colored(cn, col)); }
+    for (const s of [-1, 1]){ if (sfPush(sfB, (k + s) % 2 ? 'beach-chair-white' : 'beach-chair-blue', x + s * .8, beachCorner(x + s * .8, z + .6) + .02, z + .6, s * .5)) continue; const ch = BCHAIR.clone(), c2 = new THREE.Color(['#f2f2f2', '#2e6fbf', '#e8b21a'][(k + s + 3) % 3]), C = ch.attributes.color; for (let i = 0; i < C.count; i++) C.setXYZ(i, c2.r, c2.g, c2.b);
+      ch.rotateY(s * .5 + Math.PI); ch.translate(x + s * .8, beachCorner(x + s * .8, z + .6) + .02, z + .6); p.push(ch); }
+    ogAdd({ minX: x - .1, maxX: x + .1, minZ: z - .1, maxZ: z + .1 });
   }
-  let f = 0; for (const [x, z] of cells){ if (f >= 3) break; if (((Math.round(x) * 31 + Math.round(z) * 17) & 31) !== 5) continue; const q = AR_GEO.fresca.clone(); q.rotateY(x); q.translate(x, .17, z); p.push(q); f++; }
+  let f = 0; for (const [x, z, cy] of cells){ if (f >= 3) break; if (((Math.round(x) * 31 + Math.round(z) * 17) & 31) !== 5) continue; if (!sfPush(sfB, 'fresca-box', x, cy, z, x)){ const q = AR_GEO.fresca.clone(); q.rotateY(x); q.translate(x, cy, z); p.push(q); } f++; }
+  // Stanley's row of beach cabins along the foot of the wall
+  if (B.n === 'ستانلي' && SFM['beach-cabins-row']){ let n = 0; for (const [x, z, cy] of cells){ if (n >= 3) break; const toLand = [3, 5].some(r => [[0, r], [r, 0], [0, -r], [-r, 0]].some(([a, b]) => cityR(x + a, z + b) >= 1)); if (!toLand || ((Math.round(x / 2) + Math.round(z / 2)) % 9)) continue;
+    let ax = 0, az = 0; for (const [a, b] of [[0, 4], [4, 0], [0, -4], [-4, 0]]) if (cityR(x + a, z + b) >= 1){ ax += a; az += b; } sfPush(sfB, 'beach-cabins-row', x, cy, z, Math.atan2(ax, az)); n++; } }
+  sfFlush(grp, sfB);
   if (p.length){ const m = new THREE.Mesh(mergeGeometries(p.map(q => q.index ? q.toNonIndexed() : q)), arMat); m.castShadow = !LOW; grp.add(m); }
-  if (gate) glowSigns.push(signBoard(bigSign('شاطئ ' + B.n, '#0d4f7a', '#ffffff', 640, 120, 58), gate[0], 2.4, gate[1], 3.2, .6, Math.atan2(B.x - gate[0], B.z - gate[1]), .3));
-  OG.n = -1; scene.add(grp); return grp;
+  if (gate) glowSigns.push(signBoard(bigSign('شاطئ ' + B.n, '#0d4f7a', '#ffffff', 640, 120, 58), gate[0], 2.4, gate[1], 3.2, .6, Math.atan2(B.x - gate[0], B.z - gate[1]), .3)); scene.add(grp); return grp;
 }
 // you can step over the corniche wall onto the sand and walk on it
 if (CITY){
   const _iwB = inWorld, _gyB = groundY;
   inWorld = function(x, z){ return _iwB(x, z) || (BEACH_CELLS.size > 0 && BEACH_CELLS.has(bkey(x, z))); };
-  groundY = function(x, z){ if (BEACH_CELLS.size && cityR(x, z) === 0 && BEACH_CELLS.has(bkey(x, z))) return .17; return _gyB(x, z); };
+  groundY = function(x, z){ if (BEACH_CELLS.size && cityR(x, z) === 0 && BEACH_Y.has(bkey(x, z))){ const cx = Math.round(x / 2) * 2, cz = Math.round(z / 2) * 2, fx = (x - cx + 1) / 2, fz = (z - cz + 1) / 2;
+    const a = beachCorner(cx - 1, cz - 1), b = beachCorner(cx + 1, cz - 1), c = beachCorner(cx - 1, cz + 1), d = beachCorner(cx + 1, cz + 1); return (a * (1 - fx) + b * fx) * (1 - fz) + (c * (1 - fx) + d * fx) * fz; } return _gyB(x, z); };
 }
 
 // ---------- footbridges over the corniche road (Sporting, Ibrahimia, Shatby) ----------
@@ -91,11 +103,10 @@ function buildFootbridge(F){
     const tx = q.x + nx * s * (half + 1.3), tz = q.z + nz * s * (half + 1.3);
     const t = new THREE.BoxGeometry(2.6, y, 2.6); t.translate(tx, y / 2, tz); p.push(colored(t, '#bdb5a6'));
     for (let i = 0; i < 6; i++){ const st = new THREE.BoxGeometry(2.6, .2, .5); st.rotateY(rot + Math.PI / 2); st.translate(tx + o.fx * (1.6 + i * .5), .15 + i * .9, tz + o.fz * (1.6 + i * .5)); p.push(colored(st, '#9e978c')); }
-    obstacles.push({ minX: tx - 1.3, maxX: tx + 1.3, minZ: tz - 1.3, maxZ: tz + 1.3 });
+    ogAdd({ minX: tx - 1.3, maxX: tx + 1.3, minZ: tz - 1.3, maxZ: tz + 1.3 });
   }
   const m = new THREE.Mesh(mergeGeometries(p.map(g => g.index ? g.toNonIndexed() : g)), arMat); m.castShadow = !LOW; m.receiveShadow = true; grp.add(m);
-  glowSigns.push(signBoard(bigSign('كوبري مشاة', '#1f5fa8', '#ffffff', 512, 110, 54), q.x + o.fx * 1.25, y + .1, q.z + o.fz * 1.25, 3, .6, Math.atan2(o.fx, o.fz), .2));
-  OG.n = -1; scene.add(grp); return grp;
+  glowSigns.push(signBoard(bigSign('كوبري مشاة', '#1f5fa8', '#ffffff', 512, 110, 54), q.x + o.fx * 1.25, y + .1, q.z + o.fz * 1.25, 3, .6, Math.atan2(o.fx, o.fz), .2)); scene.add(grp); return grp;
 }
 
 // ---------- the railway yards at Qabbari and behind Misr station: gravel, tracks, a few goods wagons ----------
@@ -121,11 +132,11 @@ function buildFootbridge(F){
       const [ax, az] = L[i - 1], [bx, bz] = L[i], dd = Math.hypot(bx - ax, bz - az); if ((i * 7 + n) % 3 !== 0 || dd < 14) continue;
       const yaw = Math.atan2(bx - ax, bz - az), cx = (ax + bx) / 2, cz = (az + bz) / 2, w = new THREE.BoxGeometry(2.8, 2.6, 12.5); w.translate(0, 1.75, 0); w.rotateY(yaw); w.translate(cx, .15, cz);
       wp.push(colored(w, ['#6d4c41', '#455a64', '#8d6e63', '#37474f'][n % 4]));
-      for (let k = -2; k <= 2; k++) obstacles.push({ minX: cx + Math.sin(yaw) * k * 2.5 - 1.5, maxX: cx + Math.sin(yaw) * k * 2.5 + 1.5, minZ: cz + Math.cos(yaw) * k * 2.5 - 1.5, maxZ: cz + Math.cos(yaw) * k * 2.5 + 1.5 });
+      for (let k = -2; k <= 2; k++) ogAdd({ minX: cx + Math.sin(yaw) * k * 2.5 - 1.5, maxX: cx + Math.sin(yaw) * k * 2.5 + 1.5, minZ: cz + Math.cos(yaw) * k * 2.5 - 1.5, maxZ: cz + Math.cos(yaw) * k * 2.5 + 1.5 });
       n++;
     }
   }
-  if (wp.length){ const m = new THREE.Mesh(mergeGeometries(wp.map(q => q.index ? q.toNonIndexed() : q)), arMat); m.castShadow = !LOW; scene.add(m); OG.n = -1; }
+  if (wp.length){ const m = new THREE.Mesh(mergeGeometries(wp.map(q => q.index ? q.toNonIndexed() : q)), arMat); m.castShadow = !LOW; scene.add(m); }
 })();
 
 if (CITY){
@@ -134,5 +145,28 @@ if (CITY){
     _uc2(px, pz); const now = performance.now(); if (now - tB < 500) return; tB = now;
     for (const B of CBEACHES){ if (!B.built && Math.hypot(B.x - px, B.z - pz) < 380 && cityReady(B.x, B.z, 170)){ B.built = true; B.grp = buildCityBeach(B); return; } if (B.grp) B.grp.visible = Math.hypot(B.x - px, B.z - pz) < 460; }
     for (const F of CFOOT){ if (!F.built && Math.hypot(F.x - px, F.z - pz) < 380 && cityReady(F.x, F.z, 40)){ F.built = true; F.grp = buildFootbridge(F); return; } }
+  };
+}
+
+// ---------- the city's sea is water: you swim in it, dive in from the corniche, climb out where the shore is low ----------
+// (the old swimming only knew the «حتة»'s bay; out in the city the sea was solid ground at y = 0)
+if (CITY){
+  const citySea = (x, z) => !inPatch(x, z) && cityR(x, z) === 0 && !BEACH_CELLS.has(bkey(x, z));
+  const _ow = overWater; overWater = function(x, z){ return _ow(x, z) || (!HOUSE.inside && citySea(x, z) && !stairAt(x, z)); };
+  const _is = inSea; inSea = function(x, z){ return _is(x, z) || citySea(x, z); };
+  const _so = swimOK; swimOK = function(x, z){ return citySea(x, z) || _so(x, z); };
+  // walking into the sea's edge on the corniche: over the wall and in
+  const _vd = vaultDir; vaultDir = function(p, wx, wz){
+    const r = _vd(p, wx, wz); if (r || HOUSE.inside || inPatch(p.x, p.z)) return r;
+    const m = Math.hypot(wx, wz); if (m < .35) return null; const dx = wx / m, dz = wz / m;
+    if (!citySea(p.x, p.z) && citySea(p.x + dx * 1.4, p.z + dz * 1.4) && citySea(p.x + dx * 3, p.z + dz * 3)) return { dx, dz, sp: 6.5 };
+    return null;
+  };
+  // a swimmer beside the shore pulls himself out onto it
+  const _ct = climbTarget; climbTarget = function(p){
+    const t = _ct(p); if (t || inPatch(p.x, p.z) || !citySea(p.x, p.z)) return t;
+    for (let a = 0; a < 6.28; a += .39) for (const r of [1.2, 2, 2.8]){ const x = p.x + Math.sin(a) * r, z = p.z + Math.cos(a) * r, v = cityR(x, z);
+      if (v >= 1 && v < 10 && inWorld(x, z) && !staticBlocked(x, z, .4)){ const [fx, fz] = freeSpot(x, z); return new THREE.Vector3(fx, groundY(fx, fz), fz); } }
+    return null;
   };
 }

@@ -12,13 +12,14 @@ const ROADS_Z = [...Array(NZB+1)].map((_,k) => Z0 + k*PITCH);   // east-west roa
 const XMAX = ROADS_X[NXB], ZMAX = ROADS_Z[NZB];
 const N = 4, HALF = 96, ROADS = ROADS_X.slice(0, 5);             // legacy names used by the old cash mode
 const BW = PITCH - 12, LIMIT = HALF + 5.5;
-const NILE_Z = ZMAX + 10;                                        // the river bank (promenade railing)
+const NILE_Z = MERGED ? -1e6 : ZMAX + 10;   // merged city: the old bay's checks never fire (the city's own sea rules work everywhere)                                        // the river bank (promenade railing)
 // the old bridge and fort are gone (the real Qaitbay is in the city): kept as empty shapes so old checks stay false
 const BRIDGE = { x: 1e6, z1: NILE_Z, w: 0 };
 const FAR = { x0: 1e6, x1: 1e6, z0: 1e6, z1: 1e6 };
-const PIER = { x0: -67, x1: -61, z0: NILE_Z - 1, z1: 192 };   // the harbour pier: from the «حتة» corniche's port into Anfoushi bay (04b)
+const PIER = MERGED ? (() => { const x0 = -67 + PORT_OFF[0], z0 = 143 + PORT_OFF[1]; let zc = z0 + 20; for (let z = z0; z < z0 + 90; z++) if (cityR(x0 + 3, z) === 0){ zc = z; break; } return { x0, x1: x0 + 6, z0, z1: zc + 36 }; })()
+  : { x0: -67, x1: -61, z0: NILE_Z - 1, z1: 192 };   // merged: from the moved port's quay out over the real sea   // the harbour pier: from the «حتة» corniche's port into Anfoushi bay (04b)
 // two public stairs from the corniche down into the sea (walk down them to swim); the railing, the sea wall and the rocks have a gap there
-const SEA_STAIRS = [30].map(x => ({ x, z0: NILE_Z - .5, z1: NILE_Z + 5.2, y0: .15, y1: -2.35, hw: 1.5 }));
+const SEA_STAIRS = (MERGED ? [] : [30]).map(x => ({ x, z0: NILE_Z - .5, z1: NILE_Z + 5.2, y0: .15, y1: -2.35, hw: 1.5 }));
 const nearSeaStairs = (x, r) => SEA_STAIRS.some(s => Math.abs(x - s.x) < r);
 function inWorld(x, z){
   if (x > X0 - 5.5 && x < XMAX + 5.5 && z > Z0 - 5.5 && z < NILE_Z - .4) return true;
@@ -33,7 +34,8 @@ function districtAt(x, z){
   if (z > FAR.z0 - 2) return 'bank'; if (z >= NILE_Z - 1) return 'bridge';
   const i = clamp(Math.floor((x - X0)/PITCH), 0, NXB-1), k = clamp(Math.floor((z - Z0)/PITCH), 0, NZB-1); return blockDistrict(i, k);
 }
-const CAFE = { cx: 24, cz: 24 };
+const CAFE = (([cx, cz]) => ({ cx, cz }))(RELOC(24, 24));
+const CAFE_OFF = [CAFE.cx - 24, CAFE.cz - 24];
 const SPOT = {
   spawn: new THREE.Vector3(17, 0, 36.5), counter: new THREE.Vector3(21, 0, 22.6), domino: new THREE.Vector3(30, 0, 25.5),
   cart: new THREE.Vector3(34.5, 0, 31), cartHero: new THREE.Vector3(34.5, 0, 29.7), policeSpawn: new THREE.Vector3(32, 0, 40.2),
@@ -51,21 +53,21 @@ const STOPS = [
   { id: 'corniche', name: 'الكورنيش', pos: new THREE.Vector3(170, .15, 151.6) },
 ];
 for (const k in SPOT) relocV(SPOT[k]); for (const s of STOPS) relocV(s.pos);   // stage 14: the moved places' spots
-const TABLES = [[12,26.5],[17,26.5],[22,26.5],[12,32],[17,32],[22,32]];
+const TABLES = [[12,26.5],[17,26.5],[22,26.5],[12,32],[17,32],[22,32]].map(([x, z]) => RELOC(x, z));
 const SEATS = TABLES.flatMap(([x,z],ti) => [{x:x-.85,z,ry:Math.PI/2,ti},{x:x+.85,z,ry:-Math.PI/2,ti}]);
 
 // ground, asphalt and the river
 const groundMat = new THREE.MeshStandardMaterial({ map: grassTex, roughness: 1 });
-{ const g = new THREE.Mesh(new THREE.PlaneGeometry(212, 262), groundMat); g.rotation.x = -Math.PI/2; g.position.set(0, -.02, 25); g.receiveShadow = true; scene.add(g);
+if (!MERGED){ const g = new THREE.Mesh(new THREE.PlaneGeometry(212, 262), groundMat); g.rotation.x = -Math.PI/2; g.position.set(0, -.02, 25); g.receiveShadow = true; scene.add(g);
 }
 asphaltTex.repeat.set((XMAX - X0 + 14)/10, (ZMAX - Z0 + 14)/10);
 const asphalt = new THREE.Mesh(new THREE.PlaneGeometry(XMAX - X0 + 14, ZMAX - Z0 + 13), new THREE.MeshStandardMaterial({ map: asphaltTex, roughness: .93, envMapIntensity: .3 }));
-asphalt.rotation.x = -Math.PI/2; asphalt.position.set((X0 + XMAX)/2, 0, (Z0 + ZMAX)/2 + .5); asphalt.receiveShadow = true; scene.add(asphalt);
+asphalt.rotation.x = -Math.PI/2; asphalt.position.set((X0 + XMAX)/2, 0, (Z0 + ZMAX)/2 + .5); asphalt.receiveShadow = true; if (!MERGED) scene.add(asphalt);
 const waterTex = makeTex(256,256,(g,w,h)=>{ g.fillStyle='#1f6f8b'; g.fillRect(0,0,w,h); for (let i=0;i<1400;i++){ g.strokeStyle=`rgba(${180+Math.random()*60|0},${210+Math.random()*40|0},230,${.05+Math.random()*.12})`; g.lineWidth=1+Math.random()*2; const x=Math.random()*w, y=Math.random()*h; g.beginPath(); g.moveTo(x,y); g.quadraticCurveTo(x+8,y-3,x+16+Math.random()*14,y); g.stroke(); } }, [60, 12]);
 const water = new THREE.Mesh(new THREE.PlaneGeometry(14000, 12000), new THREE.MeshStandardMaterial({ map: waterTex, color: 0x8fd0e0, roughness: .1, metalness: .3, envMapIntensity: 1.3 }));
 waterTex.repeat.set(14000/14, 12000/14);
 water.rotation.x = -Math.PI/2; water.position.set(-1700, -1.1, 300); water.receiveShadow = true; scene.add(water);
-{ const bankMat = new THREE.MeshStandardMaterial({ color: 0x8f8573, roughness: .95 });
+if (!MERGED){ const bankMat = new THREE.MeshStandardMaterial({ color: 0x8f8573, roughness: .95 });
   // the sea wall, cut where the stairs go down
   const cuts = [-102, ...SEA_STAIRS.flatMap(s => [s.x - 1.8, s.x + 1.8]), 102];
   for (let i = 0; i < cuts.length; i += 2){ const a = cuts[i], b = cuts[i + 1], wall = new THREE.Mesh(new THREE.BoxGeometry(b - a, 1.4, .6), bankMat); wall.position.set((a + b) / 2, -.55, NILE_Z + .2); scene.add(wall); } }
@@ -231,7 +233,7 @@ const glowSigns = [];
 // one block of the old map (its cell j, k decides what it is); the moved ones (market, restaurants, stadium, workshops) are built
 // at their real places (CITY.remote) with the same insides
 function buildBlock(j, k, cx, cz){
-  const dist = blockDistrict(j, k);
+  const dist = blockDistrict(j, k), ox = cx - (X0 + PITCH/2 + j*PITCH), oz = cz - (Z0 + PITCH/2 + k*PITCH);   // a moved block (CITY.remote): its own buildings move with it
   let type = 'city'; const r = rng();
   if (dist === 'hara'){ if (j===2 && k===2) type = 'cafe'; else if (j===1 && k===3) type = 'house'; else if (j===0 && k===2) type = 'wedding'; else if (r < .1) type = 'park'; else if (r < .17) type = 'parking'; }
   else if (dist === 'stadium' && j === 6 && k === 1) type = 'pitch';
@@ -278,18 +280,18 @@ function buildBlock(j, k, cx, cz){
       for (let i=0;i<14;i++){ g.fillStyle='rgba(255,240,200,.9)'; g.beginPath(); g.arc(30+i*52,62,6,0,7); g.fill(); }
       g.fillStyle='#2a1d12'; g.fillRect(0,0,w,46);
     });
-    addBuilding(17.5, 15.5, 16, 12, 5, 1, { bandTex: cafeBand, faces:['pz','nz','nx'], doorU: 0, noSign: true, noPoster: true });
-    addBuilding(33, 15.5, 11.5, 12, 7, 2, { faces:['pz','nz','px'] });
-    glowSigns.push(signBoard(cafeSignTex, 17.5, 3.0, 21.65, 11, 1.9));
-    const aw = new THREE.Mesh(new THREE.BoxGeometry(14, .08, 2.6), new THREE.MeshStandardMaterial({ color: 0x1d6b44, roughness: .8 })); aw.position.set(17.5, 3.75, 22.9); aw.rotation.x = .18; aw.castShadow = true; aw.name = 'cafeAwning'; scene.add(aw);
+    addBuilding(17.5 + ox, 15.5 + oz, 16, 12, 5, 1, { bandTex: cafeBand, faces:['pz','nz','nx'], doorU: 0, noSign: true, noPoster: true });
+    addBuilding(33 + ox, 15.5 + oz, 11.5, 12, 7, 2, { faces:['pz','nz','px'] });
+    glowSigns.push(signBoard(cafeSignTex, 17.5 + ox, 3.0, 21.65 + oz, 11, 1.9));
+    const aw = new THREE.Mesh(new THREE.BoxGeometry(14, .08, 2.6), new THREE.MeshStandardMaterial({ color: 0x1d6b44, roughness: .8 })); aw.position.set(17.5 + ox, 3.75, 22.9 + oz); aw.rotation.x = .18; aw.castShadow = true; aw.name = 'cafeAwning'; scene.add(aw);
   } else if (type === 'house'){
     // طيارة's run-down house in the middle of the south row, with neighbours either side
-    addBuilding(-24, 80.5, 9, 11, 2, 5, { bandTex: houseBand, faces: [], noDoor: true });
-    addBuilding(-35, 79.5, 12.5, 13, 5, 4, { faces: ['pz','nx'] });
-    addBuilding(-13, 79.5, 12.5, 13, 6, 1, { faces: ['pz','px'] });
+    addBuilding(-24 + ox, 80.5 + oz, 9, 11, 2, 5, { bandTex: houseBand, faces: [], noDoor: true });
+    addBuilding(-35 + ox, 79.5 + oz, 12.5, 13, 5, 4, { faces: ['pz','nx'] });
+    addBuilding(-13 + ox, 79.5 + oz, 12.5, 13, 6, 1, { faces: ['pz','px'] });
     rowsOf(4, 9, ALL, { skipRow: 1 });
-    const door = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 2.3), new THREE.MeshStandardMaterial({ map: doorTex, roughness: .8, color: 0xb8a48c })); door.position.set(-24, 1.3, 86.08); scene.add(door);
-    glowSigns.push(signBoard(bigSign('بيت طيارة','#f3ecd8','#5a2a14',512,120,64), -24, 2.85, 86.1, 2.2, .52, 0, .15));
+    const door = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 2.3), new THREE.MeshStandardMaterial({ map: doorTex, roughness: .8, color: 0xb8a48c })); door.position.set(-24 + ox, 1.3, 86.08 + oz); scene.add(door);
+    glowSigns.push(signBoard(bigSign('بيت طيارة','#f3ecd8','#5a2a14',512,120,64), -24 + ox, 2.85, 86.1 + oz, 2.2, .52, 0, .15));
   } else if (type === 'wedding'){
     // the street where إسلام's wedding happens: open square with buildings on the north row
     // north row: إسلام's family house in the middle (04b puts its sign and door), a neighbour each side
@@ -303,17 +305,17 @@ function buildBlock(j, k, cx, cz){
     sidewalkRing(p => stallLists[Math.floor(rng()*3)].push({ ...p, y: .15 }), 4.2, .7);
   } else if (type === 'food' || type === 'azzouz'){
     if (type === 'azzouz'){
-      addBuilding(120, 33.5, 13, 11, 4, 3, { bandTex: azzouzBand, faces: ['pz'], doorU: 0, noSign: true, noPoster: true });
-      glowSigns.push(signBoard(bigSign('مطعم عزوز للبيتزا','#b3121f','#fff3c4'), 120, 3.1, 39.12, 11, 1.9, 0, .5));
-      addBuilding(106.5, 33.5, 12.5, 11, 6, 0, { faces: ['pz','nx'], signPool: foodSigns });
-      addBuilding(133.5, 33.5, 12.5, 11, 5, 2, { faces: ['pz','px'], signPool: foodSigns });
+      addBuilding(120 + ox, 33.5 + oz, 13, 11, 4, 3, { bandTex: azzouzBand, faces: ['pz'], doorU: 0, noSign: true, noPoster: true });
+      glowSigns.push(signBoard(bigSign('مطعم عزوز للبيتزا','#b3121f','#fff3c4'), 120 + ox, 3.1, 39.12 + oz, 11, 1.9, 0, .5));
+      addBuilding(106.5 + ox, 33.5 + oz, 12.5, 11, 6, 0, { faces: ['pz','nx'], signPool: foodSigns });
+      addBuilding(133.5 + ox, 33.5 + oz, 12.5, 11, 5, 2, { faces: ['pz','px'], signPool: foodSigns });
       rowsOf(4, 9, ALL, { skipRow: 1, signPool: foodSigns });
     } else rowsOf(4, 9, ALL, { signPool: foodSigns });
     sidewalkRing(p => outTables.push(p), 6, .35);
   } else if (type === 'works' || type === 'workshop'){
     if (type === 'workshop'){
-      addBuilding(264, 79, 18, 14, 2, 4, { bandTex: garageBand, faces: ['pz'], noDoor: true, noSign: true, noPoster: true });
-      glowSigns.push(signBoard(bigSign('ورشة الأسطى شمس','#20262c','#ffb74d'), 264, 3.1, 86.2, 10, 1.75, 0, .3));
+      addBuilding(264 + ox, 79 + oz, 18, 14, 2, 4, { bandTex: garageBand, faces: ['pz'], noDoor: true, noSign: true, noPoster: true });
+      glowSigns.push(signBoard(bigSign('ورشة الأسطى شمس','#20262c','#ffb74d'), 264 + ox, 3.1, 86.2 + oz, 10, 1.75, 0, .3));
       rowsOf(1, 3, [3,4,5], { bandTex: garageBand, skipRow: 1, noSign: true });
     } else rowsOf(1, 3, [3,4,5], { bandTex: garageBand, noSign: true });
     sidewalkRing(p => (rng() < .5 ? tireList : drumList).push({ ...p, y: .15 }), 3.5, .5);
@@ -324,7 +326,7 @@ function buildBlock(j, k, cx, cz){
     const gp = []; for (const s of [-1,1]){ const gx = cx + s*15.2; box(gp, .14,2.2,.14, gx,1.25,cz-3, '#ffffff'); box(gp, .14,2.2,.14, gx,1.25,cz+3, '#ffffff'); box(gp, .14,.14,6.1, gx,2.35,cz, '#ffffff'); }
     for (let t=-16; t<=16; t+=2){ box(gp, .08,1.6,.08, cx+t,.95,cz-12, '#556'); box(gp, .08,1.6,.08, cx+t,.95,cz+12, '#556'); }
     for (const [x,z] of [[-17,-12],[17,-12],[-17,12],[17,12]]){ box(gp, .3,9,.3, cx+x,4.65,cz+z, '#666'); box(gp, 1.6,.8,.4, cx+x,9.2,cz+z, '#eee'); }
-    const gm = new THREE.Mesh(mergeGeometries(gp), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .5, metalness: .3 })); gm.castShadow = true; scene.add(gm);
+    const gm = new THREE.Mesh(mergeGeometries(gp), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .5, metalness: .3 })); gm.castShadow = true; gm.name = 'pitchGear'; scene.add(gm);
     obstacles.push({ minX: cx-16, maxX: cx+16, minZ: cz-12.2, maxZ: cz-11.8 });
   } else if (type === 'port' || type === 'showroom'){
     // built in 04b-alexandria.js
@@ -355,11 +357,13 @@ function buildBlock(j, k, cx, cz){
   }
 }
 
-for (let j=0;j<NXB;j++) for (let k=0;k<NZB;k++) buildBlock(j, k, X0 + PITCH/2 + j*PITCH, Z0 + PITCH/2 + k*PITCH);
+if (MERGED) for (const s of STORYP) buildBlock(s.j, s.kk, X0 + PITCH/2 + s.j*PITCH + s.dx, Z0 + PITCH/2 + s.kk*PITCH + s.dz);
+else for (let j=0;j<NXB;j++) for (let k=0;k<NZB;k++) buildBlock(j, k, X0 + PITCH/2 + j*PITCH, Z0 + PITCH/2 + k*PITCH);
 const REMOTE = CITY && CITY.remote ? CITY.remote : [];
 for (const r of REMOTE) for (let j = r.j0; j <= r.j1; j++) for (let k = r.k0; k <= r.k1; k++) buildBlock(j, k, X0 + PITCH/2 + j*PITCH + r.dx, Z0 + PITCH/2 + k*PITCH + r.dz);
 
 // river promenade, palms and benches along the Nile, and the bridge
+if (!MERGED){
 {
   // the stairs: stone steps between two low walls, down below the water
   for (const s of SEA_STAIRS){
@@ -396,6 +400,7 @@ for (let x = X0 - 4; x <= XMAX + 4; x += 9){ if (Math.abs(x - BRIDGE.x) < 9) con
   const gantry = []; for (const s of [-1,1]) box(gantry, .25, 5.4, .25, BRIDGE.x + s*3.2, 2.7, NILE_Z - 1.3, '#3c4652'); box(gantry, 6.8, .25, .25, BRIDGE.x, 4.6, NILE_Z - 1.3, '#3c4652');
   scene.add(new THREE.Mesh(mergeGeometries(gantry), new THREE.MeshStandardMaterial({ vertexColors: true, metalness: .5, roughness: .4 }))); }
 }
+}
 // fishing boats on the sea (the array keeps its old name: 24 moves and rocks them)
 const feluccas = [];
 for (let i=0;i<9;i++){
@@ -407,12 +412,14 @@ for (let i=0;i<9;i++){
   const hull = new THREE.Mesh(mergeGeometries(p), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .6 })); hull.castShadow = true; g.add(hull);
   // most boats sit at anchor off the corniche; a few chug slowly along
   const moving = i < 3;
-  g.position.set(moving ? R(-260, 60) : R(-120, 90), -1.0, moving ? R(NILE_Z + 60, NILE_Z + 220) : R(NILE_Z + 14, NILE_Z + 70));
+  if (MERGED){ let x = 0, z = 0; for (let tr = 0; tr < 30; tr++){ x = PIER.x0 + R(-140, 140); z = PIER.z1 + (moving ? R(40, 200) : R(-10, 60)); if (cityR(x, z) === 0 && cityR(x, z + 8) === 0 && cityR(x + 6, z) === 0 && cityR(x - 6, z) === 0) break; } g.position.set(x, -1.0, z); }   // round the moved port, in open water
+  else g.position.set(moving ? R(-260, 60) : R(-120, 90), -1.0, moving ? R(NILE_Z + 60, NILE_Z + 220) : R(NILE_Z + 14, NILE_Z + 70));
   g.rotation.y = moving ? Math.PI/2 * (rng() < .5 ? 1 : -1) : R(0, 6.28); scene.add(g); feluccas.push({ g, sp: moving ? R(1.2, 2.2) * (g.rotation.y > 0 ? 1 : -1) : 0, ph: R(0, 6) });
 }
 
 // road markings, lamps and street parking
 const blockAt = (x, z) => blocksInfo.find(b => Math.abs(x-b.cx) < BW/2 + .5 && Math.abs(z-b.cz) < BW/2 + .5);
+if (!MERGED){
 for (let k=0;k<ROADS_Z.length;k++) for (let s=0;s<NXB;s++){       // east-west roads
   const z = ROADS_Z[k], a = ROADS_X[s]+7.5, b = ROADS_X[s+1]-7.5;
   for (let q=a; q<b-2; q+=6) whiteMarks.push({ x:q+1.5, y:.012, z, sx:3, sy:1, sz:.14 });
@@ -437,6 +444,7 @@ for (const xi of ROADS_X) for (const zi of ROADS_Z) for (const [dx,dz] of [[1,0]
   for (let q=-5;q<=5;q+=1.1){ if (dx) whiteMarks.push({ x: ex, y:.013, z: zi+q, sx: 2.6, sy:1, sz:.55 }); else whiteMarks.push({ x: xi+q, y:.013, z: ez, sx:.55, sy:1, sz:2.6 }); }
 }
 for (const x of [6, 42]) yellowMarks.push({ x, y:.05, z:48, sx:.6, sy:5, sz:10 });
+}
 
 const markGeo = new THREE.BoxGeometry(1, .02, 1);
 instanced(markGeo, new THREE.MeshStandardMaterial({ color: 0xe8e6df, roughness: .8 }), whiteMarks, false);

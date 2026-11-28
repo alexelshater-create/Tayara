@@ -2,6 +2,9 @@
 // Everything is made in code with Web Audio (no sound files): the engine that rises and falls with speed,
 // tyres, doors, crashes, footsteps, punches, falls, the sea and gulls, crickets at night, the shisha, UI clicks.
 const SFX = { ready: false, stepD: 0, lastSp: 0, crashT: 0, gullT: 4, cricketT: 2, shishaT: 2, eng: null, skid: null, sea: null };
+// merged city: how far the nearest sea is (a ring of samples, refreshed every second)
+const SEAD = { t: 0, d: 99 };
+function seaDist(p){ const n = performance.now(); if (n - SEAD.t < 1000) return SEAD.d; SEAD.t = n; let d = 99; for (const r of [8, 20, 35, 55]){ for (let a = 0; a < 6.28; a += .52) if (cityR(p.x + Math.sin(a) * r, p.z + Math.cos(a) * r) === 0){ d = r; break; } if (d < 99) break; } return SEAD.d = d; }
 function sfxVol(x, z, r = 8){ const d = Math.hypot(camera.position.x - x, camera.position.z - z); return 1 / (1 + Math.max(0, d - 2) / r); }
 function loopNoise(type, freq, q = .7){
   if (!noiseBuf){ noiseBuf = AC.createBuffer(1, AC.sampleRate, AC.sampleRate); const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random()*2 - 1; }
@@ -57,7 +60,7 @@ function sfxUpdate(dt, t){
   // footsteps
   if (!v && playing && !hero.locked && !MOVE.air && !MOVE.swim && !MOVE.climb){ const sp = Math.hypot(hero.vel.x, hero.vel.z); if (sp > .5){ SFX.stepD += sp * dt; if (SFX.stepD > (sp > 5.4 ? 1.45 : .78)){ SFX.stepD = 0; stepSfx(sp); } } else SFX.stepD = .5; }
   // the sea along the corniche (louder as you get close, rolling like waves), wind, gulls by day, crickets at night
-  const p = v ? v.pos : hero.pos, toSea = Math.max(0, NILE_Z - p.z), near = clamp(1 - toSea / 55, 0, 1);
+  const p = v ? v.pos : hero.pos, toSea = MERGED ? seaDist(p) : Math.max(0, NILE_Z - p.z), near = clamp(1 - toSea / 55, 0, 1);
   const outside = state === 'play' && !HOUSE.inside && !ST.kind;
   ramp(SFX.sea.g.gain, muted || !outside ? 0 : near * (.045 + .03 * Math.sin(t * .5) + .015 * Math.sin(t * 1.3)), dt, 3);
   ramp(SFX.wind.g.gain, muted || !outside ? 0 : .006 + near * .012 + .004 * Math.sin(t * .23), dt, 2);

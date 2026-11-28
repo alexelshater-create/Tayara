@@ -52,3 +52,10 @@ Retargeting and clip playback have **not** been tested in the game.
 "Female with hijab" by hoyensze (https://sketchfab.com/3d-models/female-with-hijab-8fdcb1978bec43efa18f27ec64ae5b2e), licensed under CC BY 4.0, modified.
 "Malay lady with hijab" by norhafizah (https://sketchfab.com/3d-models/malay-lady-with-hijab-37c6e4506a9f4de0a5fb887d073689f4), licensed under CC BY 4.0, modified.
 "Anak SMA Hijab" by trisutrisno (https://sketchfab.com/3d-models/anak-sma-hijab-e9213e921c6a4f29b144b9bb58af25fe), licensed under CC BY 4.0, modified.
+
+## Police officers (batch sf3, 2026-11-28)
+
+| File | Based on | Author | Licence | URL | What we changed |
+|---|---|---|---|---|---|
+| `police-white.glb` | Casual Man -RIGGED- (`casual-man-polo.glb`) | NABEEL619 | CC BY 4.0 | https://sketchfab.com/3d-models/casual-man-rigged-304bad7d4e9b4addacb68c83e1a322cb | Egyptian summer uniform. Shirt and trousers repainted white, shoes black. Added and skinned to the Head/Shoulder/Hips bones: peaked cap (white crown, black band and visor, gold badge), black epaulettes with two gold stars, black belt with buckle. Same Mixamo skeleton, A-pose, 12.6k tris, one 512 px atlas. |
+| `police-black.glb` | same | NABEEL619 | CC BY 4.0 | same | Winter uniform. All-black shirt and trousers, black beret with gold badge, navy epaulettes with gold stars, belt. 12.6k tris, one 512 px atlas. |

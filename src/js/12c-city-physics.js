@@ -3,7 +3,8 @@
 if (CITY){
   const _inWorldOld = inWorld, _staticOld = staticBlocked, _groundOld = groundY, _losOld = lineOfSight;
   // you can be anywhere that isn't open sea (buildings are solid, not "outside the world")
-  inWorld = function(x, z){ return _inWorldOld(x, z) || (!inPatch(x, z) && cityR(x, z) !== 0); };   // the old map's own parts (the «حتة», its pier) first
+  const patchRim = (x, z) => Math.min(x - CPATCH[0], CPATCH[2] - x, z - CPATCH[1], CPATCH[3] - z) < 1.2;   // the last metre inside the «حتة»'s edge
+  inWorld = function(x, z){ return _inWorldOld(x, z) || ((!inPatch(x, z) || patchRim(x, z)) && cityR(x, z) !== 0); };   // the old map's own parts (the «حتة», its pier) first
   staticBlocked = function(x, z, pad = PR, feet){ return _staticOld(x, z, pad, feet) || cityBlocked(x, z, pad, feet); };
   // the pavement and the blocks are 15 cm above the road; inside a city building (only when standing on its roof) its roof
   groundY = function(x, z){

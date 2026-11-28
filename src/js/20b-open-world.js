@@ -187,7 +187,7 @@ const _owIsTheft = isTheft; isTheft = v => !v.owned && _owIsTheft(v);
 
 // ---- the 3 garages ----
 const GARAGES = [
-  { k: 'home', name: 'جراج البيت', at: [-14, 96] },
+  { k: 'home', name: 'جراج البيت', at: RELOC(-14, 96) },
   { k: 'corniche', name: 'جراج الكورنيش', at: [PL.corniche.x + 10, PL.corniche.z - 6] },
   { k: 'port', name: 'جراج الميناء', at: [PORT.door.x - 10, PORT.door.z + 6] },
 ];

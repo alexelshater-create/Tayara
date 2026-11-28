@@ -48,7 +48,7 @@ function grabPress(){ if (state !== 'play' || hero.veh || hero.locked) return; i
 // ---------- the hero's attacks ----------
 function fightTargets(range){
   const p = hero.pos; let best = null, bd = range;
-  for (const n of npcs){ if (n.state === 'hidden' || n.state === 'down' || n.state === 'sit' || !n.g.visible || n === (MEL.grab && MEL.grab.n)) continue; const d = Math.hypot(n.g.position.x - p.x, n.g.position.z - p.z); if (d < bd){ bd = d; best = { n, x: n.g.position.x, z: n.g.position.z, d }; } }
+  for (const n of npcs){ if (n.state === 'hidden' || n.state === 'down' || n.state === 'dead' || n.state === 'sit' || !n.g.visible || n === (MEL.grab && MEL.grab.n)) continue; const d = Math.hypot(n.g.position.x - p.x, n.g.position.z - p.z); if (d < bd){ bd = d; best = { n, x: n.g.position.x, z: n.g.position.z, d }; } }
   if (enemy.active && !enemy.ally && enemy.d.downT <= 0){ const d = enemy.pos.distanceTo(p); if (d < Math.max(bd, 1.9)){ bd = d; best = { enemy: true, x: enemy.pos.x, z: enemy.pos.z, d }; } }
   if (wanted.active && !wanted.caught){ const d = wanted.pos.distanceTo(p); if (d < 1.9 && d <= bd + .3) best = { wanted: true, x: wanted.pos.x, z: wanted.pos.z, d }; }
   if (thief.active && !thief.caught){ const d = thief.pos.distanceTo(p); if (d < 1.9) best = { thief: true, x: thief.pos.x, z: thief.pos.z, d }; }
@@ -100,7 +100,7 @@ function landStrike(A){
   else if (tg.cop) copHit(tg.cop, st.dmg * mult * (big ? 1.5 : 1));
 }
 function stillThere(tg){
-  if (tg.n){ if (tg.n.state === 'hidden' || tg.n.state === 'down') return false; tg.x = tg.n.g.position.x; tg.z = tg.n.g.position.z; return true; }
+  if (tg.n){ if (tg.n.state === 'hidden' || tg.n.state === 'down' || tg.n.state === 'dead') return false; tg.x = tg.n.g.position.x; tg.z = tg.n.g.position.z; return true; }
   if (tg.enemy){ if (!enemy.active || enemy.d.downT > 0) return false; tg.x = enemy.pos.x; tg.z = enemy.pos.z; return true; }
   if (tg.boss){ if (!boss.active) return false; tg.x = boss.pos.x; tg.z = boss.pos.z; return true; }
   if (tg.cop){ if (!tg.cop.on || tg.cop.state === 'down') return false; tg.x = tg.cop.pos.x; tg.z = tg.cop.pos.z; return true; }
@@ -160,7 +160,7 @@ function meleeDefend(dmg){
 function grabbable(){
   const p = hero.pos, fx = Math.sin(hero.d.yaw), fz = Math.cos(hero.d.yaw); let best = null, bd = 1.7;
   for (const n of npcs){
-    if (n.state === 'hidden' || n.state === 'down' || n.state === 'sit' || n.state === 'customer' || n.state === 'domino' || !n.g.visible || n.role === 'story') continue;
+    if (n.state === 'hidden' || n.state === 'down' || n.state === 'dead' || n.state === 'sit' || n.state === 'customer' || n.state === 'domino' || !n.g.visible || n.role === 'story') continue;
     const dx = n.g.position.x - p.x, dz = n.g.position.z - p.z, d = Math.hypot(dx, dz); if (d > bd || d < .2) continue;
     if ((dx * fx + dz * fz) / d < -.2) continue;
     if (n.mel && styleOf(n).noGrab && n.state !== 'stagger') continue;
@@ -191,7 +191,7 @@ function updateFlying(n, dt){
   const wall = staticBlocked(nx, nz, .3) || (typeof vehBlockedAt === 'function' && vehBlockedAt(nx, nz, .3, hero.veh));
   if (wall){ F.vx *= -.2; F.vz *= -.2; if (!F.slam){ F.slam = true; meleeHitNPC(n, 1.5, { big: true, heavy: true, push: 0, thrown: true }); thud(1); shake = Math.max(shake, .35); MEL.hitstop = .08; say(n, 'آآآه!', 1.2, 'angry'); } }
   else { p.x = nx; p.z = nz; }
-  for (const o of npcs){ if (o === n || o.state === 'hidden' || o.state === 'down' || o.state === 'sit' || !o.g.visible || (F.hit && F.hit.has(o))) continue; if (Math.hypot(o.g.position.x - p.x, o.g.position.z - p.z) < .8){ (F.hit || (F.hit = new Set())).add(o); if (o.mel || o.thug) meleeHitNPC(o, 1.5, { big: true, heavy: true, push: 3, from: p }); else npcHit(o, 1); F.vx *= .4; F.vz *= .4; } }
+  for (const o of npcs){ if (o === n || o.state === 'hidden' || o.state === 'down' || o.state === 'dead' || o.state === 'sit' || !o.g.visible || (F.hit && F.hit.has(o))) continue; if (Math.hypot(o.g.position.x - p.x, o.g.position.z - p.z) < .8){ (F.hit || (F.hit = new Set())).add(o); if (o.mel || o.thug) meleeHitNPC(o, 1.5, { big: true, heavy: true, push: 3, from: p }); else npcHit(o, 1); F.vx *= .4; F.vz *= .4; } }
   const gy = groundY(p.x, p.z);
   if (F.y <= gy){ p.y = gy; n.fly = null; thud(.8); if (staticBlocked(p.x, p.z, .25) && typeof freeSpot === 'function'){ const [fx2, fz2] = freeSpot(p.x, p.z); p.x = fx2; p.z = fz2; } } else p.y = F.y;
 }

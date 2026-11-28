@@ -217,7 +217,7 @@ function launchMolotov(T0){
   punchWhoosh();
 }
 function igniteAt(x, z){
-  const y = groundY(x, z), light = new THREE.PointLight(0xff7a1a, 6, 9, 2); light.position.set(x, y + 1, z); scene.add(light);
+  const y = groundY(x, z), light = lightGet(0xff7a1a, 6, 9, 2); light.position.set(x, y + 1, z);
   MOLO.fires.push({ x, z, y, r: 2.5, t: 6.5, light });
   noise(.5, 500, .7); noise(.3, 3800, .4); shake = Math.max(shake, .2);
   addMark(FX.pools, 30, scorchMat, new THREE.Vector3(x, y + .025, z), new THREE.Vector3(0, 1, 0), 2.3, 45);
@@ -233,7 +233,7 @@ function updateMolotovs(dt){
     if (!hero.veh && Math.hypot(hero.pos.x - f.x, hero.pos.z - f.z) < f.r){ f.hurt = (f.hurt || 0) - dt; if (f.hurt <= 0){ f.hurt = .5; heroDamage(6 * DIFF.dmg, 'fire'); } }
     for (const n of npcs){ if (n.state === 'hidden' || n.burnT > 0) continue; if (Math.hypot(n.g.position.x - f.x, n.g.position.z - f.z) < f.r){ n.burnT = 3; if (n.mel || n.thug) meleeHitNPC(n, 1.5, { big: true, heavy: true, push: 3, from: new THREE.Vector3(f.x, 0, f.z) }); else { npcHit(n, 2); n.fleeT = 8; } say(n, rpick(['نار!! نار!!', 'آآآه!']), 1.2, 'angry'); } }
     for (const v of vehicles) if (Math.hypot(v.pos.x - f.x, v.pos.z - f.z) < f.r) v.dmg = (v.dmg || 0) + dt * 4;
-    if (f.t <= 0){ scene.remove(f.light); MOLO.fires.splice(i, 1); }
+    if (f.t <= 0){ lightPut(f.light); MOLO.fires.splice(i, 1); }
   }
 }
 
